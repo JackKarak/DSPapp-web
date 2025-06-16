@@ -1,14 +1,14 @@
-// app/login.tsx
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
-import { Button, Text, TextInput } from 'react-native-paper';
+import { Button, Text, TextInput, useTheme } from 'react-native-paper';
 import { supabase } from '../../lib/supabase';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const router = useRouter();
+  const theme = useTheme();
 
   const handleLogin = async () => {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -17,34 +17,34 @@ export default function LoginScreen() {
     });
 
     if (error || !data?.user) {
-      Alert.alert('Error', error?.message || 'Could not log in.');
+      Alert.alert('Login Error', error?.message || 'Unable to sign in.');
       return;
     }
 
-    // Get user's profile
-    const { data: profiles, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('*')
+      .select('approved')
       .eq('id', data.user.id)
       .single();
 
-    if (profileError || !profiles) {
+    if (profileError || !profile) {
       Alert.alert('Error', 'Profile not found.');
       return;
     }
 
-    if (!profiles.approved) {
-      Alert.alert('Pending Approval', 'Your account is not yet approved by an admin.');
+    if (!profile.approved) {
+      Alert.alert('Pending Approval', 'Your account is not approved yet.');
       return;
     }
 
-    // Redirect to main app view
-    router.replace('/');
+    router.replace('/(tabs)/calendar');
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Log In</Text>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Text variant="headlineMedium" style={styles.title}>
+        DSP Login
+      </Text>
 
       <TextInput
         label="Email"
@@ -54,6 +54,7 @@ export default function LoginScreen() {
         keyboardType="email-address"
         style={styles.input}
       />
+
       <TextInput
         label="Password"
         value={password}
@@ -74,13 +75,10 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 24,
     justifyContent: 'center',
-    backgroundColor: '#fff',
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 24,
     textAlign: 'center',
+    marginBottom: 24,
   },
   input: {
     marginBottom: 16,

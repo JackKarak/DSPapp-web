@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import {
-    Alert,
-    Button,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Button,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
@@ -15,44 +15,54 @@ export default function AttendanceScreen() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!code.trim()) {
-      Alert.alert('⚠️ Missing Code', 'Please enter an attendance code.');
-      return;
-    }
+const handleSubmit = async () => {
+  if (!code.trim()) {
+    Alert.alert('⚠️ Missing Code', 'Please enter an attendance code.');
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    const { data: events, error } = await supabase
-      .from('events')
-      .select('*')
-      .eq('code', code.trim())
-      .eq('status', 'confirmed');
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-    if (error || !events || events.length === 0) {
-      setLoading(false);
-      Alert.alert('❌ Error', 'Invalid or expired code.');
-      return;
-    }
-
-    const event = events[0];
-
-    // TODO: Replace this with the actual authenticated user's ID
-    const user_id = 'test-user-id';
-
-    const { error: insertError } = await supabase
-      .from('event_registrations')
-      .insert({ event_id: event.id, user_id });
-
+  if (authError || !user) {
     setLoading(false);
+    Alert.alert('❌ Error', 'User not authenticated.');
+    return;
+  }
 
-    if (insertError) {
-      Alert.alert('❌ Error', insertError.message);
-    } else {
-      Alert.alert('✅ Success', `You have been marked present for "${event.title}"`);
-      setCode('');
-    }
-  };
+  const { data: events, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('code', code.trim())
+    .eq('status', 'confirmed');
+
+  if (error || !events || events.length === 0) {
+    setLoading(false);
+    Alert.alert('❌ Error', 'Invalid or expired code.');
+    return;
+  }
+
+  const event = events[0];
+  const user_id = user.id;
+
+  const { error: insertError } = await supabase
+    .from('event_registrations')
+    .insert({ event_id: event.id, user_id });
+
+  setLoading(false);
+
+  if (insertError) {
+    Alert.alert('❌ Error', insertError.message);
+  } else {
+    Alert.alert('✅ Success', `You have been marked present for "${event.title}"`);
+    setCode('');
+  }
+};
+
 
   return (
     <KeyboardAvoidingView
