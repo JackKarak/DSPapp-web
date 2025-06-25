@@ -2,14 +2,15 @@ import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, ImageBackground, StyleSheet } from 'react-native';
 import { MD3LightTheme, PaperProvider } from 'react-native-paper';
+import backgroundImage from '../assets/images/background.png'; // adjust path if needed
 
 const paperTheme = {
   ...MD3LightTheme,
   colors: {
     ...MD3LightTheme.colors,
-    primary: '#6C4AB6',
+    primary: '#330066',
     background: '#ffffff',
   },
 };
@@ -30,9 +31,23 @@ export default function RootLayout() {
   return (
     <PaperProvider theme={paperTheme}>
       <ThemeProvider value={DefaultTheme}>
-        <Slot />
-        <StatusBar style="auto" />
+        <ImageBackground source={backgroundImage} style={styles.background} resizeMode="cover">
+          <View style={styles.overlay}>
+            <Slot />
+            <StatusBar style="auto" />
+          </View>
+        </ImageBackground>
       </ThemeProvider>
     </PaperProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+  },
+});

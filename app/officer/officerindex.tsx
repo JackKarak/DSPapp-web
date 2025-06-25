@@ -1,9 +1,5 @@
-import { Text, View } from 'react-native';
+import { Redirect } from 'expo-router';
 
-export default function OfficerDashboard() {
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <Text>👔 Officer Dashboard</Text>
-    </View>
-  );
+export default function IndexRedirect() {
+  return <Redirect href="/officer/events" />;
 }

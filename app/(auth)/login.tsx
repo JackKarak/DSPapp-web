@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
-import { Button, Text, TextInput, useTheme } from 'react-native-paper';
 import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { Button, Text, TextInput, useTheme } from 'react-native-paper';
 import { supabase } from '../../lib/supabase';
 
 export default function LoginScreen() {
@@ -17,6 +17,23 @@ export default function LoginScreen() {
       return;
     }
 
+    // TEMPORARY HARDCODED ROUTES FOR TESTING
+    if (email.toLowerCase() === 'brother' && password === 'brother') {
+      router.replace('/(tabs)/brotherindex');
+      return;
+    }
+
+    if (email.toLowerCase() === 'exec' && password === 'exec') {
+      router.replace('/officer/officerindex');
+      return;
+    }
+
+    if (email.toLowerCase() === 'admin' && password === 'admin') {
+      router.replace('/president/presidentindex');
+      return;
+    }
+
+    // REAL LOGIN LOGIC
     setLoading(true);
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -61,7 +78,7 @@ export default function LoginScreen() {
       </Text>
 
       <TextInput
-        label="Email"
+        label="Email (try 'brother', 'exec', or 'admin')"
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
@@ -72,7 +89,7 @@ export default function LoginScreen() {
       />
 
       <TextInput
-        label="Password"
+        label="Password (same as email for test)"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
