@@ -1,7 +1,20 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { TouchableOpacity, Alert } from 'react-native';
+import { supabase } from '../../lib/supabase';
 
-export default function BrotherLayout() {
+export default function OfficerLayout() {
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      Alert.alert('Sign Out Failed', error.message);
+    } else {
+      router.replace('/(auth)/login');
+    }
+  };
+
   return (
     <Tabs
       screenOptions={{
@@ -11,12 +24,20 @@ export default function BrotherLayout() {
         headerStyle: { backgroundColor: '#330066' },
         headerTintColor: 'white',
         tabBarLabelStyle: { fontWeight: 'bold' },
+        headerRight: () => (
+          <TouchableOpacity
+            onPress={handleSignOut}
+            style={{ marginRight: 16 }}
+          >
+            <Ionicons name="log-out-outline" size={24} color="#fff" />
+          </TouchableOpacity>
+        ),
       }}
     >
       <Tabs.Screen
-        name="brotherindex"
+        name="officerindex"
         options={{
-          title: 'Home',
+          title: 'Officer Home',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
@@ -41,7 +62,7 @@ export default function BrotherLayout() {
         }}
       />
       <Tabs.Screen
-        name="attendance"
+        name="checkin"
         options={{
           title: 'Check In',
           tabBarIcon: ({ color, size }) => (
@@ -50,20 +71,11 @@ export default function BrotherLayout() {
         }}
       />
       <Tabs.Screen
-        name="newsletter"
+        name="manage"
         options={{
-          title: 'News',
+          title: 'Manage',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="newspaper-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="account"
-        options={{
-          title: 'Account',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-circle-outline" size={size} color={color} />
+            <Ionicons name="settings-outline" size={size} color={color} />
           ),
         }}
       />

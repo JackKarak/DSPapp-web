@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,46 +10,68 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 
 export default function SignupScreen() {
   const [name, setName] = useState('');
-  const [pledgeClass, setPledgeClass] = useState('');
+  const [pledgeClass, setPledgeClass] = useState('rho');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState('brother');
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
 
   const handleSignup = async () => {
-    if (!name || !pledgeClass || !email || !password) {
+    if (!name || !pledgeClass || !email || !password || !role) {
       Alert.alert('Missing Fields', 'Please fill in all fields.');
       return;
     }
 
     setLoading(true);
 
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-    });
+    try {
+      // Sign up the user
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
 
-    if (signUpError || !signUpData?.user) {
+      if (signUpError || !signUpData?.user?.id) {
+        throw new Error(signUpError?.message || 'Signup failed.');
+      }
+
+      const userId = signUpData.user.id;
+
+      // Insert into the users table
+      const { error: insertError } = await supabase.from('users').insert({
+        user_id: userId,
+        email,
+        name,
+        pledge_class: pledgeClass,
+        role,
+        approved: false,
+      });
+
+      if (insertError) {
+        console.error('Insert failed:', insertError.message);
+        throw new Error('Could not create user profile.');
+      }
+
+      if (!signUpData.session) {
+        Alert.alert('Success!', 'Check your email to confirm your signup.');
+      } else {
+        Alert.alert('Success!', 'Your account was created.');
+      }
+
+      router.replace('/(auth)/login');
+    } catch (error: any) {
+      Alert.alert('Signup Error', error.message);
+    } finally {
       setLoading(false);
-      Alert.alert('Signup Error', signUpError?.message || 'Signup failed.');
-      return;
     }
-
-    // Store temporary info for post-confirmation profile insert
-    await AsyncStorage.setItem('temp_name', name);
-    await AsyncStorage.setItem('temp_pledge_class', pledgeClass);
-
-    setLoading(false);
-
-    Alert.alert('Success!', 'Check your email to confirm your signup.');
-    router.replace('/(auth)/login');
   };
 
   return (
@@ -58,7 +80,6 @@ export default function SignupScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        {/* Back Button */}
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
@@ -73,13 +94,31 @@ export default function SignupScreen() {
           placeholderTextColor="#999"
         />
 
-        <TextInput
-          placeholder="Pledge Class (e.g., Fall 2024)"
-          value={pledgeClass}
-          onChangeText={setPledgeClass}
-          style={styles.input}
-          placeholderTextColor="#999"
-        />
+        <Text style={styles.label}>Pledge Class</Text>
+        <Picker
+          selectedValue={pledgeClass}
+          onValueChange={setPledgeClass}
+          style={styles.picker}
+        >
+          <Picker.Item label="Rho" value="rho" />
+          <Picker.Item label="Sigma" value="sigma" />
+          <Picker.Item label="Tau" value="tau" />
+          <Picker.Item label="Upsilon" value="upsilon" />
+          <Picker.Item label="Phi" value="phi" />
+          <Picker.Item label="Chi" value="chi" />
+          
+        </Picker>
+
+        <Text style={styles.label}>Role</Text>
+        <Picker
+          selectedValue={role}
+          onValueChange={setRole}
+          style={styles.picker}
+        >
+          <Picker.Item label="Brother" value="brother" />
+          <Picker.Item label="Officer" value="officer" />
+          <Picker.Item label="Admin" value="admin" />
+        </Picker>
 
         <TextInput
           placeholder="Email"
@@ -147,6 +186,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 20,
     color: '#000',
+  },
+  label: {
+    marginBottom: 6,
+    marginTop: 6,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#444',
+  },
+  picker: {
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 10,
   },
   button: {
     backgroundColor: '#330066',

@@ -77,35 +77,34 @@ export default function PointsScreen() {
         {pillarsMet} of {Object.keys(POINT_REQUIREMENTS).length} pillars met
       </Text>
 
+      {/* Header Row */}
+      <View className="flex-row px-2 py-2 bg-gray-100 border-b border-gray-300">
+        <Text className="flex-1 font-bold text-sm">Category</Text>
+        <Text className="w-20 text-right font-bold text-sm">Earned</Text>
+        <Text className="w-20 text-right font-bold text-sm">Required</Text>
+        <Text className="w-8 text-right font-bold text-sm">Met</Text>
+      </View>
+
+      {/* Table Rows */}
       {Object.entries(POINT_REQUIREMENTS).map(([category, required]) => {
         const earned = pointsByCategory[category] || 0;
         const met = earned >= required;
-        const percentage = Math.min((earned / required) * 100, 100);
 
         return (
           <View
             key={category}
-            className="mb-4 p-4 rounded-xl border border-gray-300 bg-gray-50 shadow-sm"
+            className="flex-row items-center px-2 py-2 border-b border-gray-200"
           >
-            <View className="flex-row justify-between items-center mb-1">
-              <Text className="text-base font-semibold capitalize">{category}</Text>
+            <Text className="flex-1 capitalize text-sm">{category}</Text>
+            <Text className="w-20 text-right text-sm">{earned}</Text>
+            <Text className="w-20 text-right text-sm">{required}</Text>
+            <View className="w-8 items-end">
               {met ? (
-                <FontAwesome name="check-circle" size={20} color="green" />
+                <FontAwesome name="check-circle" size={16} color="green" />
               ) : (
-                <FontAwesome name="times-circle" size={20} color="red" />
+                <FontAwesome name="times-circle" size={16} color="red" />
               )}
             </View>
-
-            <View className="h-2 w-full bg-gray-200 rounded-full overflow-hidden mb-2">
-              <View
-                className="bg-green-500 h-full"
-                style={{ width: `${percentage}%` }}
-              />
-            </View>
-
-            <Text className="text-sm text-gray-700">
-              {earned} / {required} points earned
-            </Text>
           </View>
         );
       })}

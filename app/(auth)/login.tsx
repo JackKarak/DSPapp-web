@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -25,7 +26,9 @@ export default function LoginScreen() {
     }
 
     setLoading(true);
+
     try {
+      // Step 1: Sign in
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -37,17 +40,18 @@ export default function LoginScreen() {
 
       const userId = authData.user.id;
 
-      // 1. Check if user profile exists
+      // Step 2: Try to fetch user profile
       const { data: profile, error: profileError } = await supabase
         .from('users')
-        .select('id')
+        .select('*')
         .eq('user_id', userId)
         .single();
 
+      // Step 3: If no profile, create one from temp storage
       if (!profile) {
-        // 2. Try to get stored values from AsyncStorage
         const name = await AsyncStorage.getItem('temp_name');
         const pledgeClass = await AsyncStorage.getItem('temp_pledge_class');
+        const role = (await AsyncStorage.getItem('temp_role')) || 'brother';
 
         if (name && pledgeClass) {
           const { error: insertError } = await supabase.from('users').insert({
@@ -55,41 +59,50 @@ export default function LoginScreen() {
             email,
             name,
             pledge_class: pledgeClass,
-            role: 'brother',
+            role,
             approved: false,
           });
 
           if (insertError) {
             console.error('Insert failed:', insertError.message);
-            throw new Error('Could not complete profile setup.');
+            throw new Error('Could not create your profile.');
           }
 
-          // 3. Clean up temp data
-          await AsyncStorage.removeItem('temp_name');
-          await AsyncStorage.removeItem('temp_pledge_class');
+          await AsyncStorage.multiRemove(['temp_name', 'temp_pledge_class', 'temp_role']);
         } else {
           throw new Error('Missing temporary profile information.');
         }
       }
 
-      // 4. Now fetch the profile again to check approval
+      // Step 4: Fetch final profile with approval + role
       const { data: finalProfile, error: finalProfileError } = await supabase
         .from('users')
-        .select('approved')
+        .select('approved, role')
         .eq('user_id', userId)
         .single();
 
       if (finalProfileError || !finalProfile) {
-        throw new Error('Profile not found.');
+        throw new Error('Could not retrieve profile.');
       }
 
-      if (!finalProfile.approved) {
+      const { approved, role } = finalProfile;
+
+      if (!approved) {
         Alert.alert('Pending Approval', 'Your account is not approved yet.');
         return;
       }
 
-      // 5. Navigate to the main app
-      router.replace('/(tabs)/calendar');
+      // Step 5: Navigate based on role
+      switch (role) {
+        case 'officer':
+          router.replace('/officer/officerindex');
+          break;
+        case 'admin':
+          router.replace('/president/presidentindex');
+          break;
+        default:
+          router.replace('/(tabs)/calendar');
+      }
     } catch (error: any) {
       Alert.alert('Login Error', error.message);
     } finally {
@@ -147,6 +160,12 @@ export default function LoginScreen() {
           Sign Up
         </Button>
       </View>
+
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#F7B910" />
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -174,5 +193,11 @@ const styles = StyleSheet.create({
   signupText: {
     marginBottom: 4,
     color: '#666',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

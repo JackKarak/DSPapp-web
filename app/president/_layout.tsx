@@ -1,8 +1,20 @@
-// app/president/_layout.tsx or _presidentlayout.tsx
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { TouchableOpacity, Alert } from 'react-native';
+import { supabase } from '../../lib/supabase';
 
 export default function PresidentLayout() {
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      Alert.alert('Sign Out Failed', error.message);
+    } else {
+      router.replace('/(auth)/login');
+    }
+  };
+
   return (
     <Tabs
       screenOptions={{
@@ -12,6 +24,11 @@ export default function PresidentLayout() {
         headerStyle: { backgroundColor: '#330066' },
         headerTintColor: 'white',
         tabBarLabelStyle: { fontWeight: 'bold' },
+        headerRight: () => (
+          <TouchableOpacity onPress={handleSignOut} style={{ marginRight: 16 }}>
+            <Ionicons name="log-out-outline" size={24} color="#fff" />
+          </TouchableOpacity>
+        ),
       }}
     >
       <Tabs.Screen
