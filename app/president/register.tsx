@@ -10,7 +10,9 @@ import {
   TextInput,
   View,
   ScrollView,
+  TouchableOpacity,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { supabase } from '../../lib/supabase';
 
 function generateRandomCode(length = 5) {
@@ -22,24 +24,20 @@ export default function OfficerRegisterEvent() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
-  const [date, setDate] = useState(new Date());
-  const [startTime, setStartTime] = useState(new Date());
-  const [endTime, setEndTime] = useState(new Date());
-  const [pointValue, setPointValue] = useState('');
+  const [startDateTime, setStartDateTime] = useState(new Date());
+  const [endDateTime, setEndDateTime] = useState(new Date());
+  const [pointType, setPointType] = useState('brotherhood');
   const [code, setCode] = useState('');
   const [isPledgeAvailable, setIsPledgeAvailable] = useState(false);
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [mode, setMode] = useState<'date' | 'time'>('date');
 
   useEffect(() => {
     setCode(generateRandomCode());
   }, []);
 
   const handleSubmit = async () => {
-    const eventDate = new Date(date);
-    const startDateTime = new Date(eventDate);
-    const endDateTime = new Date(eventDate);
-    startDateTime.setHours(startTime.getHours(), startTime.getMinutes());
-    endDateTime.setHours(endTime.getHours(), endTime.getMinutes());
-
     const { error } = await supabase.from('events').insert([
       {
         title,
@@ -47,7 +45,7 @@ export default function OfficerRegisterEvent() {
         location,
         start_time: startDateTime.toISOString(),
         end_time: endDateTime.toISOString(),
-        point_value: parseInt(pointValue),
+        point_type: pointType,
         code,
         available_to_pledges: isPledgeAvailable,
         status: 'pending',
@@ -62,13 +60,17 @@ export default function OfficerRegisterEvent() {
       setTitle('');
       setDescription('');
       setLocation('');
-      setDate(new Date());
-      setStartTime(new Date());
-      setEndTime(new Date());
-      setPointValue('');
+      setStartDateTime(new Date());
+      setEndDateTime(new Date());
+      setPointType('brotherhood');
       setIsPledgeAvailable(false);
       setCode(generateRandomCode());
     }
+  };
+
+  const showPicker = (type: 'start' | 'end', mode: 'date' | 'time') => {
+    setMode(mode);
+    type === 'start' ? setShowStartPicker(true) : setShowEndPicker(true);
   };
 
   return (
@@ -81,6 +83,7 @@ export default function OfficerRegisterEvent() {
           value={title}
           onChangeText={setTitle}
           style={styles.input}
+          placeholderTextColor="#666"
         />
 
         <TextInput
@@ -89,6 +92,7 @@ export default function OfficerRegisterEvent() {
           onChangeText={setDescription}
           style={styles.input}
           multiline
+          placeholderTextColor="#666"
         />
 
         <TextInput
@@ -96,49 +100,99 @@ export default function OfficerRegisterEvent() {
           value={location}
           onChangeText={setLocation}
           style={styles.input}
+          placeholderTextColor="#666"
         />
 
-        <Text style={styles.label}>Event Date:</Text>
-        <DateTimePicker
-          value={date}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(e, d) => d && setDate(d)}
-        />
+        <Text style={styles.label}>Start Date & Time:</Text>
+        <TouchableOpacity onPress={() => showPicker('start', 'date')} style={styles.dateButton}>
+          <Text style={styles.dateText}>{startDateTime.toLocaleDateString()}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => showPicker('start', 'time')} style={styles.dateButton}>
+          <Text style={styles.dateText}>
+            {startDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        </TouchableOpacity>
 
-        <Text style={styles.label}>Start Time:</Text>
-        <DateTimePicker
-          value={startTime}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(e, t) => t && setStartTime(t)}
-        />
+        <Text style={styles.label}>End Date & Time:</Text>
+        <TouchableOpacity onPress={() => showPicker('end', 'date')} style={styles.dateButton}>
+          <Text style={styles.dateText}>{endDateTime.toLocaleDateString()}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => showPicker('end', 'time')} style={styles.dateButton}>
+          <Text style={styles.dateText}>
+            {endDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        </TouchableOpacity>
 
-        <Text style={styles.label}>End Time:</Text>
-        <DateTimePicker
-          value={endTime}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={(e, t) => t && setEndTime(t)}
-        />
+        {showStartPicker && (
+          <View style={styles.pickerContainer}>
+            <DateTimePicker
+              value={startDateTime}
+              mode={mode}
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              textColor={Platform.OS === 'ios' ? '#000' : undefined}
+              onChange={(e, selectedDate) => {
+                setShowStartPicker(false);
+                if (selectedDate) {
+                  const updated = new Date(startDateTime);
+                  mode === 'date'
+                    ? updated.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate())
+                    : updated.setHours(selectedDate.getHours(), selectedDate.getMinutes());
+                  setStartDateTime(updated);
+                }
+              }}
+            />
+          </View>
+        )}
 
-        <TextInput
-          placeholder="Point Value"
-          value={pointValue}
-          onChangeText={setPointValue}
-          keyboardType="numeric"
-          style={styles.input}
-        />
+        {showEndPicker && (
+          <View style={styles.pickerContainer}>
+            <DateTimePicker
+              value={endDateTime}
+              mode={mode}
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              textColor={Platform.OS === 'ios' ? '#000' : undefined}
+              onChange={(e, selectedDate) => {
+                setShowEndPicker(false);
+                if (selectedDate) {
+                  const updated = new Date(endDateTime);
+                  mode === 'date'
+                    ? updated.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate())
+                    : updated.setHours(selectedDate.getHours(), selectedDate.getMinutes());
+                  setEndDateTime(updated);
+                }
+              }}
+            />
+          </View>
+        )}
+
+        <Text style={styles.label}>Point Type:</Text>
+        <View style={styles.pickerWrapper}>
+          <Picker
+            selectedValue={pointType}
+            onValueChange={setPointType}
+            dropdownIconColor="#330066"
+            style={{ color: '#000' }}  // Ensures the selected value is visible
+            itemStyle={{ color: '#000' }} // Ensures dropdown items are visible
+          >
+
+            <Picker.Item label="Brotherhood" value="brotherhood" />
+            <Picker.Item label="Service" value="service" />
+            <Picker.Item label="Professionalism" value="professionalism" />
+            <Picker.Item label="Scholarship" value="scholarship" />
+            <Picker.Item label="DEI" value="dei" />
+            <Picker.Item label="Health & Wellness" value="h&w" />
+            <Picker.Item label="Fundraising" value="fundraising" />
+          </Picker>
+        </View>
 
         <View style={styles.switchContainer}>
           <Text style={styles.label}>Available to Pledges?</Text>
-          <Switch
-            value={isPledgeAvailable}
-            onValueChange={setIsPledgeAvailable}
-          />
+          <Switch value={isPledgeAvailable} onValueChange={setIsPledgeAvailable} />
         </View>
 
-        <Text style={styles.label}>Attendance Code: <Text style={styles.code}>{code}</Text></Text>
+        <Text style={styles.label}>
+          Attendance Code: <Text style={styles.code}>{code}</Text>
+        </Text>
 
         <Button title="Submit Event" color="#330066" onPress={handleSubmit} />
       </View>
@@ -173,6 +227,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     fontSize: 16,
     backgroundColor: '#fff',
+    color: '#000',
   },
   label: {
     fontSize: 16,
@@ -190,5 +245,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 12,
+  },
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginBottom: 12,
+    backgroundColor: '#fff',
+  },
+  dateButton: {
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    marginBottom: 10,
+    backgroundColor: '#f9f9f9',
+  },
+  dateText: {
+    color: '#000',
+    fontSize: 16,
+  },
+  pickerContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    marginBottom: 16,
   },
 });

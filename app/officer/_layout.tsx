@@ -35,47 +35,29 @@ export default function OfficerLayout() {
       }}
     >
       <Tabs.Screen
-        name="officerindex"
+        name="analytics"
         options={{
-          title: 'Officer Home',
+          title: 'Analytics',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+            <Ionicons name="bar-chart-outline" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="calendar"
+        name="register"
         options={{
-          title: 'Calendar',
+          title: 'Register',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-add-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="events"
+        options={{
+          title: 'Events',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="points"
-        options={{
-          title: 'Points',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="star-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="checkin"
-        options={{
-          title: 'Check In',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="qr-code-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="manage"
-        options={{
-          title: 'Manage',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings-outline" size={size} color={color} />
           ),
         }}
       />

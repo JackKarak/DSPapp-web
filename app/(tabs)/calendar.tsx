@@ -22,16 +22,8 @@ type Event = {
   point_value: number;
 };
 
-type Announcement = {
-  id: string;
-  title: string;
-  message: string;
-  created_at: string;
-};
-
 export default function CalendarTab() {
   const [events, setEvents] = useState<Event[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [brotherName, setBrotherName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -59,9 +51,6 @@ export default function CalendarTab() {
         .eq('user_id', user.id)
         .single();
 
-      console.log('Fetched profile:', profile);
-      console.log('Profile error:', profileError);
-
       if (profileError || !profile) {
         Alert.alert('Profile Error', 'Missing or unauthorized profile data.');
         setLoading(false);
@@ -76,29 +65,17 @@ export default function CalendarTab() {
 
       setBrotherName(profile.name || 'Brother');
 
-      // Fetch events
+      // Fetch approved events only
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('*')
-        .eq('status', 'confirmed')
+        .eq('status', 'approved')
         .order('start_time', { ascending: true });
 
       if (eventsError) {
         console.error('Events error:', eventsError.message);
       } else {
         setEvents(eventsData || []);
-      }
-
-      // Fetch announcements
-      const { data: announcementsData, error: announcementsError } = await supabase
-        .from('announcements')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (announcementsError) {
-        console.error('Announcements error:', announcementsError.message);
-      } else {
-        setAnnouncements(announcementsData || []);
       }
 
       setLoading(false);
@@ -112,25 +89,11 @@ export default function CalendarTab() {
       <View style={styles.overlay}>
         <Text style={styles.welcome}>👋 Welcome, Brother {brotherName ?? '...'}</Text>
 
-        <Text style={styles.sectionHeader}>📢 Announcements</Text>
-        {loading ? (
-          <ActivityIndicator size="large" style={styles.loader} />
-        ) : announcements.length === 0 ? (
-          <Text style={styles.noContent}>No announcements yet.</Text>
-        ) : (
-          announcements.map((a) => (
-            <View key={a.id} style={styles.announcementCard}>
-              <Text style={styles.announcementTitle}>{a.title}</Text>
-              <Text style={styles.announcementMessage}>{a.message}</Text>
-            </View>
-          ))
-        )}
-
-        <Text style={styles.sectionHeader}>📅 Upcoming Events</Text>
+        <Text style={styles.sectionHeader}>🗓️ Upcoming Events</Text>
         {loading ? (
           <ActivityIndicator size="large" style={styles.loader} />
         ) : events.length === 0 ? (
-          <Text style={styles.noContent}>No confirmed events yet.</Text>
+          <Text style={styles.noContent}>No approved events yet.</Text>
         ) : (
           <FlatList
             data={events}
@@ -215,23 +178,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#F7B910',
-  },
-  announcementCard: {
-    backgroundColor: '#fff0e6',
-    borderWidth: 1,
-    borderColor: '#F7B910',
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-  announcementTitle: {
-    fontWeight: '600',
-    fontSize: 16,
-    color: '#C40043',
-    marginBottom: 4,
-  },
-  announcementMessage: {
-    fontSize: 14,
-    color: '#333',
   },
 });

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { FontAwesome } from '@expo/vector-icons';
+import ConfettiCannon from 'react-native-confetti-cannon';
 
 const POINT_REQUIREMENTS: Record<string, number> = {
   brotherhood: 10,
@@ -16,6 +17,8 @@ const POINT_REQUIREMENTS: Record<string, number> = {
 export default function PointsScreen() {
   const [pointsByCategory, setPointsByCategory] = useState<Record<string, number>>({});
   const [pillarsMet, setPillarsMet] = useState(0);
+  const [ranking, setRanking] = useState<number | null>(null);
+  const [triggerConfetti, setTriggerConfetti] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,28 +36,46 @@ export default function PointsScreen() {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data: pointData, error: pointError } = await supabase
         .from('points')
-        .select('category, points')
-        .eq('user_id', user.id);
+        .select('user_id, category, points');
 
-      if (error) {
-        console.error('Error fetching points:', error);
+      if (pointError || !pointData) {
+        console.error('Error fetching points:', pointError);
         setLoading(false);
         return;
       }
 
-      const totals: Record<string, number> = {};
-      data.forEach(({ category, points }: { category: string; points: number }) => {
-        totals[category] = (totals[category] || 0) + points;
+      const userPoints: Record<string, number> = {};
+      let totalPoints = 0;
+      const userTotals: Record<string, number> = {};
+
+      pointData.forEach(({ user_id, category, points }) => {
+        if (user_id === user.id) {
+          userPoints[category] = (userPoints[category] || 0) + points;
+          totalPoints += points;
+        }
+        userTotals[user_id] = (userTotals[user_id] || 0) + points;
       });
 
       const metCount = Object.entries(POINT_REQUIREMENTS).reduce((count, [cat, required]) => {
-        return totals[cat] >= required ? count + 1 : count;
+        return userPoints[cat] >= required ? count + 1 : count;
       }, 0);
 
-      setPointsByCategory(totals);
+      // Determine ranking
+      const sorted = Object.entries(userTotals)
+        .sort((a, b) => b[1] - a[1])
+        .map(([uid]) => uid);
+      const place = sorted.indexOf(user.id) + 1;
+
+      setPointsByCategory(userPoints);
       setPillarsMet(metCount);
+      setRanking(place);
+
+      if (metCount >= Object.keys(POINT_REQUIREMENTS).length) {
+        setTriggerConfetti(true);
+      }
+
       setLoading(false);
     };
 
@@ -63,26 +84,27 @@ export default function PointsScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 justify-center items-center">
+      <View style={styles.centered}>
         <ActivityIndicator size="large" />
-        <Text className="mt-4 text-gray-500">Loading point data...</Text>
+        <Text style={styles.grayText}>Loading point data...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView className="flex-1 bg-white p-4">
-      <Text className="text-2xl font-bold mb-2 text-center">Your Point Audit</Text>
-      <Text className="text-center text-gray-600 mb-4">
+    <ScrollView style={styles.container}>
+      <Text style={styles.title}>Your Point Audit</Text>
+      <Text style={styles.subtitle}>
         {pillarsMet} of {Object.keys(POINT_REQUIREMENTS).length} pillars met
       </Text>
+      <Text style={styles.rank}>You are currently #{ranking} in total points</Text>
 
       {/* Header Row */}
-      <View className="flex-row px-2 py-2 bg-gray-100 border-b border-gray-300">
-        <Text className="flex-1 font-bold text-sm">Category</Text>
-        <Text className="w-20 text-right font-bold text-sm">Earned</Text>
-        <Text className="w-20 text-right font-bold text-sm">Required</Text>
-        <Text className="w-8 text-right font-bold text-sm">Met</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.headerCell}>Category</Text>
+        <Text style={styles.headerCell}>Earned</Text>
+        <Text style={styles.headerCell}>Required</Text>
+        <Text style={styles.headerCell}>Met</Text>
       </View>
 
       {/* Table Rows */}
@@ -91,14 +113,11 @@ export default function PointsScreen() {
         const met = earned >= required;
 
         return (
-          <View
-            key={category}
-            className="flex-row items-center px-2 py-2 border-b border-gray-200"
-          >
-            <Text className="flex-1 capitalize text-sm">{category}</Text>
-            <Text className="w-20 text-right text-sm">{earned}</Text>
-            <Text className="w-20 text-right text-sm">{required}</Text>
-            <View className="w-8 items-end">
+          <View key={category} style={styles.row}>
+            <Text style={styles.cell}>{category}</Text>
+            <Text style={styles.cell}>{earned}</Text>
+            <Text style={styles.cell}>{required}</Text>
+            <View style={styles.iconCell}>
               {met ? (
                 <FontAwesome name="check-circle" size={16} color="green" />
               ) : (
@@ -108,6 +127,73 @@ export default function PointsScreen() {
           </View>
         );
       })}
+
+      {triggerConfetti && <ConfettiCannon count={150} origin={{ x: 200, y: -20 }} fadeOut={true} />}
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: 'white',
+    padding: 16,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    color: '#666',
+    marginBottom: 4,
+  },
+  rank: {
+    fontSize: 16,
+    textAlign: 'center',
+    fontWeight: '600',
+    color: '#330066',
+    marginBottom: 12,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    backgroundColor: '#eee',
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  headerCell: {
+    flex: 1,
+    fontWeight: 'bold',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  row: {
+    flexDirection: 'row',
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+    alignItems: 'center',
+  },
+  cell: {
+    flex: 1,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  iconCell: {
+    width: 24,
+    alignItems: 'center',
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  grayText: {
+    marginTop: 8,
+    color: '#888',
+  },
+});
