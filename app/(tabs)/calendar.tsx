@@ -24,6 +24,7 @@ type Event = {
 
 export default function CalendarTab() {
   const [events, setEvents] = useState<Event[]>([]);
+  const [registeredEventIds, setRegisteredEventIds] = useState<string[]>([]);
   const [brotherName, setBrotherName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -44,7 +45,6 @@ export default function CalendarTab() {
         return;
       }
 
-      // Fetch profile
       const { data: profile, error: profileError } = await supabase
         .from('users')
         .select('name, approved')
@@ -65,7 +65,6 @@ export default function CalendarTab() {
 
       setBrotherName(profile.name || 'Brother');
 
-      // Fetch approved events only
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('*')
@@ -78,11 +77,54 @@ export default function CalendarTab() {
         setEvents(eventsData || []);
       }
 
+      // Fetch registered events for this user
+      const { data: registrations, error: regError } = await supabase
+        .from('event_registration')
+        .select('event_id')
+        .eq('user_id', user.id);
+
+      if (regError) {
+        console.error('Registration fetch error:', regError.message);
+      } else {
+        setRegisteredEventIds(registrations.map((r) => r.event_id));
+      }
+
       setLoading(false);
     };
 
     fetchData();
   }, []);
+
+  const handleRegister = async (eventId: string) => {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      Alert.alert('Error', 'Could not find user session.');
+      return;
+    }
+
+    const { error } = await supabase.from('event_registration').insert([
+      {
+        user_id: user.id,
+        event_id: eventId,
+      },
+    ]);
+
+    if (error) {
+      if (error.code === '23505') {
+        Alert.alert('Already Registered', 'You are already registered for this event.');
+      } else {
+        console.error('Registration error:', error.message);
+        Alert.alert('Registration Failed', error.message);
+      }
+    } else {
+      Alert.alert('Success', 'You have been registered for the event!');
+      setRegisteredEventIds((prev) => [...prev, eventId]);
+    }
+  };
 
   return (
     <ImageBackground source={backgroundImg} style={styles.background}>
@@ -99,18 +141,41 @@ export default function CalendarTab() {
             data={events}
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={styles.listContainer}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.card}
-                onPress={() => router.push(`/event/${item.id}`)}
-              >
-                <Text style={styles.title}>{item.title}</Text>
-                <Text style={styles.details}>
-                  {new Date(item.start_time).toLocaleString()} @ {item.location}
-                </Text>
-                <Text style={styles.points}>🎯 {item.point_value} pts</Text>
-              </TouchableOpacity>
-            )}
+            renderItem={({ item }) => {
+              const isRegistered = registeredEventIds.includes(item.id);
+
+              return (
+                <View style={styles.card}>
+                  <Text style={styles.title}>{item.title}</Text>
+                  <Text style={styles.details}>
+                    {new Date(item.start_time).toLocaleString()} @ {item.location}
+                  </Text>
+                  <Text style={styles.points}>🎯 {item.point_type} pts</Text>
+
+                  <View style={styles.buttonRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.button,
+                        isRegistered ? styles.buttonRegistered : styles.buttonRegister,
+                      ]}
+                      disabled={isRegistered}
+                      onPress={() => handleRegister(item.id)}
+                    >
+                      <Text style={styles.buttonText}>
+                        {isRegistered ? 'Registered ✅' : 'Register'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.button, styles.detailsButton]}
+                      onPress={() => router.push(`/event/${item.id}`)}
+                    >
+                      <Text style={styles.buttonText}>Details</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            }}
           />
         )}
       </View>
@@ -178,5 +243,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#F7B910',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+  button: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  buttonRegister: {
+    backgroundColor: '#F7B910',
+  },
+  buttonRegistered: {
+    backgroundColor: '#ADAFAA',
+  },
+  detailsButton: {
+    backgroundColor: '#330066',
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });
