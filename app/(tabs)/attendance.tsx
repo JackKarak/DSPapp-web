@@ -15,54 +15,79 @@ export default function AttendanceScreen() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
 
-const handleSubmit = async () => {
-  if (!code.trim()) {
-    Alert.alert('⚠️ Missing Code', 'Please enter an attendance code.');
-    return;
-  }
+  const handleSubmit = async () => {
+    if (!code.trim()) {
+      Alert.alert('⚠️ Missing Code', 'Please enter an attendance code.');
+      return;
+    }
 
-  setLoading(true);
+    setLoading(true);
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
-  if (authError || !user) {
+    if (authError || !user) {
+      setLoading(false);
+      Alert.alert('❌ Error', 'User not authenticated.');
+      return;
+    }
+
+    // Check if the code is valid for an approved event
+    const { data: events, error: eventError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('code', code.trim())
+      .eq('status', 'approved');
+
+    if (eventError || !events || events.length === 0) {
+      setLoading(false);
+      Alert.alert('❌ Error', 'Invalid or expired code.');
+      return;
+    }
+
+    const event = events[0];
+
+    // Check if user already recorded attendance
+    const { data: existing, error: checkError } = await supabase
+      .from('event_attendance')
+      .select('id')
+      .eq('event_id', event.id)
+      .eq('user_id', user.id);
+
+    if (checkError) {
+      setLoading(false);
+      Alert.alert('❌ Error', checkError.message);
+      return;
+    }
+
+    if (existing.length > 0) {
+      setLoading(false);
+      Alert.alert('ℹ️ Already Checked In', 'You’ve already been marked present for this event.');
+      return;
+    }
+
+    const { error: insertError } = await supabase
+      .from('event_attendance')
+      .insert([
+        {
+          event_id: event.id,
+          user_id: user.id,
+          scanned_by: user.id, // optional: record who scanned if you want
+          attended_at: new Date().toISOString(),
+        },
+      ]);
+
     setLoading(false);
-    Alert.alert('❌ Error', 'User not authenticated.');
-    return;
-  }
 
-  const { data: events, error } = await supabase
-    .from('events')
-    .select('*')
-    .eq('code', code.trim())
-    .eq('status', 'confirmed');
-
-  if (error || !events || events.length === 0) {
-    setLoading(false);
-    Alert.alert('❌ Error', 'Invalid or expired code.');
-    return;
-  }
-
-  const event = events[0];
-  const user_id = user.id;
-
-  const { error: insertError } = await supabase
-    .from('event_registrations')
-    .insert({ event_id: event.id, user_id });
-
-  setLoading(false);
-
-  if (insertError) {
-    Alert.alert('❌ Error', insertError.message);
-  } else {
-    Alert.alert('✅ Success', `You have been marked present for "${event.title}"`);
-    setCode('');
-  }
-};
-
+    if (insertError) {
+      Alert.alert('❌ Error', insertError.message);
+    } else {
+      Alert.alert('✅ Success', `You have been marked present for "${event.title}".`);
+      setCode('');
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -120,3 +145,4 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
+

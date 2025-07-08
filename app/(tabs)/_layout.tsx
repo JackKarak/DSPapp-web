@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { TouchableOpacity, Alert } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
-export default function OfficerLayout() {
+export default function BrotherLayout() {
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -18,10 +18,10 @@ export default function OfficerLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#F7B910',  // Gold
+        tabBarActiveTintColor: '#F7B910', // Gold
         tabBarInactiveTintColor: '#ADAFAA', // Silver
         tabBarStyle: {
-          backgroundColor: '#330066', // Purple
+          backgroundColor: '#330066',
           borderTopColor: '#ADAFAA',
         },
         headerStyle: {
@@ -31,6 +31,11 @@ export default function OfficerLayout() {
         tabBarLabelStyle: {
           fontWeight: 'bold',
         },
+        headerRight: () => (
+          <TouchableOpacity onPress={handleSignOut} style={{ marginRight: 15 }}>
+            <Ionicons name="log-out-outline" size={24} color="#fff" />
+          </TouchableOpacity>
+        ),
       }}
     >
       <Tabs.Screen
@@ -75,11 +80,6 @@ export default function OfficerLayout() {
           title: 'Account',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
-          ),
-          headerRight: () => (
-            <TouchableOpacity onPress={handleSignOut} style={{ marginRight: 15 }}>
-              <Ionicons name="log-out-outline" size={24} color="#fff" />
-            </TouchableOpacity>
           ),
         }}
       />

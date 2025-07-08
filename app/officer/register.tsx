@@ -1,3 +1,4 @@
+// OfficerRegisterEvent.tsx
 import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
 import {
@@ -53,7 +54,6 @@ export default function OfficerRegisterEvent() {
     ]);
 
     if (error) {
-      console.error(error);
       Alert.alert('Error', error.message);
     } else {
       Alert.alert('Success', 'Event created and pending approval.');
@@ -71,6 +71,28 @@ export default function OfficerRegisterEvent() {
   const showPicker = (type: 'start' | 'end', mode: 'date' | 'time') => {
     setMode(mode);
     type === 'start' ? setShowStartPicker(true) : setShowEndPicker(true);
+  };
+
+  const onDateChange = (
+    selectedDate: Date | undefined,
+    type: 'start' | 'end'
+  ) => {
+    const currentDate = selectedDate || (type === 'start' ? startDateTime : endDateTime);
+    if (type === 'start') {
+      const updated = new Date(startDateTime);
+      mode === 'date'
+        ? updated.setFullYear(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate())
+        : updated.setHours(currentDate.getHours(), currentDate.getMinutes());
+      setStartDateTime(updated);
+      setShowStartPicker(Platform.OS === 'ios');
+    } else {
+      const updated = new Date(endDateTime);
+      mode === 'date'
+        ? updated.setFullYear(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate())
+        : updated.setHours(currentDate.getHours(), currentDate.getMinutes());
+      setEndDateTime(updated);
+      setShowEndPicker(Platform.OS === 'ios');
+    }
   };
 
   return (
@@ -123,46 +145,16 @@ export default function OfficerRegisterEvent() {
           </Text>
         </TouchableOpacity>
 
-        {showStartPicker && (
-          <View style={styles.pickerContainer}>
-            <DateTimePicker
-              value={startDateTime}
-              mode={mode}
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              textColor={Platform.OS === 'ios' ? '#000' : undefined}
-              onChange={(e, selectedDate) => {
-                setShowStartPicker(false);
-                if (selectedDate) {
-                  const updated = new Date(startDateTime);
-                  mode === 'date'
-                    ? updated.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate())
-                    : updated.setHours(selectedDate.getHours(), selectedDate.getMinutes());
-                  setStartDateTime(updated);
-                }
-              }}
-            />
-          </View>
-        )}
-
-        {showEndPicker && (
-          <View style={styles.pickerContainer}>
-            <DateTimePicker
-              value={endDateTime}
-              mode={mode}
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              textColor={Platform.OS === 'ios' ? '#000' : undefined}
-              onChange={(e, selectedDate) => {
-                setShowEndPicker(false);
-                if (selectedDate) {
-                  const updated = new Date(endDateTime);
-                  mode === 'date'
-                    ? updated.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate())
-                    : updated.setHours(selectedDate.getHours(), selectedDate.getMinutes());
-                  setEndDateTime(updated);
-                }
-              }}
-            />
-          </View>
+        {(showStartPicker || showEndPicker) && (
+          <DateTimePicker
+            value={showStartPicker ? startDateTime : endDateTime}
+            mode={mode}
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(event, selectedDate) =>
+              onDateChange(selectedDate, showStartPicker ? 'start' : 'end')
+            }
+            textColor={Platform.OS === 'ios' ? '#000' : undefined}
+          />
         )}
 
         <Text style={styles.label}>Point Type:</Text>
@@ -171,10 +163,9 @@ export default function OfficerRegisterEvent() {
             selectedValue={pointType}
             onValueChange={setPointType}
             dropdownIconColor="#330066"
-            style={{ color: '#000' }}  // Ensures the selected value is visible
-            itemStyle={{ color: '#000' }} // Ensures dropdown items are visible
+            style={{ color: '#000' }}
+            itemStyle={{ color: '#000' }}
           >
-
             <Picker.Item label="Brotherhood" value="brotherhood" />
             <Picker.Item label="Service" value="service" />
             <Picker.Item label="Professionalism" value="professionalism" />
@@ -265,10 +256,5 @@ const styles = StyleSheet.create({
   dateText: {
     color: '#000',
     fontSize: 16,
-  },
-  pickerContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    marginBottom: 16,
   },
 });

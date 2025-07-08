@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 export default function OfficerLayout() {
   const router = useRouter();
 
-  const handleSignOut = async () => {
+  const handleSignOut: () => Promise<void> = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
       Alert.alert('Sign Out Failed', error.message);
@@ -18,17 +18,14 @@ export default function OfficerLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarStyle: { backgroundColor: '#330066' }, // Purple
-        tabBarActiveTintColor: '#F7B910', // Gold
-        tabBarInactiveTintColor: '#ADAFAA', // Silver
+        tabBarStyle: { backgroundColor: '#330066' },
+        tabBarActiveTintColor: '#F7B910',
+        tabBarInactiveTintColor: '#ADAFAA',
         headerStyle: { backgroundColor: '#330066' },
         headerTintColor: 'white',
         tabBarLabelStyle: { fontWeight: 'bold' },
         headerRight: () => (
-          <TouchableOpacity
-            onPress={handleSignOut}
-            style={{ marginRight: 16 }}
-          >
+          <TouchableOpacity onPress={handleSignOut} style={{ marginRight: 16 }}>
             <Ionicons name="log-out-outline" size={24} color="#fff" />
           </TouchableOpacity>
         ),

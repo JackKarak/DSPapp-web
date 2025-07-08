@@ -6,16 +6,16 @@ import {
   ActivityIndicator,
   ScrollView,
   Dimensions,
+  ImageBackground,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { PieChart } from 'react-native-chart-kit';
-import { ImageBackground } from 'react-native';
 import backgroundImg from '../../assets/images/background.png';
 
 type Event = {
   point_value: number;
-  attendees: string[]; // array of user_ids
+  attendees: string[];
   rating: number | null;
   category: string;
 };
@@ -28,7 +28,7 @@ export default function OfficerAnalytics() {
   const [averageRating, setAverageRating] = useState<number>(0);
   const [averageSize, setAverageSize] = useState<number>(0);
   const [pointDistribution, setPointDistribution] = useState<
-    { name: string; points: number }[]
+    { name: string; points: number; color: string; legendFontColor: string; legendFontSize: number }[]
   >([]);
 
   useEffect(() => {
@@ -114,34 +114,19 @@ export default function OfficerAnalytics() {
 
             <View style={styles.metricCard}>
               <Text style={styles.metricTitle}>📈 Point Distribution</Text>
-              
-<PieChart
-  data={[
-    {
-      name: 'Brotherhood',
-      population: 45,
-      color: '#330066',
-      legendFontColor: '#7F7F7F',
-      legendFontSize: 15,
-    },
-    {
-      name: 'Service',
-      population: 30,
-      color: '#F7B910',
-      legendFontColor: '#7F7F7F',
-      legendFontSize: 15,
-    },
-  ]}
-  width={screenWidth}
-  height={220}
-  chartConfig={{
-    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-  }}
-  accessor={'population'}
-  backgroundColor={'transparent'}
-  paddingLeft={'15'}
-  absolute
-/>
+
+              <PieChart
+                data={pointDistribution}
+                width={screenWidth}
+                height={220}
+                chartConfig={{
+                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                }}
+                accessor={'points'}
+                backgroundColor={'transparent'}
+                paddingLeft={'15'}
+                absolute
+              />
             </View>
 
             <View style={styles.metricCard}>
@@ -174,7 +159,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   metricCard: {
-    backgroundColor: '#f2f2ff',
+    backgroundColor: 'rgba(242, 242, 255, 0.6)', // mostly transparent lavender
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,

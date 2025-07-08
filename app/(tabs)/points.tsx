@@ -17,7 +17,6 @@ const POINT_REQUIREMENTS: Record<string, number> = {
 export default function PointsScreen() {
   const [pointsByCategory, setPointsByCategory] = useState<Record<string, number>>({});
   const [pillarsMet, setPillarsMet] = useState(0);
-  const [ranking, setRanking] = useState<number | null>(null);
   const [triggerConfetti, setTriggerConfetti] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -36,42 +35,55 @@ export default function PointsScreen() {
         return;
       }
 
-      const { data: pointData, error: pointError } = await supabase
-        .from('points')
-        .select('user_id, category, points');
+      const { data: attended, error: attendedError } = await supabase
+        .from('event_attendance')
+        .select('event_id')
+        .eq('user_id', user.id);
 
-      if (pointError || !pointData) {
-        console.error('Error fetching points:', pointError);
+      const { data: registered, error: registeredError } = await supabase
+        .from('event_registration')
+        .select('event_id')
+        .eq('user_id', user.id);
+
+      if (attendedError || registeredError) {
+        console.error('Fetch error:', attendedError || registeredError);
         setLoading(false);
         return;
       }
 
-      const userPoints: Record<string, number> = {};
-      let totalPoints = 0;
-      const userTotals: Record<string, number> = {};
+      const attendedEventIds = attended.map((a) => a.event_id);
+      const registeredEventIds = registered.map((r) => r.event_id);
+      const uniqueEventIds = [...new Set(attendedEventIds)];
 
-      pointData.forEach(({ user_id, category, points }) => {
-        if (user_id === user.id) {
-          userPoints[category] = (userPoints[category] || 0) + points;
-          totalPoints += points;
+      const { data: events, error: eventsError } = await supabase
+        .from('events')
+        .select('id, point_type')
+        .in('id', uniqueEventIds);
+
+      if (eventsError) {
+        console.error('Events error:', eventsError);
+        setLoading(false);
+        return;
+      }
+
+      const categoryPoints: Record<string, number> = {};
+
+      events.forEach((event) => {
+        const wasRegistered = registeredEventIds.includes(event.id);
+        const pointsEarned = wasRegistered ? 1.5 : 1;
+        const category = event.point_type;
+
+        if (category) {
+          categoryPoints[category] = (categoryPoints[category] || 0) + pointsEarned;
         }
-        userTotals[user_id] = (userTotals[user_id] || 0) + points;
       });
 
       const metCount = Object.entries(POINT_REQUIREMENTS).reduce((count, [cat, required]) => {
-        return userPoints[cat] >= required ? count + 1 : count;
+        return (categoryPoints[cat] || 0) >= required ? count + 1 : count;
       }, 0);
 
-      // Determine ranking
-      const sorted = Object.entries(userTotals)
-        .sort((a, b) => b[1] - a[1])
-        .map(([uid]) => uid);
-      const place = sorted.indexOf(user.id) + 1;
-
-      setPointsByCategory(userPoints);
+      setPointsByCategory(categoryPoints);
       setPillarsMet(metCount);
-      setRanking(place);
-
       if (metCount >= Object.keys(POINT_REQUIREMENTS).length) {
         setTriggerConfetti(true);
       }
@@ -97,9 +109,8 @@ export default function PointsScreen() {
       <Text style={styles.subtitle}>
         {pillarsMet} of {Object.keys(POINT_REQUIREMENTS).length} pillars met
       </Text>
-      <Text style={styles.rank}>You are currently #{ranking} in total points</Text>
 
-      {/* Header Row */}
+      {/* Table Header */}
       <View style={styles.headerRow}>
         <Text style={styles.headerCell}>Category</Text>
         <Text style={styles.headerCell}>Earned</Text>
@@ -115,7 +126,7 @@ export default function PointsScreen() {
         return (
           <View key={category} style={styles.row}>
             <Text style={styles.cell}>{category}</Text>
-            <Text style={styles.cell}>{earned}</Text>
+            <Text style={styles.cell}>{earned.toFixed(1)}</Text>
             <Text style={styles.cell}>{required}</Text>
             <View style={styles.iconCell}>
               {met ? (
@@ -149,13 +160,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     color: '#666',
-    marginBottom: 4,
-  },
-  rank: {
-    fontSize: 16,
-    textAlign: 'center',
-    fontWeight: '600',
-    color: '#330066',
     marginBottom: 12,
   },
   headerRow: {

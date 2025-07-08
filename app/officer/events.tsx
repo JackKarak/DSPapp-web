@@ -5,6 +5,8 @@ import {
   StyleSheet,
   Text,
   View,
+  Alert,
+  Button,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
@@ -82,7 +84,12 @@ export default function EventPage() {
         <Text style={styles.empty}>No events</Text>
       ) : (
         events.map(event => (
-          <EventCard key={event.id} event={event} fetchNames={fetchNames} />
+          <EventCard
+            key={event.id}
+            event={event}
+            fetchNames={fetchNames}
+            refreshEvents={fetchEvents}
+          />
         ))
       )}
     </View>
@@ -107,9 +114,10 @@ export default function EventPage() {
 type EventCardProps = {
   event: Event;
   fetchNames: (eventId: string, type: 'registered' | 'attended') => Promise<string[]>;
+  refreshEvents: () => void;
 };
 
-function EventCard({ event, fetchNames }: EventCardProps) {
+function EventCard({ event, fetchNames, refreshEvents }: EventCardProps) {
   const [registered, setRegistered] = useState<string[]>([]);
   const [attended, setAttended] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,14 +138,45 @@ function EventCard({ event, fetchNames }: EventCardProps) {
   const getStatusColor = () => {
     switch (event.status) {
       case 'approved':
-        return '#0038A8'; // Blue
+        return '#0038A8';
       case 'pending':
-        return '#F7B910'; // Gold
+        return '#F7B910';
       case 'not_approved':
-        return '#C40043'; // Red
+        return '#C40043';
       default:
         return '#000';
     }
+  };
+
+  const deleteEvent = async () => {
+    Alert.alert(
+      'Delete Event',
+      `Are you sure you want to delete "${event.title}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase.from('events').delete().eq('id', event.id);
+            if (error) {
+              Alert.alert('Error', error.message);
+            } else {
+              Alert.alert('Deleted', `"${event.title}" has been deleted.`);
+              refreshEvents();
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const editEvent = () => {
+    Alert.alert(
+      'Edit Event (Coming Soon)',
+      `This would open an edit form for "${event.title}".`
+    );
+    // Future: Navigate to edit screen or show a modal
   };
 
   return (
@@ -145,7 +184,8 @@ function EventCard({ event, fetchNames }: EventCardProps) {
       <Text style={[styles.cardTitle, { color: getStatusColor() }]}>{event.title}</Text>
       <Text style={styles.cardText}>📍 {event.location}</Text>
       <Text style={styles.cardText}>
-        🕒 {new Date(event.start_time).toLocaleString()} – {new Date(event.end_time).toLocaleTimeString()}
+        🕒 {new Date(event.start_time).toLocaleString()} –{' '}
+        {new Date(event.end_time).toLocaleTimeString()}
       </Text>
       <Text style={styles.cardText}>⭐ {event.point_value} points</Text>
 
@@ -166,6 +206,13 @@ function EventCard({ event, fetchNames }: EventCardProps) {
             <Text style={styles.empty}>None</Text>
           )}
         </>
+      )}
+
+      {event.status === 'approved' && (
+        <View style={{ marginTop: 12, flexDirection: 'row', justifyContent: 'space-between' }}>
+          <Button title="Edit" onPress={editEvent} color="#36A2EB" />
+          <Button title="Delete" onPress={deleteEvent} color="#C40043" />
+        </View>
       )}
     </View>
   );

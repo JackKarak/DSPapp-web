@@ -20,6 +20,7 @@ type Event = {
   end_time: string;
   location: string;
   point_value: number;
+  point_type: string;
 };
 
 export default function CalendarTab() {
@@ -77,7 +78,6 @@ export default function CalendarTab() {
         setEvents(eventsData || []);
       }
 
-      // Fetch registered events for this user
       const { data: registrations, error: regError } = await supabase
         .from('event_registration')
         .select('event_id')
@@ -106,6 +106,11 @@ export default function CalendarTab() {
       return;
     }
 
+    if (registeredEventIds.includes(eventId)) {
+      Alert.alert('Already Registered', 'You are already registered for this event.');
+      return;
+    }
+
     const { error } = await supabase.from('event_registration').insert([
       {
         user_id: user.id,
@@ -114,24 +119,44 @@ export default function CalendarTab() {
     ]);
 
     if (error) {
-      if (error.code === '23505') {
-        Alert.alert('Already Registered', 'You are already registered for this event.');
-      } else {
-        console.error('Registration error:', error.message);
-        Alert.alert('Registration Failed', error.message);
-      }
+      Alert.alert('Registration Failed', error.message);
     } else {
       Alert.alert('Success', 'You have been registered for the event!');
       setRegisteredEventIds((prev) => [...prev, eventId]);
     }
   };
 
+  const handleUnregister = async (eventId: string) => {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      Alert.alert('Error', 'Could not find user session.');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('event_registration')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('user_id', user.id);
+
+    if (error) {
+      Alert.alert('Unregister Failed', error.message);
+    } else {
+      Alert.alert('Unregistered', 'You have been removed from the event.');
+      setRegisteredEventIds((prev) => prev.filter((id) => id !== eventId));
+    }
+  };
+
   return (
     <ImageBackground source={backgroundImg} style={styles.background}>
       <View style={styles.overlay}>
-        <Text style={styles.welcome}>👋 Welcome, Brother {brotherName ?? '...'}</Text>
+        <Text style={styles.welcome}> Welcome, Brother {brotherName ?? '...'}</Text>
 
-        <Text style={styles.sectionHeader}>🗓️ Upcoming Events</Text>
+        <Text style={styles.sectionHeader}>Upcoming Events</Text>
         {loading ? (
           <ActivityIndicator size="large" style={styles.loader} />
         ) : events.length === 0 ? (
@@ -139,7 +164,7 @@ export default function CalendarTab() {
         ) : (
           <FlatList
             data={events}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContainer}
             renderItem={({ item }) => {
               const isRegistered = registeredEventIds.includes(item.id);
@@ -150,19 +175,20 @@ export default function CalendarTab() {
                   <Text style={styles.details}>
                     {new Date(item.start_time).toLocaleString()} @ {item.location}
                   </Text>
-                  <Text style={styles.points}>🎯 {item.point_type} pts</Text>
+                  <Text style={styles.points}>Earn a {item.point_type} point</Text>
 
                   <View style={styles.buttonRow}>
                     <TouchableOpacity
                       style={[
                         styles.button,
-                        isRegistered ? styles.buttonRegistered : styles.buttonRegister,
+                        isRegistered ? styles.buttonUnregister : styles.buttonRegister,
                       ]}
-                      disabled={isRegistered}
-                      onPress={() => handleRegister(item.id)}
+                      onPress={() =>
+                        isRegistered ? handleUnregister(item.id) : handleRegister(item.id)
+                      }
                     >
                       <Text style={styles.buttonText}>
-                        {isRegistered ? 'Registered ✅' : 'Register'}
+                        {isRegistered ? 'Unregister ❌' : 'Register'}
                       </Text>
                     </TouchableOpacity>
 
@@ -257,8 +283,8 @@ const styles = StyleSheet.create({
   buttonRegister: {
     backgroundColor: '#F7B910',
   },
-  buttonRegistered: {
-    backgroundColor: '#ADAFAA',
+  buttonUnregister: {
+    backgroundColor: '#C40043',
   },
   detailsButton: {
     backgroundColor: '#330066',
