@@ -80,27 +80,20 @@ export default function OfficerRegisterEvent() {
     type: 'start' | 'end'
   ) => {
     const currentDate = selectedDate || (type === 'start' ? startDateTime : endDateTime);
-    if (type === 'start') {
-      const updated = new Date(startDateTime);
-      mode === 'date'
-        ? updated.setFullYear(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate())
-        : updated.setHours(currentDate.getHours(), currentDate.getMinutes());
-      setStartDateTime(updated);
-      setShowStartPicker(Platform.OS === 'ios');
+    const updated = new Date(type === 'start' ? startDateTime : endDateTime);
+    if (mode === 'date') {
+      updated.setFullYear(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
     } else {
-      const updated = new Date(endDateTime);
-      mode === 'date'
-        ? updated.setFullYear(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate())
-        : updated.setHours(currentDate.getHours(), currentDate.getMinutes());
-      setEndDateTime(updated);
-      setShowEndPicker(Platform.OS === 'ios');
+      updated.setHours(currentDate.getHours(), currentDate.getMinutes());
     }
+    type === 'start' ? setStartDateTime(updated) : setEndDateTime(updated);
+    type === 'start' ? setShowStartPicker(false) : setShowEndPicker(false);
   };
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.formWrapper}>
-        <Text style={styles.heading}>📝 Register a New Event</Text>
+        <Text style={styles.heading}>Register a New Event</Text>
 
         <TextInput
           placeholder="Event Title"
@@ -201,7 +194,7 @@ export default function OfficerRegisterEvent() {
 const styles = StyleSheet.create({
   scrollContainer: {
     padding: 16,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: '#fff',
   },
   formWrapper: {
     backgroundColor: '#ffffffcc',

@@ -14,8 +14,8 @@ import { PieChart } from 'react-native-chart-kit';
 import backgroundImg from '../../assets/images/background.png';
 
 type Event = {
+  id: string;
   point_value: number;
-  attendees: string[];
   rating: number | null;
   category: string;
 };
@@ -35,29 +35,42 @@ export default function OfficerAnalytics() {
     const fetchAnalytics = async () => {
       setLoading(true);
 
-      const { data, error } = await supabase
+      const { data: eventsData, error: eventsError } = await supabase
         .from('events')
-        .select('point_value, attendees, rating, category')
+        .select('id, point_value, rating, category')
         .eq('status', 'approved');
 
-      if (error || !data) {
-        console.error('Error loading events:', error?.message);
+      if (eventsError || !eventsData) {
+        console.error('Error loading events:', eventsError?.message);
         setLoading(false);
         return;
       }
 
-      setEvents(data);
+      setEvents(eventsData);
 
-      const ratings = data.map((e) => e.rating).filter((r): r is number => r !== null);
+      const ratings = eventsData.map((e) => e.rating).filter((r): r is number => r !== null);
       const avgRating = ratings.reduce((a, b) => a + b, 0) / ratings.length || 0;
       setAverageRating(avgRating);
 
-      const sizes = data.map((e) => e.attendees?.length || 0);
+      const { data: attendanceData, error: attendanceError } = await supabase
+        .from('event_attendance')
+        .select('event_id');
+
+      if (attendanceError) {
+        console.error('Error loading attendance data:', attendanceError.message);
+      }
+
+      const attendanceCountPerEvent: Record<string, number> = {};
+      attendanceData?.forEach(({ event_id }) => {
+        attendanceCountPerEvent[event_id] = (attendanceCountPerEvent[event_id] || 0) + 1;
+      });
+
+      const sizes = eventsData.map((e) => attendanceCountPerEvent[e.id] || 0);
       const avgSize = sizes.reduce((a, b) => a + b, 0) / sizes.length || 0;
       setAverageSize(avgSize);
 
       const totals: Record<string, number> = {};
-      data.forEach((e) => {
+      eventsData.forEach((e) => {
         totals[e.category] = (totals[e.category] || 0) + e.point_value;
       });
 
@@ -114,7 +127,6 @@ export default function OfficerAnalytics() {
 
             <View style={styles.metricCard}>
               <Text style={styles.metricTitle}>📈 Point Distribution</Text>
-
               <PieChart
                 data={pointDistribution}
                 width={screenWidth}
@@ -159,7 +171,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   metricCard: {
-    backgroundColor: 'rgba(242, 242, 255, 0.6)', // mostly transparent lavender
+    backgroundColor: 'rgba(242, 242, 255, 0.6)',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -182,3 +194,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+

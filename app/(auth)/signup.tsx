@@ -33,7 +33,6 @@ export default function SignupScreen() {
     setLoading(true);
 
     try {
-      // Sign up the user
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -45,7 +44,6 @@ export default function SignupScreen() {
 
       const userId = signUpData.user.id;
 
-      // Insert into the users table
       const { error: insertError } = await supabase.from('users').insert({
         user_id: userId,
         email,
@@ -98,7 +96,8 @@ export default function SignupScreen() {
         <Picker
           selectedValue={pledgeClass}
           onValueChange={setPledgeClass}
-          style={styles.picker}
+          style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
+          itemStyle={styles.pickerItem}
         >
           <Picker.Item label="Rho" value="rho" />
           <Picker.Item label="Sigma" value="sigma" />
@@ -106,14 +105,14 @@ export default function SignupScreen() {
           <Picker.Item label="Upsilon" value="upsilon" />
           <Picker.Item label="Phi" value="phi" />
           <Picker.Item label="Chi" value="chi" />
-          
         </Picker>
 
         <Text style={styles.label}>Role</Text>
         <Picker
           selectedValue={role}
           onValueChange={setRole}
-          style={styles.picker}
+          style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
+          itemStyle={styles.pickerItem}
         >
           <Picker.Item label="Brother" value="brother" />
           <Picker.Item label="Officer" value="officer" />
@@ -199,6 +198,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 10,
+  },
+  pickerItem: {
+    fontSize: 16,
+    color: '#000',
   },
   button: {
     backgroundColor: '#330066',

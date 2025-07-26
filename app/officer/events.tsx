@@ -18,6 +18,7 @@ type Event = {
   end_time: string;
   point_value: number;
   status: 'pending' | 'approved' | 'not_approved';
+  created_by: string;
 };
 
 type UserWithName = {
@@ -37,9 +38,22 @@ export default function EventPage() {
 
   const fetchEvents = async () => {
     setLoading(true);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      Alert.alert('Error', 'User not authenticated');
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('events')
       .select('*')
+      .eq('created_by', user.id)
       .order('start_time', { ascending: false });
 
     if (error) {
@@ -59,7 +73,7 @@ export default function EventPage() {
   };
 
   const fetchNames = async (eventId: string, type: 'registered' | 'attended') => {
-    const table = type === 'registered' ? 'registrations' : 'attendances';
+    const table = type === 'registered' ? 'event_registration' : 'event_attendance';
 
     const { data, error } = await supabase
       .from(table)
@@ -176,7 +190,7 @@ function EventCard({ event, fetchNames, refreshEvents }: EventCardProps) {
       'Edit Event (Coming Soon)',
       `This would open an edit form for "${event.title}".`
     );
-    // Future: Navigate to edit screen or show a modal
+    // TODO: Future: Navigate to edit screen or show a modal
   };
 
   return (
