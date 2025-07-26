@@ -1,13 +1,24 @@
-// app/(tabs)/newsletter.tsx
-import { ScrollView, Text } from 'react-native';
+import React from 'react';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { WebView } from 'react-native-webview';
 
-export default function NewsletterTab() {
+export default function NewsletterScreen() {
   return (
-    <ScrollView contentContainerStyle={{ padding: 20 }}>
-      <Text style={{ fontSize: 18, fontWeight: 'bold' }}>📰 Weekly Newsletter</Text>
-      <Text style={{ marginTop: 10 }}>
-        [Insert your newsletter content here or load from Supabase]
-      </Text>
-    </ScrollView>
+    <WebView
+      source={{ uri: 'https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798' }}
+      startInLoadingState
+      renderLoading={() => (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color="#330066" />
+        </View>
+      )}
+    />
   );
 }
+
+const styles = StyleSheet.create({
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+});

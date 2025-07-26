@@ -1,260 +1,310 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
   Button,
-  Platform,
+  ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
-  ScrollView,
   TouchableOpacity,
+  Switch,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import { supabase } from '../../lib/supabase';
-
-function generateRandomCode(length = 5) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-}
 
 export default function OfficerRegisterEvent() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
-  const [startDateTime, setStartDateTime] = useState(new Date());
-  const [endDateTime, setEndDateTime] = useState(new Date());
-  const [pointType, setPointType] = useState('brotherhood');
-  const [code, setCode] = useState('');
-  const [isPledgeAvailable, setIsPledgeAvailable] = useState(false);
-  const [isRegisterable, setIsRegisterable] = useState(false);
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
-  const [mode, setMode] = useState<'date' | 'time'>('date');
+  const [pointType, setPointType] = useState('none');
+  const [startDate, setStartDate] = useState(new Date());
+  const [startTime, setStartTime] = useState(new Date());
+  const [endDate, setEndDate] = useState(new Date());
+  const [endTime, setEndTime] = useState(new Date());
 
-  useEffect(() => {
-    setCode(generateRandomCode());
-  }, []);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+
+  const [isRegisterable, setIsRegisterable] = useState(true);
+  const [availableToPledges, setAvailableToPledges] = useState(true);
+  const [isMultiDay, setIsMultiDay] = useState(false);
+
+  function roundToNearestMinute(date: Date) {
+    const rounded = new Date(date);
+    rounded.setSeconds(0);
+    rounded.setMilliseconds(0);
+    return rounded;
+  }
 
   const handleSubmit = async () => {
-    const { error } = await supabase.from('events').insert([
-      {
-        title,
-        description,
-        location,
-        start_time: startDateTime.toISOString(),
-        end_time: endDateTime.toISOString(),
-        point_type: pointType,
-        code,
-        available_to_pledges: isPledgeAvailable,
-        is_registerable: isRegisterable,
-        status: 'pending',
-      },
-    ]);
+    if (!title || !location || !pointType) {
+      Alert.alert('Please fill out all required fields');
+      return;
+    }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
+    }
+
+    const combinedStart = new Date(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate(),
+      startTime.getHours(),
+      startTime.getMinutes()
+    );
+
+    const finalEndDate = isMultiDay ? endDate : startDate;
+
+    const combinedEnd = new Date(
+      finalEndDate.getFullYear(),
+      finalEndDate.getMonth(),
+      finalEndDate.getDate(),
+      endTime.getHours(),
+      endTime.getMinutes()
+    );
+
+    const roundedStart = roundToNearestMinute(combinedStart);
+    const roundedEnd = roundToNearestMinute(combinedEnd);
+
+    const { error } = await supabase.from('events').insert({
+      title,
+      description,
+      location,
+      point_type: pointType,
+      point_value: 1,
+      start_time: roundedStart.toISOString(),
+      end_time: roundedEnd.toISOString(),
+      created_by: user.id,
+      is_registerable: isRegisterable,
+      available_to_pledges: availableToPledges,
+      status: 'pending',
+    });
 
     if (error) {
       Alert.alert('Error', error.message);
     } else {
-      Alert.alert('Success', 'Event created and pending approval.');
+      Alert.alert('Success', 'Event created successfully');
       setTitle('');
       setDescription('');
       setLocation('');
-      setStartDateTime(new Date());
-      setEndDateTime(new Date());
-      setPointType('brotherhood');
-      setIsPledgeAvailable(false);
-      setIsRegisterable(false);
-      setCode(generateRandomCode());
+      setPointType('none');
+      setStartDate(new Date());
+      setStartTime(new Date());
+      setEndDate(new Date());
+      setEndTime(new Date());
+      setIsRegisterable(true);
+      setAvailableToPledges(true);
+      setIsMultiDay(false);
     }
-  };
-
-  const showPicker = (type: 'start' | 'end', mode: 'date' | 'time') => {
-    setMode(mode);
-    type === 'start' ? setShowStartPicker(true) : setShowEndPicker(true);
-  };
-
-  const onDateChange = (
-    selectedDate: Date | undefined,
-    type: 'start' | 'end'
-  ) => {
-    const currentDate = selectedDate || (type === 'start' ? startDateTime : endDateTime);
-    const updated = new Date(type === 'start' ? startDateTime : endDateTime);
-    if (mode === 'date') {
-      updated.setFullYear(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
-    } else {
-      updated.setHours(currentDate.getHours(), currentDate.getMinutes());
-    }
-    type === 'start' ? setStartDateTime(updated) : setEndDateTime(updated);
-    type === 'start' ? setShowStartPicker(false) : setShowEndPicker(false);
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
-      <View style={styles.formWrapper}>
-        <Text style={styles.heading}>Register a New Event</Text>
+    <View style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.header}>Register New Event</Text>
 
         <TextInput
-          placeholder="Event Title"
+          style={styles.input}
+          placeholder="Enter title"
+          placeholderTextColor="#000"
           value={title}
           onChangeText={setTitle}
-          style={styles.input}
-          placeholderTextColor="#666"
         />
-
         <TextInput
-          placeholder="Event Description"
-          value={description}
-          onChangeText={setDescription}
           style={styles.input}
-          multiline
-          placeholderTextColor="#666"
-        />
-
-        <TextInput
-          placeholder="Location"
+          placeholder="Enter location"
+          placeholderTextColor="#000"
           value={location}
           onChangeText={setLocation}
-          style={styles.input}
-          placeholderTextColor="#666"
+        />
+        <TextInput
+          style={[styles.input, { height: 80 }]}
+          placeholder="Enter description"
+          placeholderTextColor="#000"
+          value={description}
+          multiline
+          onChangeText={setDescription}
         />
 
-        <Text style={styles.label}>Start Date & Time:</Text>
-        <TouchableOpacity onPress={() => showPicker('start', 'date')} style={styles.dateButton}>
-          <Text style={styles.dateText}>{startDateTime.toLocaleDateString()}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => showPicker('start', 'time')} style={styles.dateButton}>
-          <Text style={styles.dateText}>
-            {startDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-        </TouchableOpacity>
-
-        <Text style={styles.label}>End Date & Time:</Text>
-        <TouchableOpacity onPress={() => showPicker('end', 'date')} style={styles.dateButton}>
-          <Text style={styles.dateText}>{endDateTime.toLocaleDateString()}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => showPicker('end', 'time')} style={styles.dateButton}>
-          <Text style={styles.dateText}>
-            {endDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-        </TouchableOpacity>
-
-        {(showStartPicker || showEndPicker) && (
-          <DateTimePicker
-            value={showStartPicker ? startDateTime : endDateTime}
-            mode={mode}
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, selectedDate) =>
-              onDateChange(selectedDate, showStartPicker ? 'start' : 'end')
-            }
-            textColor={Platform.OS === 'ios' ? '#000' : undefined}
-          />
-        )}
-
-        <Text style={styles.label}>Point Type:</Text>
-        <View style={styles.pickerWrapper}>
+        <Text style={styles.label}>Point Type</Text>
+        <View style={styles.pickerContainer}>
           <Picker
             selectedValue={pointType}
-            onValueChange={setPointType}
-            dropdownIconColor="#330066"
-            style={{ color: '#000' }}
-            itemStyle={{ color: '#000' }}
+            onValueChange={(itemValue) => setPointType(itemValue)}
+            style={styles.picker}
+            dropdownIconColor="#000"
           >
+            <Picker.Item label="None" value="none" />
             <Picker.Item label="Brotherhood" value="brotherhood" />
+            <Picker.Item label="Professional" value="professional" />
             <Picker.Item label="Service" value="service" />
-            <Picker.Item label="Professionalism" value="professionalism" />
             <Picker.Item label="Scholarship" value="scholarship" />
-            <Picker.Item label="DEI" value="dei" />
-            <Picker.Item label="Health & Wellness" value="h&w" />
+            <Picker.Item label="Health" value="health" />
             <Picker.Item label="Fundraising" value="fundraising" />
+            <Picker.Item label="DEI" value="dei" />
           </Picker>
         </View>
 
-        <View style={styles.switchContainer}>
-          <Text style={styles.label}>Available to Pledges?</Text>
-          <Switch value={isPledgeAvailable} onValueChange={setIsPledgeAvailable} />
-        </View>
-
-        <View style={styles.switchContainer}>
-          <Text style={styles.label}>Is this event registerable?</Text>
+        <View style={styles.switchRow}>
+          <Text>Registerable Event?</Text>
           <Switch value={isRegisterable} onValueChange={setIsRegisterable} />
         </View>
 
-        <Text style={styles.label}>
-          Attendance Code: <Text style={styles.code}>{code}</Text>
-        </Text>
+        <View style={styles.switchRow}>
+          <Text>Available to Pledges?</Text>
+          <Switch value={availableToPledges} onValueChange={setAvailableToPledges} />
+        </View>
 
-        <Button title="Submit Event" color="#330066" onPress={handleSubmit} />
-      </View>
-    </ScrollView>
+        <View style={styles.switchRow}>
+          <Text>Is this a multi-day event?</Text>
+          <Switch value={isMultiDay} onValueChange={setIsMultiDay} />
+        </View>
+
+        <Text style={styles.label}>Start Date:</Text>
+        <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.pickerButton}>
+          <Text>{startDate.toDateString()}</Text>
+        </TouchableOpacity>
+        {showStartDatePicker && (
+          <DateTimePicker
+            value={startDate}
+            mode="date"
+            display="default"
+            onChange={(_, date) => {
+              setShowStartDatePicker(false);
+              if (date) setStartDate(date);
+            }}
+          />
+        )}
+
+        {isMultiDay && (
+          <>
+            <Text style={styles.label}>End Date:</Text>
+            <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.pickerButton}>
+              <Text>{endDate.toDateString()}</Text>
+            </TouchableOpacity>
+            {showEndDatePicker && (
+              <DateTimePicker
+                value={endDate}
+                mode="date"
+                display="default"
+                onChange={(_, date) => {
+                  setShowEndDatePicker(false);
+                  if (date) setEndDate(date);
+                }}
+              />
+            )}
+          </>
+        )}
+
+        <Text style={styles.label}>Start Time:</Text>
+        <TouchableOpacity onPress={() => setShowStartTimePicker(true)} style={styles.pickerButton}>
+          <Text>{startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+        </TouchableOpacity>
+        {showStartTimePicker && (
+          <DateTimePicker
+            value={startTime}
+            mode="time"
+            minuteInterval={15}
+            is24Hour={false}
+            display="default"
+            onChange={(_, time) => {
+              setShowStartTimePicker(false);
+              if (time) setStartTime(time);
+            }}
+          />
+        )}
+
+        <Text style={styles.label}>End Time:</Text>
+        <TouchableOpacity onPress={() => setShowEndTimePicker(true)} style={styles.pickerButton}>
+          <Text>{endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+        </TouchableOpacity>
+        {showEndTimePicker && (
+          <DateTimePicker
+            value={endTime}
+            mode="time"
+            minuteInterval={15}
+            is24Hour={false}
+            display="default"
+            onChange={(_, time) => {
+              setShowEndTimePicker(false);
+              if (time) setEndTime(time);
+            }}
+          />
+        )}
+
+        <View style={{ marginVertical: 20 }}>
+          <Button title="Submit Event" onPress={handleSubmit} color="#0038A8" />
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContainer: {
+  container: {
+    flexGrow: 1,
     padding: 16,
+    paddingBottom: 60,
     backgroundColor: '#fff',
   },
-  formWrapper: {
-    backgroundColor: '#ffffffcc',
-    padding: 20,
-    borderRadius: 12,
-    borderColor: '#ADAFAA',
-    borderWidth: 1,
-  },
-  heading: {
+  header: {
     fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
     color: '#330066',
+    textAlign: 'center',
+    marginBottom: 20,
   },
   input: {
+    borderColor: '#ADAFAA',
     borderWidth: 1,
-    borderColor: '#ccc',
-    marginBottom: 12,
-    padding: 12,
     borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
     color: '#000',
   },
   label: {
-    fontSize: 16,
-    marginBottom: 6,
-    marginTop: 12,
     fontWeight: '600',
-    color: '#0038A8',
-  },
-  code: {
-    color: '#F7B910',
-    fontWeight: 'bold',
-  },
-  switchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginTop: 12,
-  },
-  pickerWrapper: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: 12,
-    backgroundColor: '#fff',
-  },
-  dateButton: {
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    marginBottom: 10,
-    backgroundColor: '#f9f9f9',
-  },
-  dateText: {
-    color: '#000',
+    marginBottom: 4,
     fontSize: 16,
+  },
+  pickerContainer: {
+    height: 50,
+    borderColor: '#ADAFAA',
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 12,
+    justifyContent: 'center',
+  },
+  picker: {
+    color: '#000',
+    width: '100%',
+  },
+  pickerButton: {
+    borderColor: '#ADAFAA',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: '#f1f1f1',
+    marginBottom: 10,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 8,
   },
 });

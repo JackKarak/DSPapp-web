@@ -101,7 +101,7 @@ export default function LoginScreen() {
           router.replace('/president/presidentindex');
           break;
         default:
-          router.replace('/(tabs)/calendar');
+          router.replace('/(tabs)');
       }
     } catch (error: any) {
       Alert.alert('Login Error', error.message);

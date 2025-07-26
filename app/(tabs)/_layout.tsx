@@ -39,7 +39,7 @@ export default function BrotherLayout() {
       }}
     >
       <Tabs.Screen
-        name="calendar"
+        name="index"
         options={{
           title: 'Calendar',
           tabBarIcon: ({ color, size }) => (
