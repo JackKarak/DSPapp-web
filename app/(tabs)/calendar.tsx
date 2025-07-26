@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -9,6 +9,7 @@ import {
   View,
   Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'expo-router';
 import backgroundImg from '../../assets/images/background.png';
@@ -29,6 +30,7 @@ export default function CalendarTab() {
   const [brotherName, setBrotherName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const navigation = useNavigation();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -156,6 +158,13 @@ export default function CalendarTab() {
       <View style={styles.overlay}>
         <Text style={styles.welcome}> Welcome, Brother {brotherName ?? '...'}</Text>
 
+        <TouchableOpacity
+          onPress={() => router.push('/calendarview')}
+          style={styles.switchButton}
+        >
+          <Text style={styles.switchText}>Calendar View</Text>
+        </TouchableOpacity>
+
         <Text style={styles.sectionHeader}>Upcoming Events</Text>
         {loading ? (
           <ActivityIndicator size="large" style={styles.loader} />
@@ -226,6 +235,19 @@ const styles = StyleSheet.create({
     color: '#0038A8',
     marginBottom: 16,
     textAlign: 'center',
+  },
+  switchButton: {
+    backgroundColor: '#0038A8',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  switchText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   sectionHeader: {
     fontSize: 20,

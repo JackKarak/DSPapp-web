@@ -1,4 +1,3 @@
-// OfficerRegisterEvent.tsx
 import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
 import {
@@ -30,6 +29,7 @@ export default function OfficerRegisterEvent() {
   const [pointType, setPointType] = useState('brotherhood');
   const [code, setCode] = useState('');
   const [isPledgeAvailable, setIsPledgeAvailable] = useState(false);
+  const [isRegisterable, setIsRegisterable] = useState(false);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [mode, setMode] = useState<'date' | 'time'>('date');
@@ -49,6 +49,7 @@ export default function OfficerRegisterEvent() {
         point_type: pointType,
         code,
         available_to_pledges: isPledgeAvailable,
+        is_registerable: isRegisterable,
         status: 'pending',
       },
     ]);
@@ -64,6 +65,7 @@ export default function OfficerRegisterEvent() {
       setEndDateTime(new Date());
       setPointType('brotherhood');
       setIsPledgeAvailable(false);
+      setIsRegisterable(false);
       setCode(generateRandomCode());
     }
   };
@@ -179,6 +181,11 @@ export default function OfficerRegisterEvent() {
         <View style={styles.switchContainer}>
           <Text style={styles.label}>Available to Pledges?</Text>
           <Switch value={isPledgeAvailable} onValueChange={setIsPledgeAvailable} />
+        </View>
+
+        <View style={styles.switchContainer}>
+          <Text style={styles.label}>Is this event registerable?</Text>
+          <Switch value={isRegisterable} onValueChange={setIsRegisterable} />
         </View>
 
         <Text style={styles.label}>
