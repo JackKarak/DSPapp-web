@@ -20,13 +20,21 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('brother');
+  const [graduationYear, setGraduationYear] = useState('');
+  const [major, setMajor] = useState('');
+  const [officerPosition, setOfficerPosition] = useState('');
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
 
   const handleSignup = async () => {
-    if (!name || !pledgeClass || !email || !password || !role) {
+    if (!name || !pledgeClass || !email || !password || !role || !graduationYear || !major) {
       Alert.alert('Missing Fields', 'Please fill in all fields.');
+      return;
+    }
+
+    if (role === 'officer' && !officerPosition) {
+      Alert.alert('Missing Officer Role', 'Please select an officer position.');
       return;
     }
 
@@ -50,6 +58,9 @@ export default function SignupScreen() {
         name,
         pledge_class: pledgeClass,
         role,
+        major,
+        graduation_year: graduationYear,
+        officer_position: role === 'officer' ? officerPosition : null,
         approved: false,
       });
 
@@ -118,6 +129,56 @@ export default function SignupScreen() {
           <Picker.Item label="Officer" value="officer" />
           <Picker.Item label="Admin" value="admin" />
         </Picker>
+
+        <Text style={styles.label}>Graduation Year</Text>
+        <TextInput
+          placeholder="e.g. 2026"
+          value={graduationYear}
+          onChangeText={setGraduationYear}
+          keyboardType="numeric"
+          style={styles.input}
+          placeholderTextColor="#999"
+        />
+
+        <Text style={styles.label}>Major</Text>
+        <TextInput
+          placeholder="e.g. Finance"
+          value={major}
+          onChangeText={setMajor}
+          style={styles.input}
+          placeholderTextColor="#999"
+        />
+
+        {role === 'officer' && (
+          <>
+            <Text style={styles.label}>Officer Position</Text>
+            <Picker
+              selectedValue={officerPosition}
+              onValueChange={setOfficerPosition}
+              style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
+              itemStyle={styles.pickerItem}
+            >
+              <Picker.Item label="Select Position" value="" />
+              <Picker.Item label="Social" value="social" />
+              <Picker.Item label="Marketing" value="marketing" />
+              <Picker.Item label="Wellness" value="wellness" />
+              <Picker.Item label="Fundraising" value="fundraising" />
+              <Picker.Item label="Brotherhood" value="brotherhood" />
+              <Picker.Item label="Risk" value="risk" />
+              <Picker.Item label="Historian" value="historian" />
+              <Picker.Item label="Chancellor" value="chancellor" />
+              <Picker.Item label="SVP" value="svp" />
+              <Picker.Item label="Operations" value="vp_operations" />
+              <Picker.Item label="Finance" value="vp_finance" />
+              <Picker.Item label="Pledge Ed" value="vp_pledge_ed" />
+              <Picker.Item label="Scholarship" value="vp_scholarship" />
+              <Picker.Item label="Branding" value="vp_branding" />
+              <Picker.Item label="Community Service" value="vp_service" />
+              <Picker.Item label="DEI" value="vp_dei" />
+              <Picker.Item label="Professional" value="vp_professional" />
+            </Picker>
+          </>
+        )}
 
         <TextInput
           placeholder="Email"
