@@ -1,17 +1,17 @@
+import { Picker } from '@react-native-picker/picker';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Dimensions,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Alert,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import { Calendar } from 'react-native-calendars';
-import { FlatList } from 'react-native-gesture-handler';
-import { useRouter } from 'expo-router';
+import { WebView } from 'react-native-webview';
 import { supabase } from '../../lib/supabase';
 
 type Event = {
@@ -32,8 +32,6 @@ export default function CalendarTab() {
   const [brotherName, setBrotherName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [calendarView, setCalendarView] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  const [markedDates, setMarkedDates] = useState<{ [key: string]: any }>({});
   const [selectedType, setSelectedType] = useState<string>('All');
   const router = useRouter();
 
@@ -98,7 +96,6 @@ export default function CalendarTab() {
     }));
 
     setEvents(enrichedEvents);
-    markEventDates(enrichedEvents);
 
     const { data: registrations } = await supabase
       .from('event_registration')
@@ -109,26 +106,9 @@ export default function CalendarTab() {
     setLoading(false);
   };
 
-  const markEventDates = (eventList: Event[]) => {
-    const marks: { [key: string]: any } = {};
-    eventList.forEach(event => {
-      const date = event.start_time.split('T')[0];
-      if (!marks[date]) {
-        marks[date] = { dots: [{ color: '#F7B910' }], marked: true };
-      } else {
-        marks[date].dots.push({ color: '#F7B910' });
-      }
-    });
-    setMarkedDates(marks);
-  };
-
-  const handleDayPress = (day: { dateString: string }) => {
-    setSelectedDate(day.dateString);
-  };
-
-  const filteredEvents = selectedDate
-    ? events.filter(e => e.start_time.startsWith(selectedDate) && (selectedType === 'All' || e.point_type === selectedType))
-    : events;
+  const filteredEvents = events.filter(e => 
+    selectedType === 'All' || e.point_type === selectedType
+  );
 
   const handleRegister = async (eventId: string) => {
     const {
@@ -178,30 +158,21 @@ export default function CalendarTab() {
       </TouchableOpacity>
 
       {calendarView && (
-        <>
-          <Calendar
-            onDayPress={handleDayPress}
-            markedDates={{
-              ...markedDates,
-              ...(selectedDate ? {
-                [selectedDate]: {
-                  ...(markedDates[selectedDate] || {}),
-                  selected: true,
-                  selectedColor: '#330066',
-                },
-              } : {})
+        <View style={styles.calendarContainer}>
+          <WebView
+            style={styles.calendar}
+            source={{
+              uri: 'https://calendar.google.com/calendar/embed?src=dspumd%40gmail.com&ctz=America%2FNew_York'
             }}
-            markingType="multi-dot"
-            theme={{
-              todayTextColor: '#0038A8',
-              arrowColor: '#330066',
-              selectedDayBackgroundColor: '#330066',
-              selectedDayTextColor: '#fff',
-              dotColor: '#F7B910',
-              textSectionTitleColor: '#0038A8',
-            }}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View style={styles.loaderContainer}>
+                <ActivityIndicator size="large" color="#330066" />
+              </View>
+            )}
           />
-
           <Picker
             selectedValue={selectedType}
             style={styles.picker}
@@ -212,7 +183,7 @@ export default function CalendarTab() {
               <Picker.Item key={type} label={type} value={type} />
             ))}
           </Picker>
-        </>
+        </View>
       )}
 
       {loading ? (
@@ -252,14 +223,40 @@ export default function CalendarTab() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  header: { fontSize: 20, fontWeight: 'bold', color: '#330066', marginBottom: 12 },
+  container: { 
+    flex: 1, 
+    padding: 16 
+  },
+  header: { 
+    fontSize: 20, 
+    fontWeight: 'bold', 
+    color: '#330066', 
+    marginBottom: 12 
+  },
   toggleBtn: {
     backgroundColor: '#0038A8',
     padding: 10,
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 10,
+  },
+  calendarContainer: {
+    height: Dimensions.get('window').height * 0.6,
+    marginBottom: 20,
+  },
+  calendar: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  loaderContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
   },
   toggleText: { color: '#fff', fontWeight: 'bold' },
   picker: { marginVertical: 10 },

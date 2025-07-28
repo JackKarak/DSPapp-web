@@ -1,18 +1,18 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Picker } from '@react-native-picker/picker';
 import React, { useState } from 'react';
 import {
   Alert,
   Button,
+  Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
-  View,
   TouchableOpacity,
-  Switch,
-  Platform,
+  View,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
 import { supabase } from '../../lib/supabase';
 
 export default function OfficerRegisterEvent() {
@@ -86,7 +86,7 @@ export default function OfficerRegisterEvent() {
       point_value: 1,
       start_time: roundedStart.toISOString(),
       end_time: roundedEnd.toISOString(),
-      created_by: user.id,
+      created_by: user.id, // Using user.id from auth, which maps to user_id in users table
       is_registerable: isRegisterable,
       available_to_pledges: availableToPledges,
       status: 'pending',
@@ -143,11 +143,12 @@ export default function OfficerRegisterEvent() {
           <Picker
             selectedValue={pointType}
             onValueChange={(itemValue) => setPointType(itemValue)}
-            style={styles.picker}
+            style={[styles.picker, Platform.OS === 'ios' ? { height: 200 } : {}]}
             dropdownIconColor="#000"
             mode={Platform.OS === 'android' ? 'dialog' : 'dropdown'}
+            itemStyle={Platform.OS === 'ios' ? { fontSize: 16, color: '#000' } : undefined}
           >
-            <Picker.Item label="None" value="none" />
+            <Picker.Item label="Select point type" value="none" />
             <Picker.Item label="Brotherhood" value="brotherhood" />
             <Picker.Item label="Professional" value="professional" />
             <Picker.Item label="Service" value="service" />
@@ -283,19 +284,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   pickerContainer: {
-    height: Platform.OS === 'android' ? 50 : undefined,
-    minHeight: 50,
+    height: Platform.OS === 'android' ? 50 : 50,
     borderColor: '#ADAFAA',
     borderWidth: 1,
     borderRadius: 8,
     marginBottom: 12,
     justifyContent: 'center',
-    overflow: 'hidden',
+    backgroundColor: '#f1f1f1',
   },
   picker: {
-    flex: 1,
     color: '#000',
     width: '100%',
+    ...(Platform.OS === 'android' ? {
+      height: 50,
+    } : {
+      height: '100%',
+    }),
   },
   pickerButton: {
     borderColor: '#ADAFAA',

@@ -5,7 +5,7 @@ import { WebView } from 'react-native-webview';
 export default function NewsletterScreen() {
   return (
     <WebView
-      source={{ uri: 'https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798' }}
+      source={{ uri: 'https://sites.google.com/view/gammasigma-phi' }}
       startInLoadingState
       renderLoading={() => (
         <View style={styles.loaderContainer}>

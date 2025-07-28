@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import { Picker } from '@react-native-picker/picker';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -8,70 +11,82 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Alert,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { Event } from '../../types/account';
 
-type Event = {
-  id: string;
-  title: string;
-  date: string;
-  host_name?: string;
-};
+const EventRow: React.FC<{ event: Event }> = React.memo(({ event }) => (
+  <View style={styles.tableRow}>
+    <Text style={styles.cell}>{event.title}</Text>
+    <Text style={styles.cell}>
+      {new Date(event.date).toLocaleDateString()}
+    </Text>
+    <Text style={styles.cell}>{event.host_name}</Text>
+  </View>
+));
 
 export default function AccountTab() {
   const [name, setName] = useState<string | null>(null);
   const [pledgeClass, setPledgeClass] = useState<string | null>(null);
+  const [major, setMajor] = useState<string | null>(null);
+  const [graduationYear, setGraduationYear] = useState<string | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
   const [editing, setEditing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showTestBankForm, setShowTestBankForm] = useState(false);
+  const [classCode, setClassCode] = useState('');
+  const [fileType, setFileType] = useState<'test' | 'notes' | 'materials'>('test');
 
-  const toggleExpanded = () => setExpanded((prev) => !prev);
+  const toggleExpanded = useCallback(() => setExpanded((prev) => !prev), []);
 
-  const fetchAccountData = async () => {
-    setLoading(true);
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+  const fetchAccountData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-    if (authError || !user) {
-      Alert.alert('Error', 'Unable to load user session.');
-      setLoading(false);
-      return;
-    }
+      if (authError || !user) {
+        throw new Error('Unable to load user session.');
+      }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('name, pledge_class, approved')
-      .eq('user_id', user.id)
-      .single();
+      const { data: profile, error: profileError } = await supabase
+        .from('users')
+        .select('name, pledge_class, approved, major, graduation_year')
+        .eq('user_id', user.id)
+        .single();
 
-    if (profileError || !profile) {
-      Alert.alert('Error', 'Unable to fetch user profile.');
-      setLoading(false);
-      return;
-    }
+      if (profileError || !profile) {
+        throw new Error('Unable to fetch user profile.');
+      }
 
-    if (!profile.approved) {
-      Alert.alert('Pending Approval', 'Your account is awaiting approval.');
-      setLoading(false);
-      return;
-    }
+      if (!profile.approved) {
+        Alert.alert('Pending Approval', 'Your account is awaiting approval.');
+        setLoading(false);
+        return;
+      }
 
-    setName(profile.name);
-    setPledgeClass(profile.pledge_class);
+      setName(profile.name);
+      setPledgeClass(profile.pledge_class);
+      setMajor(profile.major);
+      setGraduationYear(profile.graduation_year);
 
-    const { data: attendedEvents, error: eventError } = await supabase
-      .from('event_attendance')
-      .select('id, events(title, start_time, creator:created_by(name))')
-      .eq('user_id', user.id);
+      const { data: attendedEvents, error: eventError } = await supabase
+        .from('event_attendance')
+        .select('id, events(title, start_time, creator:created_by(name))')
+        .eq('user_id', user.id);
 
-    if (eventError) {
-      console.error('Event fetch error:', eventError.message);
-    } else {
+      if (eventError) {
+        console.error('Event fetch error:', eventError.message);
+        throw new Error('Failed to fetch events');
+      }
+
       const formatted: Event[] = (attendedEvents || []).map((record: any) => ({
         id: record.id,
         title: record.events?.title,
@@ -81,14 +96,17 @@ export default function AccountTab() {
 
       formatted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setEvents(formatted);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      Alert.alert('Error', err instanceof Error ? err.message : 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     fetchAccountData();
-  }, []);
+  }, [fetchAccountData]);
 
   const saveProfile = async () => {
     const {
@@ -97,7 +115,12 @@ export default function AccountTab() {
 
     const { error } = await supabase
       .from('users')
-      .update({ name, pledge_class: pledgeClass })
+      .update({
+        name,
+        pledge_class: pledgeClass,
+        major,
+        graduation_year: graduationYear
+      })
       .eq('user_id', user?.id);
 
     if (error) {
@@ -135,38 +158,95 @@ export default function AccountTab() {
     }
   };
 
+  const handleTestBankSubmission = async () => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) throw new Error('Not authenticated');
+
+      if (!classCode || !fileType) {
+        Alert.alert('Error', 'Please fill in all required fields');
+        return;
+      }
+
+      // In a real implementation, you would handle file upload here
+      // For now, we'll just create the database entry
+      const storedFileName = `${classCode}_${fileType}.pdf`;
+
+      const { error } = await supabase
+        .from('test_bank')
+        .insert({
+          submitted_by: user.id,
+          class_code: classCode.toUpperCase(),
+          file_type: fileType,
+          original_file_name: 'example.pdf', // This would come from the actual file
+          stored_file_name: storedFileName,
+          status: 'pending',
+          uploaded_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      Alert.alert('Success', 'Your submission has been received and is pending review');
+      setShowTestBankForm(false);
+      setClassCode('');
+      setFileType('test');
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to submit');
+    }
+  };
+
+  const renderProfileSection = useMemo(() => (
+    editing ? (
+      <>
+        <TextInput
+          style={styles.input}
+          value={name ?? ''}
+          onChangeText={setName}
+          placeholder="Name"
+        />
+        <TextInput
+          style={styles.input}
+          value={pledgeClass ?? ''}
+          onChangeText={setPledgeClass}
+          placeholder="Pledge Class"
+        />
+        <TextInput
+          style={styles.input}
+          value={major ?? ''}
+          onChangeText={setMajor}
+          placeholder="Major"
+        />
+        <TextInput
+          style={styles.input}
+          value={graduationYear ?? ''}
+          onChangeText={setGraduationYear}
+          placeholder="Graduation Year"
+          keyboardType="numeric"
+        />
+        <TouchableOpacity style={styles.button} onPress={saveProfile}>
+          <Text style={styles.buttonText}>Save</Text>
+        </TouchableOpacity>
+      </>
+    ) : (
+      <>
+        <View style={styles.profileInfo}>
+          <Text style={styles.meta}>Name: {name ?? '---'}</Text>
+          <Text style={styles.meta}>Pledge Class: {pledgeClass ?? '---'}</Text>
+          <Text style={styles.meta}>Major: {major ?? '---'}</Text>
+          <Text style={styles.meta}>Graduation Year: {graduationYear ?? '---'}</Text>
+        </View>
+        <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
+          <Text style={styles.link}>Edit Profile</Text>
+        </TouchableOpacity>
+      </>
+    )
+  ), [editing, name, pledgeClass, major, graduationYear, saveProfile]);
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.sectionHeader}>Account Details</Text>
-
-        {editing ? (
-          <>
-            <TextInput
-              style={styles.input}
-              value={name ?? ''}
-              onChangeText={setName}
-              placeholder="Name"
-            />
-            <TextInput
-              style={styles.input}
-              value={pledgeClass ?? ''}
-              onChangeText={setPledgeClass}
-              placeholder="Pledge Class"
-            />
-            <TouchableOpacity style={styles.button} onPress={saveProfile}>
-              <Text style={styles.buttonText}>Save</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <Text style={styles.meta}>Name: {name ?? '---'}</Text>
-            <Text style={styles.meta}>Pledge Class: {pledgeClass ?? '---'}</Text>
-            <TouchableOpacity onPress={() => setEditing(true)}>
-              <Text style={styles.link}>Edit Profile</Text>
-            </TouchableOpacity>
-          </>
-        )}
+        {renderProfileSection}
 
         <Text style={styles.meta}>Events Attended: {events.length}</Text>
 
@@ -190,13 +270,7 @@ export default function AccountTab() {
                 <Text style={styles.cellHeader}>Organizer</Text>
               </View>
               {events.map((event) => (
-                <View key={event.id} style={styles.tableRow}>
-                  <Text style={styles.cell}>{event.title}</Text>
-                  <Text style={styles.cell}>
-                    {new Date(event.date).toLocaleDateString()}
-                  </Text>
-                  <Text style={styles.cell}>{event.host_name}</Text>
-                </View>
+                <EventRow key={event.id} event={event} />
               ))}
             </View>
           )
@@ -214,6 +288,49 @@ export default function AccountTab() {
           <Text style={styles.buttonText}>Send Feedback</Text>
         </TouchableOpacity>
 
+        <Text style={styles.sectionHeader}>Test Bank Submission</Text>
+        {!showTestBankForm ? (
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: '#4CAF50' }]}
+            onPress={() => setShowTestBankForm(true)}
+          >
+            <Text style={styles.buttonText}>Add to Test Bank</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.formContainer}>
+            <TextInput
+              style={styles.input}
+              value={classCode}
+              onChangeText={setClassCode}
+              placeholder="Course Code (e.g., BMGT402)"
+              autoCapitalize="characters"
+            />
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={fileType}
+                onValueChange={(value: 'test' | 'notes' | 'materials') => setFileType(value)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Test/Exam" value="test" />
+                <Picker.Item label="Notes" value="notes" />
+                <Picker.Item label="Course Materials" value="materials" />
+              </Picker>
+            </View>
+            <TouchableOpacity
+              style={[styles.button, { marginTop: 10 }]}
+              onPress={handleTestBankSubmission}
+            >
+              <Text style={styles.buttonText}>Submit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: '#666' }]}
+              onPress={() => setShowTestBankForm(false)}
+            >
+              <Text style={styles.buttonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <Text style={styles.sectionHeader}>Help & Account</Text>
         <TouchableOpacity
           style={styles.linkButton}
@@ -230,8 +347,44 @@ export default function AccountTab() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 16, paddingBottom: 100 },
+  // Layout
+  container: { 
+    flex: 1, 
+    backgroundColor: '#fff' 
+  },
+  content: { 
+    padding: 16, 
+    paddingBottom: 100 
+  },
+  profileInfo: {
+    backgroundColor: '#f8f9fa',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  formContainer: {
+    backgroundColor: '#f8f9fa',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    marginBottom: 10,
+    backgroundColor: '#fff',
+  },
+  picker: {
+    height: Platform.OS === 'ios' ? 200 : 50,
+    width: '100%',
+  },
+  editButton: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  
+  // Typography
   sectionHeader: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -239,7 +392,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 10,
   },
-  meta: { fontSize: 16, color: '#555', marginBottom: 6 },
+  meta: { fontSize: 16, color: '#333', marginBottom: 6 },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
@@ -247,6 +400,7 @@ const styles = StyleSheet.create({
     padding: 10,
     fontSize: 15,
     marginBottom: 10,
+    color: '#000',
   },
   button: {
     backgroundColor: '#0038A8',

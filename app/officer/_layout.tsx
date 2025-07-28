@@ -1,10 +1,13 @@
-import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { TouchableOpacity, Alert } from 'react-native';
+import { Tabs, useRouter } from 'expo-router';
+import { useEffect } from 'react';
+import { ActivityIndicator, Alert, TouchableOpacity, View } from 'react-native';
+import { useOfficerRole } from '../../hooks/useOfficerRole';
 import { supabase } from '../../lib/supabase';
 
 export default function OfficerLayout() {
   const router = useRouter();
+  const { role, loading } = useOfficerRole();
 
   const handleSignOut: () => Promise<void> = async () => {
     const { error } = await supabase.auth.signOut();
@@ -14,6 +17,24 @@ export default function OfficerLayout() {
       router.replace('/(auth)/login');
     }
   };
+
+  useEffect(() => {
+    if (!loading && (!role?.is_officer || !role?.position)) {
+      router.replace('/');
+    }
+  }, [role, loading, router]);
+
+  if (loading || !role?.is_officer || !role?.position) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#330066" />
+      </View>
+    );
+  }
+
+  const showScholarshipTab = role.position === 'vp_scholarship';
+  const showPledgeTab = role.position === 'vp_pledge';
+  const showProfessionalTab = role.position === 'vp_professional';
 
   return (
     <Tabs
@@ -49,6 +70,17 @@ export default function OfficerLayout() {
           ),
         }}
       />
+      {showScholarshipTab && (
+        <Tabs.Screen
+          name="scholarship"
+          options={{
+            title: 'Testbank',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="library-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
       <Tabs.Screen
         name="events"
         options={{
