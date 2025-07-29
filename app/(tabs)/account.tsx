@@ -33,7 +33,8 @@ export default function AccountTab() {
   const [events, setEvents] = useState<Event[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [feedback, setFeedback] = useState('');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackSubject, setFeedbackSubject] = useState('');
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showTestBankForm, setShowTestBankForm] = useState(false);
@@ -136,18 +137,24 @@ export default function AccountTab() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!feedback.trim()) return;
+    if (!feedbackSubject.trim() || !feedbackMessage.trim()) {
+      Alert.alert('Error', 'Please fill in both subject and message.');
+      return;
+    }
 
-    const { error } = await supabase.from('feedback').insert({
+    const { error } = await supabase.from('admin_feedback').insert({
       user_id: user?.id,
-      content: feedback,
+      subject: feedbackSubject,
+      message: feedbackMessage,
+      submitted_at: new Date().toISOString()
     });
 
     if (error) {
       Alert.alert('Error', 'Could not send feedback.');
     } else {
       Alert.alert('Thanks!', 'Your feedback was submitted.');
-      setFeedback('');
+      setFeedbackSubject('');
+      setFeedbackMessage('');
     }
   };
 
@@ -279,9 +286,15 @@ export default function AccountTab() {
         <Text style={styles.sectionHeader}>Submit Feedback</Text>
         <TextInput
           style={styles.input}
+          placeholder="Subject"
+          value={feedbackSubject}
+          onChangeText={setFeedbackSubject}
+        />
+        <TextInput
+          style={[styles.input, { height: 100 }]}
           placeholder="Your suggestion or comment..."
-          value={feedback}
-          onChangeText={setFeedback}
+          value={feedbackMessage}
+          onChangeText={setFeedbackMessage}
           multiline
         />
         <TouchableOpacity style={styles.button} onPress={submitFeedback}>

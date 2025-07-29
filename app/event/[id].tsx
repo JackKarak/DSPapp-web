@@ -14,7 +14,7 @@ import {
 import { supabase } from '../../lib/supabase';
 
 export default function EventDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, is_registerable } = useLocalSearchParams<{ id: string; is_registerable: string }>();
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
@@ -163,20 +163,26 @@ export default function EventDetail() {
       </ScrollView>
 
       <View style={styles.footer}>
-        {alreadyRegistered ? (
-          <View style={styles.registeredContainer}>
-            <Text style={styles.registered}>✅ You're registered for this event</Text>
-          </View>
+        {is_registerable === '1' ? (
+          alreadyRegistered ? (
+            <View style={styles.registeredContainer}>
+              <Text style={styles.registered}>✅ You're registered for this event</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.registerButton, registering && styles.registeringButton]}
+              onPress={handleRegister}
+              disabled={registering}
+            >
+              <Text style={styles.registerButtonText}>
+                {registering ? 'Registering...' : 'Register for Event'}
+              </Text>
+            </TouchableOpacity>
+          )
         ) : (
-          <TouchableOpacity
-            style={[styles.registerButton, registering && styles.registeringButton]}
-            onPress={handleRegister}
-            disabled={registering}
-          >
-            <Text style={styles.registerButtonText}>
-              {registering ? 'Registering...' : 'Register for Event'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.registeredContainer}>
+            <Text style={styles.registered}>⚠️ Registration not available for this event</Text>
+          </View>
         )}
       </View>
     </SafeAreaView>

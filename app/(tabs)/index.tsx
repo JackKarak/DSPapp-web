@@ -24,6 +24,7 @@ type Event = {
   point_type: string;
   created_by: string;
   host_name?: string;
+  is_registerable: boolean;
 };
 
 export default function CalendarTab() {
@@ -69,7 +70,7 @@ export default function CalendarTab() {
 
     const { data: eventsData, error: eventsError } = await supabase
       .from('events')
-      .select('id, title, start_time, end_time, location, point_value, point_type, created_by')
+      .select('id, title, start_time, end_time, location, point_value, point_type, created_by, is_registerable')
       .eq('status', 'approved')
       .order('start_time', { ascending: true });
 
@@ -93,6 +94,7 @@ export default function CalendarTab() {
     const enrichedEvents = eventsData.map(event => ({
       ...event,
       host_name: usersMap[event.created_by] || 'Unknown',
+      is_registerable: event.is_registerable ?? true, // default to true for backward compatibility
     }));
 
     setEvents(enrichedEvents);
@@ -199,17 +201,25 @@ export default function CalendarTab() {
               <Text style={styles.details}>Host: {item.host_name}</Text>
               <Text style={styles.details}>Point Type: {item.point_type}</Text>
               <View style={styles.actions}>
+                {item.is_registerable && (
+                  <TouchableOpacity
+                    style={[styles.button, isRegistered ? styles.unregister : styles.register]}
+                    onPress={() =>
+                      isRegistered ? handleUnregister(item.id) : handleRegister(item.id)
+                    }
+                  >
+                    <Text style={styles.buttonText}>{isRegistered ? 'Unregister' : 'Register'}</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
-                  style={[styles.button, isRegistered ? styles.unregister : styles.register]}
-                  onPress={() =>
-                    isRegistered ? handleUnregister(item.id) : handleRegister(item.id)
-                  }
-                >
-                  <Text style={styles.buttonText}>{isRegistered ? 'Unregister' : 'Register'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.button, styles.detailsBtn]}
-                  onPress={() => router.push(`/event/${item.id}`)}
+                  style={[styles.button, styles.detailsBtn, !item.is_registerable && styles.fullWidth]}
+                  onPress={() => router.push({
+                    pathname: `/event/[id]` as const,
+                    params: { 
+                      id: item.id,
+                      is_registerable: item.is_registerable ? '1' : '0'
+                    }
+                  })}
                 >
                   <Text style={styles.buttonText}>Details</Text>
                 </TouchableOpacity>
@@ -226,6 +236,9 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1, 
     padding: 16 
+  },
+  fullWidth: {
+    flex: 1,
   },
   header: { 
     fontSize: 20, 
