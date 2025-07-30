@@ -1,11 +1,11 @@
 import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 export default function NewsletterScreen() {
   return (
     <WebView
-      source={{ uri: 'https://sites.google.com/view/gammasigma-phi' }}
+      source={{ uri: 'https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798?e=bbc0848b47' }}
       startInLoadingState
       renderLoading={() => (
         <View style={styles.loaderContainer}>

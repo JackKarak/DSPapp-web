@@ -1,19 +1,18 @@
+import { Picker } from '@react-native-picker/picker';
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
   Alert,
   Button,
-  StyleSheet,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { supabase } from '../../lib/supabase';
 
 // Type definitions
 type User = {
-  id: string;
+  user_id: string;
   name: string;
 };
 
@@ -34,7 +33,7 @@ export default function AdminPointOverride() {
   useEffect(() => {
     // Fetch users
     const fetchUsers = async () => {
-      const { data, error } = await supabase.from('users').select('id, name');
+      const { data, error } = await supabase.from('users').select('user_id, name');
       if (error) Alert.alert('Error fetching users');
       else setUsers(data as User[]);
     };
@@ -98,7 +97,7 @@ export default function AdminPointOverride() {
       >
         <Picker.Item label="Select a User" value="" />
         {users.map((u) => (
-          <Picker.Item key={u.id} label={u.name} value={u.id} />
+          <Picker.Item key={u.user_id} label={u.name} value={u.user_id} />
         ))}
       </Picker>
 

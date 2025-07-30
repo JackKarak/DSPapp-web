@@ -418,6 +418,8 @@ const styles = StyleSheet.create({
   picker: {
     height: Platform.OS === 'ios' ? 200 : 50,
     width: '100%',
+    color: '#000000', // Ensures text is visible
+    backgroundColor: '#fff',
   },
   editButton: {
     alignSelf: 'flex-start',
