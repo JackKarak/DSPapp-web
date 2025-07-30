@@ -147,25 +147,21 @@ export default function AdminRegisterEvent() {
         {!isNoPoint && (
           <>
             <Text style={styles.label}>Point Type</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={pointType}
-                onValueChange={(itemValue) => setPointType(itemValue)}
-                style={[styles.picker, Platform.OS === 'ios' ? { height: 200 } : {}]}
-                dropdownIconColor="#000"
-                mode={Platform.OS === 'android' ? 'dialog' : 'dropdown'}
-                itemStyle={Platform.OS === 'ios' ? { fontSize: 16, color: '#000' } : undefined}
-              >
-                <Picker.Item label="Select point type" value="none" />
-                <Picker.Item label="Brotherhood" value="brotherhood" />
-                <Picker.Item label="Professional" value="professional" />
-                <Picker.Item label="Service" value="service" />
-                <Picker.Item label="Scholarship" value="scholarship" />
-                <Picker.Item label="Health" value="health" />
-                <Picker.Item label="Fundraising" value="fundraising" />
-                <Picker.Item label="DEI" value="dei" />
-              </Picker>
-            </View>
+            <Picker
+              selectedValue={pointType}
+              onValueChange={(itemValue) => setPointType(itemValue)}
+              style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
+              itemStyle={styles.pickerItem}
+            >
+              <Picker.Item label="Select point type" value="none" />
+              <Picker.Item label="Brotherhood" value="brotherhood" />
+              <Picker.Item label="Professional" value="professional" />
+              <Picker.Item label="Service" value="service" />
+              <Picker.Item label="Scholarship" value="scholarship" />
+              <Picker.Item label="Health" value="health" />
+              <Picker.Item label="Fundraising" value="fundraising" />
+              <Picker.Item label="DEI" value="dei" />
+            </Picker>
           </>
         )}
 
@@ -267,16 +263,17 @@ export default function AdminRegisterEvent() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    padding: 16,
+    padding: 24,
+    paddingTop: 20,
     paddingBottom: 60,
     backgroundColor: '#fff',
   },
   header: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#330066',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 32,
   },
   input: {
     borderColor: '#ADAFAA',
@@ -293,23 +290,16 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     fontSize: 16,
   },
-  pickerContainer: {
-    height: Platform.OS === 'android' ? 50 : 50,
-    borderColor: '#ADAFAA',
-    borderWidth: 1,
-    borderRadius: 8,
-    marginBottom: 12,
-    justifyContent: 'center',
-    backgroundColor: '#f1f1f1',
-  },
   picker: {
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    backgroundColor: '#fff',
+  },
+  pickerItem: {
+    fontSize: 16,
     color: '#000',
-    width: '100%',
-    ...(Platform.OS === 'android' ? {
-      height: 50,
-    } : {
-      height: '100%',
-    }),
   },
   pickerButton: {
     borderColor: '#ADAFAA',

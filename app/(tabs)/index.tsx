@@ -2,14 +2,15 @@ import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { supabase } from '../../lib/supabase';
@@ -175,16 +176,20 @@ export default function CalendarTab() {
               </View>
             )}
           />
-          <Picker
-            selectedValue={selectedType}
-            style={styles.picker}
-            onValueChange={(itemValue) => setSelectedType(itemValue)}
-          >
-            <Picker.Item label="All Types" value="All" />
-            {[...new Set(events.map(e => e.point_type))].map((type) => (
-              <Picker.Item key={type} label={type} value={type} />
-            ))}
-          </Picker>
+          <View style={styles.filterContainer}>
+            <Text style={styles.filterLabel}>Filter by Type:</Text>
+            <Picker
+              selectedValue={selectedType}
+              style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
+              itemStyle={styles.pickerItem}
+              onValueChange={(itemValue) => setSelectedType(itemValue)}
+            >
+              <Picker.Item label="All Types" value="All" />
+              {[...new Set(events.map(e => e.point_type))].map((type) => (
+                <Picker.Item key={type} label={type} value={type} />
+              ))}
+            </Picker>
+          </View>
         </View>
       )}
 
@@ -237,6 +242,20 @@ const styles = StyleSheet.create({
     flex: 1, 
     padding: 16 
   },
+  filterContainer: {
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    padding: 10,
+  },
+  filterLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#444',
+    marginBottom: 6,
+  },
   fullWidth: {
     flex: 1,
   },
@@ -272,7 +291,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   toggleText: { color: '#fff', fontWeight: 'bold' },
-  picker: { marginVertical: 10 },
+  picker: {
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    backgroundColor: '#fff',
+  },
+  pickerItem: {
+    fontSize: 16,
+    color: '#000',
+  },
   loader: { marginTop: 20 },
   card: {
     backgroundColor: '#f2f2ff',

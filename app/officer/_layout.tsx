@@ -34,19 +34,40 @@ export default function OfficerLayout() {
 
   // Define which tabs each officer role can access
   const getAccessibleTabs = () => {
-    switch (role.position) {
+    const position = role?.position?.toLowerCase() ?? '';
+    switch (position) {
+      // Executive Board (Full Access)
+      case 'svp':
+      case 'chancellor':
+        return ['officerindex', 'analytics', 'events', 'register', 'scholarship'];
+
+      // Academic VPs
       case 'vp_scholarship':
-        return ['analytics', 'events', 'register', 'scholarship'];
-      case 'vp_professional':
-        return ['analytics', 'events', 'register'];
-      case 'vp_pledge':
-        return ['analytics', 'events', 'register'];
+        return ['officerindex', 'analytics', 'events', 'register', 'scholarship'];
+        
+      // Administrative VPs (Analytics + Events)
       case 'vp_operations':
-        return ['analytics', 'events'];
-      case 'president':
-        return ['analytics', 'events', 'register'];
+      case 'vp_finance':
+      case 'historian':
+      case 'risk':
+        return ['officerindex', 'analytics', 'events'];
+
+      // Event-Creating VPs
+      case 'vp_professional':
+      case 'vp_service':
+      case 'vp_dei':
+      case 'vp_pledge_ed':
+      case 'social':
+      case 'marketing':
+      case 'wellness':
+      case 'fundraising':
+      case 'brotherhood':
+      case 'vp_branding':
+        return ['officerindex', 'analytics', 'events', 'register'];
+
+      // Default access - just home page
       default:
-        return ['events']; // Default access
+        return ['officerindex']; // Fallback for safety
     }
   };
 
@@ -68,6 +89,19 @@ export default function OfficerLayout() {
         ),
       }}
     >
+      {/* Home tab - always visible */}
+      {accessibleTabs.includes('officerindex') && (
+        <Tabs.Screen
+          name="officerindex"
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="home-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
+      {/* Analytics tab - most officers */}
       {accessibleTabs.includes('analytics') && (
         <Tabs.Screen
           name="analytics"
@@ -79,6 +113,19 @@ export default function OfficerLayout() {
           }}
         />
       )}
+      {/* Events tab - all officers */}
+      {accessibleTabs.includes('events') && (
+        <Tabs.Screen
+          name="events"
+          options={{
+            title: 'Events',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="calendar-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
+      {/* Register tab - VPs only */}
       {accessibleTabs.includes('register') && (
         <Tabs.Screen
           name="register"
@@ -90,6 +137,7 @@ export default function OfficerLayout() {
           }}
         />
       )}
+      {/* Scholarship tab - VP Scholarship and President only */}
       {accessibleTabs.includes('scholarship') && (
         <Tabs.Screen
           name="scholarship"
@@ -97,17 +145,6 @@ export default function OfficerLayout() {
             title: 'Testbank',
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="library-outline" size={size} color={color} />
-            ),
-          }}
-        />
-      )}
-      {accessibleTabs.includes('events') && (
-        <Tabs.Screen
-          name="events"
-          options={{
-            title: 'Events',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="calendar-outline" size={size} color={color} />
             ),
           }}
         />

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Button,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -93,7 +94,8 @@ export default function AdminPointOverride() {
       <Picker
         selectedValue={selectedUser}
         onValueChange={setSelectedUser}
-        style={styles.input}
+        style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
+        itemStyle={styles.pickerItem}
       >
         <Picker.Item label="Select a User" value="" />
         {users.map((u) => (
@@ -105,7 +107,8 @@ export default function AdminPointOverride() {
       <Picker
         selectedValue={selectedEvent}
         onValueChange={setSelectedEvent}
-        style={styles.input}
+        style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
+        itemStyle={styles.pickerItem}
       >
         <Picker.Item label="Select an Event" value="" />
         {events.map((e) => (
@@ -117,7 +120,8 @@ export default function AdminPointOverride() {
       <Picker
         selectedValue={pointType}
         onValueChange={setPointType}
-        style={styles.input}
+        style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
+        itemStyle={styles.pickerItem}
       >
         <Picker.Item label="Brotherhood" value="brotherhood" />
         <Picker.Item label="Service" value="service" />
@@ -153,13 +157,15 @@ export default function AdminPointOverride() {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    backgroundColor: '#f5f5f5',
+    padding: 24,
+    paddingTop: 20,
+    paddingBottom: 60,
+    backgroundColor: '#fff',
   },
   heading: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 20,
+    marginBottom: 32,
     color: '#330066',
     textAlign: 'center',
   },
@@ -167,14 +173,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 6,
     marginTop: 12,
-    color: '#0038A8',
+    fontSize: 16,
+    color: '#444',
   },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
-    marginBottom: 12,
+    borderRadius: 10,
     padding: 12,
-    borderRadius: 8,
+    marginBottom: 20,
     backgroundColor: '#fff',
+    fontSize: 16,
+    color: '#000',
+  },
+  picker: {
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    backgroundColor: '#fff',
+  },
+  pickerItem: {
+    fontSize: 16,
+    color: '#000',
   },
 });
