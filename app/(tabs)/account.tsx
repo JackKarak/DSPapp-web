@@ -1,4 +1,5 @@
 import { Picker } from '@react-native-picker/picker';
+import * as DocumentPicker from 'expo-document-picker';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -40,6 +41,7 @@ export default function AccountTab() {
   const [showTestBankForm, setShowTestBankForm] = useState(false);
   const [classCode, setClassCode] = useState('');
   const [fileType, setFileType] = useState<'test' | 'notes' | 'materials'>('test');
+  const [selectedFile, setSelectedFile] = useState<any>(null);
 
   const toggleExpanded = useCallback(() => setExpanded((prev) => !prev), []);
 
@@ -165,19 +167,34 @@ export default function AccountTab() {
     }
   };
 
+  const handlePickFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setSelectedFile(result.assets[0]);
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to pick file.');
+    }
+  };
+
   const handleTestBankSubmission = async () => {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error('Not authenticated');
 
-      if (!classCode || !fileType) {
-        Alert.alert('Error', 'Please fill in all required fields');
+      if (!classCode || !fileType || !selectedFile) {
+        Alert.alert('Error', 'Please fill in all required fields and select a file');
         return;
       }
 
-      // In a real implementation, you would handle file upload here
-      // For now, we'll just create the database entry
-      const storedFileName = `${classCode}_${fileType}.pdf`;
+      // In a real implementation, you would upload the file to Supabase Storage here
+      // For now, we'll just create the database entry with the file name
+      const storedFileName = `${classCode}_${fileType}_${Date.now()}_${selectedFile.name}`;
 
       const { error } = await supabase
         .from('test_bank')
@@ -185,7 +202,7 @@ export default function AccountTab() {
           submitted_by: user.id,
           class_code: classCode.toUpperCase(),
           file_type: fileType,
-          original_file_name: 'example.pdf', // This would come from the actual file
+          original_file_name: selectedFile.name,
           stored_file_name: storedFileName,
           status: 'pending',
           uploaded_at: new Date().toISOString()
@@ -197,6 +214,7 @@ export default function AccountTab() {
       setShowTestBankForm(false);
       setClassCode('');
       setFileType('test');
+      setSelectedFile(null);
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to submit');
     }
@@ -330,6 +348,15 @@ export default function AccountTab() {
               </Picker>
             </View>
             <TouchableOpacity
+              style={[styles.button, { backgroundColor: '#888', marginBottom: 6 }]}
+              onPress={handlePickFile}
+            >
+              <Text style={styles.buttonText}>{selectedFile ? 'Change File' : 'Choose File'}</Text>
+            </TouchableOpacity>
+            {selectedFile && (
+              <Text style={{ marginBottom: 8, color: '#333', fontSize: 14 }}>Selected: {selectedFile.name}</Text>
+            )}
+            <TouchableOpacity
               style={[styles.button, { marginTop: 10 }]}
               onPress={handleTestBankSubmission}
             >
@@ -337,7 +364,7 @@ export default function AccountTab() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, { backgroundColor: '#666' }]}
-              onPress={() => setShowTestBankForm(false)}
+              onPress={() => { setShowTestBankForm(false); setSelectedFile(null); }}
             >
               <Text style={styles.buttonText}>Cancel</Text>
             </TouchableOpacity>

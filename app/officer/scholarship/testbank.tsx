@@ -1,26 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { supabase } from '../../../lib/supabase';
 
 type TestbankEntry = {
   id: string;
-  user_id: string;
-  course_code: string;
-  professor: string;
-  semester: string;
-  file_url: string;
+  submitted_by: string;
+  class_code: string;
+  file_type: string;
+  original_file_name: string;
+  stored_file_name: string;
   status: 'pending' | 'approved' | 'rejected';
-  created_at: string;
-  submitted_by?: string;
+  uploaded_at: string;
+  users?: { name: string };
 };
 
 export default function TestbankScreen() {
@@ -33,16 +33,14 @@ export default function TestbankScreen() {
 
   const fetchTestbankEntries = async () => {
     try {
-        const { data, error } = await supabase
-          .from('test_bank')
-          .select(`
-            *,
-            users:submitted_by (name)
-          `)
-          .eq('status', 'pending')
-          .order('created_at', { ascending: false });      if (error) throw error;
+      const { data, error } = await supabase
+        .from('test_bank')
+        .select(`*, users:submitted_by (name)`) // join user name
+        .eq('status', 'pending')
+        .order('uploaded_at', { ascending: false });
+      if (error) throw error;
 
-      const formattedEntries = data.map(entry => ({
+      const formattedEntries = (data || []).map(entry => ({
         ...entry,
         submitted_by: entry.users?.name || 'Unknown',
       }));
@@ -59,7 +57,7 @@ export default function TestbankScreen() {
   const handleApprove = async (id: string) => {
     try {
       const { error } = await supabase
-        .from('testbank_entries')
+        .from('test_bank')
         .update({ status: 'approved' })
         .eq('id', id);
 
@@ -76,32 +74,40 @@ export default function TestbankScreen() {
   const handleReject = async (id: string) => {
     try {
       const { error } = await supabase
-        .from('testbank_entries')
-        .update({ status: 'rejected' })
+        .from('test_bank')
+        .delete()
         .eq('id', id);
 
       if (error) throw error;
 
-      Alert.alert('Success', 'Entry rejected');
+      Alert.alert('Success', 'Entry deleted');
       fetchTestbankEntries();
     } catch (error) {
-      console.error('Error rejecting entry:', error);
-      Alert.alert('Error', 'Failed to reject entry');
+      console.error('Error deleting entry:', error);
+      Alert.alert('Error', 'Failed to delete entry');
     }
   };
 
   const renderItem = ({ item }: { item: TestbankEntry }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.courseCode}>{item.course_code}</Text>
+        <Text style={styles.courseCode}>{item.class_code}</Text>
         <Text style={styles.date}>
-          {new Date(item.created_at).toLocaleDateString()}
+          {new Date(item.uploaded_at).toLocaleDateString()}
         </Text>
       </View>
 
-      <Text style={styles.detail}>Professor: {item.professor}</Text>
-      <Text style={styles.detail}>Semester: {item.semester}</Text>
+      <Text style={styles.detail}>File Type: {item.file_type}</Text>
+      <Text style={styles.detail}>Original File: {item.original_file_name}</Text>
       <Text style={styles.detail}>Submitted by: {item.submitted_by}</Text>
+      <TouchableOpacity
+        onPress={() => {
+          // You may want to generate a public URL here if using Supabase Storage
+          Alert.alert('File', item.stored_file_name);
+        }}
+      >
+        <Text style={[styles.detail, { color: '#007AFF', textDecorationLine: 'underline' }]}>Download/View File</Text>
+      </TouchableOpacity>
 
       <View style={styles.actions}>
         <TouchableOpacity

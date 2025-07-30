@@ -20,6 +20,7 @@ export default function OfficerRegisterEvent() {
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [pointType, setPointType] = useState('none');
+  const [noPointEvent, setNoPointEvent] = useState(false);
   const [startDate, setStartDate] = useState(new Date());
   const [startTime, setStartTime] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
@@ -42,7 +43,7 @@ export default function OfficerRegisterEvent() {
   }
 
   const handleSubmit = async () => {
-    if (!title || !location || !pointType) {
+    if (!title || !location || (!noPointEvent && !pointType)) {
       Alert.alert('Please fill out all required fields');
       return;
     }
@@ -78,12 +79,15 @@ export default function OfficerRegisterEvent() {
     const roundedStart = roundToNearestMinute(combinedStart);
     const roundedEnd = roundToNearestMinute(combinedEnd);
 
+    const eventPointType = noPointEvent ? 'No Point' : pointType;
+    const eventPointValue = noPointEvent ? 0 : 1;
+
     const { error } = await supabase.from('events').insert({
       title,
       description,
       location,
-      point_type: pointType,
-      point_value: 1,
+      point_type: eventPointType,
+      point_value: eventPointValue,
       start_time: roundedStart.toISOString(),
       end_time: roundedEnd.toISOString(),
       created_by: user.id, // Using user.id from auth, which maps to user_id in users table
@@ -107,6 +111,7 @@ export default function OfficerRegisterEvent() {
       setIsRegisterable(true);
       setAvailableToPledges(true);
       setIsMultiDay(false);
+      setNoPointEvent(false);
     }
   };
 
@@ -138,26 +143,35 @@ export default function OfficerRegisterEvent() {
           onChangeText={setDescription}
         />
 
-        <Text style={styles.label}>Point Type</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={pointType}
-            onValueChange={(itemValue) => setPointType(itemValue)}
-            style={[styles.picker, Platform.OS === 'ios' ? { height: 200 } : {}]}
-            dropdownIconColor="#000"
-            mode={Platform.OS === 'android' ? 'dialog' : 'dropdown'}
-            itemStyle={Platform.OS === 'ios' ? { fontSize: 16, color: '#000' } : undefined}
-          >
-            <Picker.Item label="Select point type" value="none" />
-            <Picker.Item label="Brotherhood" value="brotherhood" />
-            <Picker.Item label="Professional" value="professional" />
-            <Picker.Item label="Service" value="service" />
-            <Picker.Item label="Scholarship" value="scholarship" />
-            <Picker.Item label="Health" value="health" />
-            <Picker.Item label="Fundraising" value="fundraising" />
-            <Picker.Item label="DEI" value="dei" />
-          </Picker>
+        <View style={styles.switchRow}>
+          <Text>No Point Event?</Text>
+          <Switch value={noPointEvent} onValueChange={setNoPointEvent} />
         </View>
+
+        {!noPointEvent && (
+          <>
+            <Text style={styles.label}>Point Type</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={pointType}
+                onValueChange={(itemValue) => setPointType(itemValue)}
+                style={[styles.picker, Platform.OS === 'ios' ? { height: 200 } : {}]}
+                dropdownIconColor="#000"
+                mode={Platform.OS === 'android' ? 'dialog' : 'dropdown'}
+                itemStyle={Platform.OS === 'ios' ? { fontSize: 16, color: '#000' } : undefined}
+              >
+                <Picker.Item label="Select point type" value="none" />
+                <Picker.Item label="Brotherhood" value="brotherhood" />
+                <Picker.Item label="Professional" value="professional" />
+                <Picker.Item label="Service" value="service" />
+                <Picker.Item label="Scholarship" value="scholarship" />
+                <Picker.Item label="Health" value="health" />
+                <Picker.Item label="Fundraising" value="fundraising" />
+                <Picker.Item label="DEI" value="dei" />
+              </Picker>
+            </View>
+          </>
+        )}
 
         <View style={styles.switchRow}>
           <Text>Registerable Event?</Text>

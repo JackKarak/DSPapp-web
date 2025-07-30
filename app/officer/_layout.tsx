@@ -32,9 +32,25 @@ export default function OfficerLayout() {
     );
   }
 
-  const showScholarshipTab = role.position === 'vp_scholarship';
-  const showPledgeTab = role.position === 'vp_pledge';
-  const showProfessionalTab = role.position === 'vp_professional';
+  // Define which tabs each officer role can access
+  const getAccessibleTabs = () => {
+    switch (role.position) {
+      case 'vp_scholarship':
+        return ['analytics', 'events', 'register', 'scholarship'];
+      case 'vp_professional':
+        return ['analytics', 'events', 'register'];
+      case 'vp_pledge':
+        return ['analytics', 'events', 'register'];
+      case 'vp_operations':
+        return ['analytics', 'events'];
+      case 'president':
+        return ['analytics', 'events', 'register'];
+      default:
+        return ['events']; // Default access
+    }
+  };
+
+  const accessibleTabs = getAccessibleTabs();
 
   return (
     <Tabs
@@ -52,25 +68,29 @@ export default function OfficerLayout() {
         ),
       }}
     >
-      <Tabs.Screen
-        name="analytics"
-        options={{
-          title: 'Analytics',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="register"
-        options={{
-          title: 'Register',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-add-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      {showScholarshipTab && (
+      {accessibleTabs.includes('analytics') && (
+        <Tabs.Screen
+          name="analytics"
+          options={{
+            title: 'Analytics',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="bar-chart-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
+      {accessibleTabs.includes('register') && (
+        <Tabs.Screen
+          name="register"
+          options={{
+            title: 'Register',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="person-add-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
+      {accessibleTabs.includes('scholarship') && (
         <Tabs.Screen
           name="scholarship"
           options={{
@@ -81,15 +101,17 @@ export default function OfficerLayout() {
           }}
         />
       )}
-      <Tabs.Screen
-        name="events"
-        options={{
-          title: 'Events',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
-          ),
-        }}
-      />
+      {accessibleTabs.includes('events') && (
+        <Tabs.Screen
+          name="events"
+          options={{
+            title: 'Events',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="calendar-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
     </Tabs>
   );
 }

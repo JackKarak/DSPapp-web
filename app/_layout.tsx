@@ -1,9 +1,8 @@
-import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { ActivityIndicator, View, ImageBackground, StyleSheet } from 'react-native';
+import { ActivityIndicator, ImageBackground, StyleSheet, View } from 'react-native';
 import { MD3LightTheme, PaperProvider } from 'react-native-paper';
 import backgroundImage from '../assets/images/background.png'; // Adjust if path differs
 
@@ -20,7 +19,7 @@ const paperTheme = {
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'), // Ensure file exists
+    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
   if (!fontsLoaded) {
@@ -33,14 +32,12 @@ export default function RootLayout() {
 
   return (
     <PaperProvider theme={paperTheme}>
-      <ThemeProvider value={DefaultTheme}>
-        <ImageBackground source={backgroundImage} style={styles.background} resizeMode="cover">
-          <View style={styles.overlay}>
-            <Slot />
-            <StatusBar style="auto" />
-          </View>
-        </ImageBackground>
-      </ThemeProvider>
+      <ImageBackground source={backgroundImage} style={styles.background} resizeMode="cover">
+        <View style={styles.overlay}>
+          <Slot />
+          <StatusBar style="auto" />
+        </View>
+      </ImageBackground>
     </PaperProvider>
   );
 }

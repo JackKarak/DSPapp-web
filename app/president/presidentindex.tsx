@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  ScrollView, 
-  TouchableOpacity, 
-  ActivityIndicator,
-  Alert
+import {
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
