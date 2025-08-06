@@ -59,12 +59,12 @@ export default function CalendarTab() {
 
     const { data: profile, error: profileError } = await supabase
       .from('users')
-      .select('first_name, last_name, approved')
+      .select('first_name, last_name')
       .eq('user_id', user.id)
       .single();
 
-    if (profileError || !profile?.approved) {
-      Alert.alert('Pending Approval', 'Your account has not been approved yet.');
+    if (profileError || !profile) {
+      Alert.alert('Error', 'Unable to load user profile.');
       setLoading(false);
       return;
     }
@@ -77,7 +77,6 @@ export default function CalendarTab() {
     const { data: eventsData, error: eventsError } = await supabase
       .from('events')
       .select('id, title, start_time, end_time, location, point_value, point_type, created_by, is_registerable')
-      .eq('status', 'approved')
       .order('start_time', { ascending: true });
 
     if (eventsError) {

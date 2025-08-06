@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { FontAwesome } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 
 const POINT_REQUIREMENTS: Record<string, number> = {
@@ -31,19 +31,6 @@ export default function PointsScreen() {
 
       if (userError || !user) {
         console.error('User fetch error:', userError);
-        setLoading(false);
-        return;
-      }
-
-      // Check if user is approved
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('approved')
-        .eq('user_id', user.id)
-        .single();
-
-      if (profileError || !profile?.approved) {
-        console.error('User not approved or profile error:', profileError);
         setLoading(false);
         return;
       }

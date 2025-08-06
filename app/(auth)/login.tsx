@@ -1,14 +1,13 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert,
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   View,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button, Text, TextInput, useTheme } from 'react-native-paper';
 import { supabase } from '../../lib/supabase';
 
@@ -16,6 +15,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const router = useRouter();
   const theme = useTheme();
 
@@ -28,6 +28,8 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
+      console.log('Attempting login for email:', email);
+      
       // Step 1: Sign in
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -35,64 +37,39 @@ export default function LoginScreen() {
       });
 
       if (authError || !authData?.user) {
+        console.error('Auth error:', authError);
         throw new Error(authError?.message || 'Unable to sign in.');
       }
 
       const userId = authData.user.id;
+      console.log('Successfully authenticated user:', userId);
 
-      // Step 2: Try to fetch user profile
+      // Step 2: Fetch user profile
       const { data: profile, error: profileError } = await supabase
         .from('users')
         .select('*')
         .eq('user_id', userId)
         .single();
 
-      // Step 3: If no profile, create one from temp storage
-      if (!profile) {
-        const name = await AsyncStorage.getItem('temp_name');
-        const pledgeClass = await AsyncStorage.getItem('temp_pledge_class');
-        const role = (await AsyncStorage.getItem('temp_role')) || 'brother';
+      console.log('Profile query result:', { profile, profileError });
 
-        if (name && pledgeClass) {
-          const { error: insertError } = await supabase.from('users').insert({
-            user_id: userId,
-            email,
-            name,
-            pledge_class: pledgeClass,
-            role,
-            approved: false,
-          });
-
-          if (insertError) {
-            console.error('Insert failed:', insertError.message);
-            throw new Error('Could not create your profile.');
-          }
-
-          await AsyncStorage.multiRemove(['temp_name', 'temp_pledge_class', 'temp_role']);
+      if (profileError) {
+        if (profileError.code === 'PGRST116') {
+          throw new Error('No user profile found. Please complete the signup process first.');
         } else {
-          throw new Error('Missing temporary profile information.');
+          console.error('Profile fetch error:', profileError);
+          throw new Error(`Profile fetch failed: ${profileError.message}`);
         }
       }
 
-      // Step 4: Fetch final profile with approval + role
-      const { data: finalProfile, error: finalProfileError } = await supabase
-        .from('users')
-        .select('approved, role')
-        .eq('user_id', userId)
-        .single();
-
-      if (finalProfileError || !finalProfile) {
-        throw new Error('Could not retrieve profile.');
+      if (!profile) {
+        throw new Error('User profile is empty. Please contact support.');
       }
 
-      const { approved, role } = finalProfile;
+      const { role } = profile;
+      console.log('User role:', role);
 
-      if (!approved) {
-        Alert.alert('Pending Approval', 'Your account is not approved yet.');
-        return;
-      }
-
-      // Step 5: Navigate based on role
+      // Step 3: Navigate based on role
       switch (role) {
         case 'officer':
           router.replace('/officer/officerindex');
@@ -104,6 +81,7 @@ export default function LoginScreen() {
           router.replace('/(tabs)');
       }
     } catch (error: any) {
+      console.error('Login error:', error);
       Alert.alert('Login Error', error.message);
     } finally {
       setLoading(false);
@@ -112,6 +90,35 @@ export default function LoginScreen() {
 
   const goToSignUp = () => {
     router.push('/(auth)/signup');
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      Alert.alert('Email Required', 'Please enter your email address first.');
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'your-app://reset-password', // You can customize this URL
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      Alert.alert(
+        'Reset Email Sent',
+        'Check your email for a password reset link. If you don\'t see it, check your spam folder.',
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      Alert.alert('Reset Error', error.message);
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   return (
@@ -148,15 +155,25 @@ export default function LoginScreen() {
         mode="contained"
         onPress={handleLogin}
         loading={loading}
-        disabled={loading}
+        disabled={loading || resetLoading}
         style={styles.button}
       >
         Log In
       </Button>
 
+      <Button
+        onPress={handleForgotPassword}
+        mode="text"
+        disabled={loading || resetLoading}
+        loading={resetLoading}
+        style={styles.forgotButton}
+      >
+        Forgot Password?
+      </Button>
+
       <View style={styles.signupContainer}>
         <Text style={styles.signupText}>Don't have an account?</Text>
-        <Button onPress={goToSignUp} mode="text" disabled={loading}>
+        <Button onPress={goToSignUp} mode="text" disabled={loading || resetLoading}>
           Sign Up
         </Button>
       </View>
@@ -184,6 +201,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   button: {
+    marginTop: 8,
+  },
+  forgotButton: {
     marginTop: 8,
   },
   signupContainer: {

@@ -34,31 +34,11 @@ export default function AttendanceScreen() {
       return;
     }
 
-    // Check if user is approved
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('approved, first_name, last_name')
-      .eq('user_id', user.id)
-      .single();
-
-    if (profileError || !profile) {
-      setLoading(false);
-      Alert.alert('❌ Error', 'Unable to verify user profile.');
-      return;
-    }
-
-    if (!profile.approved) {
-      setLoading(false);
-      Alert.alert('❌ Error', 'Your account is not approved yet.');
-      return;
-    }
-
-    // Check if the code is valid for an approved event
+    // Check if the code is valid for an event
     const { data: events, error: eventError } = await supabase
       .from('events')
       .select('*')
-      .eq('code', code.trim())
-      .eq('status', 'approved');
+      .eq('code', code.trim());
 
     if (eventError || !events || events.length === 0) {
       setLoading(false);
@@ -103,7 +83,14 @@ export default function AttendanceScreen() {
     if (insertError) {
       Alert.alert('❌ Error', insertError.message);
     } else {
-      const userName = profile.first_name && profile.last_name 
+      // Get user profile for personalized message
+      const { data: profile } = await supabase
+        .from('users')
+        .select('first_name, last_name')
+        .eq('user_id', user.id)
+        .single();
+
+      const userName = profile?.first_name && profile?.last_name 
         ? `${profile.first_name} ${profile.last_name}` 
         : 'User';
       Alert.alert('✅ Success', `${userName}, you have been marked present for "${event.title}".`);

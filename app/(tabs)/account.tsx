@@ -2,16 +2,16 @@ import { Picker } from '@react-native-picker/picker';
 import * as DocumentPicker from 'expo-document-picker';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { Event } from '../../types/account';
@@ -62,7 +62,7 @@ export default function AccountTab() {
 
       const { data: profile, error: profileError } = await supabase
         .from('users')
-        .select('first_name, last_name, pledge_class, approved, major, graduation_year')
+        .select('first_name, last_name, pledge_class, major, graduation_year')
         .eq('user_id', user.id)
         .single();
 
@@ -70,17 +70,11 @@ export default function AccountTab() {
         throw new Error('Unable to fetch user profile.');
       }
 
-      if (!profile.approved) {
-        Alert.alert('Pending Approval', 'Your account is awaiting approval.');
-        setLoading(false);
-        return;
-      }
-
       setFirstName(profile.first_name);
       setLastName(profile.last_name);
       setPledgeClass(profile.pledge_class);
       setMajor(profile.major);
-      setGraduationYear(profile.graduation_year);
+      setGraduationYear(profile.graduation_year?.toString() || '');
 
       const { data: attendedEvents, error: eventError } = await supabase
         .from('event_attendance')

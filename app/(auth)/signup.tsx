@@ -49,119 +49,233 @@ export default function SignupScreen() {
 
     setLoading(true);
     try {
-      // Check if user exists in database
-      const { data: existingData, error } = await supabase
-        .from('users')
+      console.log('Searching for brother with phone:', phoneNumber, 'and uid:', uid);
+      
+      // Convert to numbers for the query since they're NUMERIC columns
+      const phoneNum = parseInt(phoneNumber);
+      const uidNum = parseInt(uid);
+      
+      // Check if brother exists in the brother table
+      const { data: brotherData, error } = await supabase
+        .from('brother')
         .select('*')
-        .eq('phone_number', phoneNumber)
-        .eq('uid', uid)
+        .eq('phone_number', phoneNum)
+        .eq('uid', uidNum)
         .single();
 
+      console.log('Brother query result:', { brotherData, error });
+
       if (error && error.code !== 'PGRST116') {
+        console.error('Brother query error:', error);
         throw error;
       }
 
-      if (existingData) {
-        setExistingUser(existingData);
-        setFirstName(existingData.first_name || '');
-        setLastName(existingData.last_name || '');
-        setEmail(existingData.email || '');
-        setPledgeClass(existingData.pledge_class || '');
-        setGraduationYear(existingData.graduation_year || '');
-        setMajor(existingData.major || '');
-        setStep(role === 'brother' ? 4 : 3); // Brother confirmation or direct form
+      if (brotherData) {
+        // Check if this brother already has a user account
+        const { data: existingUser, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('phone_number', phoneNum)
+          .eq('uid', uidNum)
+          .single();
+
+        if (userError && userError.code !== 'PGRST116') {
+          throw userError;
+        }
+
+        if (existingUser) {
+          Alert.alert('Account Exists', 'You already have an account. Please try logging in instead.');
+          router.replace('/(auth)/login');
+          return;
+        }
+
+        // Brother found and no existing user account - proceed with signup
+        setExistingUser(brotherData);
+        setFirstName(brotherData.first_name || '');
+        setLastName(brotherData.last_name || '');
+        setEmail(brotherData.email || '');
+        setPledgeClass(brotherData.pledge_class || '');
+        setGraduationYear(brotherData.graduation_year?.toString() || '');
+        setMajor(brotherData.major || '');
+        setStep(4); // Brother confirmation step
       } else {
-        setStep(3); // New user form
+        Alert.alert('Not Found', 'No brother found with this phone number and UID. Please contact an officer if you believe this is an error.');
       }
     } catch (error: any) {
-      Alert.alert('Error', 'Failed to check user information.');
+      Alert.alert('Error', 'Failed to check brother information.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleSignup = async () => {
-    if (!firstName || !lastName || !email || !password || !role) {
-      Alert.alert('Missing Fields', 'Please fill in all required fields.');
-      return;
-    }
+  if (!firstName || !lastName || !email || !password || !role) {
+    Alert.alert('Missing Fields', 'Please fill in all required fields.');
+    return;
+  }
 
-    if ((role === 'brother' || role === 'pledge') && (!phoneNumber || !uid)) {
-      Alert.alert('Missing Information', 'Phone number and UID are required.');
-      return;
-    }
+  if ((role === 'brother' || role === 'pledge') && (!phoneNumber || !uid)) {
+    Alert.alert('Missing Information', 'Phone number and UID are required.');
+    return;
+  }
 
-    if (role === 'officer' && !officerPosition) {
-      Alert.alert('Missing Officer Role', 'Please select an officer position.');
-      return;
-    }
+  if (role === 'officer' && !officerPosition) {
+    Alert.alert('Missing Officer Role', 'Please select an officer position.');
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    try {
+  try {
+    let authUserId: string;
+
+    if (existingUser) {
+      // For existing brothers: handle auth account scenarios
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       });
 
-      if (signUpError || !signUpData?.user?.id) {
-        throw new Error(signUpError?.message || 'Signup failed.');
-      }
+      if (signUpError) {
+        // Handle case where user already exists in auth
+        if (signUpError.message.includes('User already registered') || 
+            signUpError.message.includes('already been taken') ||
+            signUpError.message.includes('already registered')) {
+          
+          // For existing brothers with auth conflicts, we'll create a new auth account
+          // by updating their email temporarily, then creating the account
+          const tempEmail = `temp_${Date.now()}_${email}`;
+          
+          const { data: tempSignUpData, error: tempSignUpError } = await supabase.auth.signUp({
+            email: tempEmail,
+            password,
+          });
 
-      const userId = signUpData.user.id;
+          if (tempSignUpError) {
+            throw new Error('Could not create account. Please contact support.');
+          }
 
-      if (existingUser) {
-        // Update existing user record
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({
-            user_id: userId,
-            first_name: firstName,
-            last_name: lastName,
-            email: email,
-            graduation_year: graduationYear,
-            major: major,
-            approved: true, // Auto-approve existing users who confirmed their identity
-          })
-          .eq('id', existingUser.id);
+          if (!tempSignUpData?.user?.id) {
+            throw new Error('Failed to create user account.');
+          }
 
-        if (updateError) {
-          throw new Error('Could not update user profile.');
+          authUserId = tempSignUpData.user.id;
+
+          // Update the auth user's email back to the original
+          const { error: updateError } = await supabase.auth.admin.updateUserById(
+            authUserId,
+            { email: email }
+          );
+
+          if (updateError) {
+            console.warn('Could not update email, using temporary email');
+          }
+        } else {
+          throw new Error(signUpError.message);
         }
+      } else if (signUpData?.user?.id) {
+        // New auth user created successfully
+        authUserId = signUpData.user.id;
       } else {
-        // Create new user record
-        const { error: insertError } = await supabase.from('users').insert({
-          user_id: userId,
-          first_name: firstName,
-          last_name: lastName,
-          email,
-          phone_number: phoneNumber || null,
-          uid: uid || null,
-          role,
-          pledge_class: pledgeClass || null,
-          graduation_year: graduationYear || null,
-          major: major || null,
-          officer_position: role === 'officer' ? officerPosition : null,
-          approved: false,
-        });
+        throw new Error('Failed to create user account.');
+      }
 
-        if (insertError) {
-          throw new Error('Could not create user profile.');
+      // Transfer information from brother table to users table
+      // User must stay signed in for RLS policy to work
+      const { error: insertError } = await supabase.from('users').insert({
+        user_id: authUserId, // must equal auth.uid()
+        brother_id: existingUser.id, // Link to the brother record
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone_number: parseInt(phoneNumber),
+        uid: parseInt(uid),
+        role,
+        pledge_class: pledgeClass || null,
+        graduation_year: graduationYear ? parseInt(graduationYear) : null,
+        major: major || null,
+        activated_at: new Date().toISOString(),
+      });
+
+      if (insertError) {
+        console.error('Insert Error:', insertError);
+        throw new Error(insertError.message || 'Could not create user profile.');
+      }
+
+      // Delete the brother record since they're now in the users table
+      const { error: deleteError } = await supabase
+        .from('brother')
+        .delete()
+        .eq('id', existingUser.id);
+
+      if (deleteError) {
+        console.warn('Could not delete brother record:', deleteError);
+        // Don't throw error here as the main operation succeeded
+      }
+
+      // Sign out after successful operations
+      await supabase.auth.signOut();
+
+    } else {
+      // For officers/admin: create new auth user
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (signUpError) {
+        if (signUpError.message.includes('User already registered') || 
+            signUpError.message.includes('already been taken') ||
+            signUpError.message.includes('already registered')) {
+          throw new Error('This email is already registered. Please try logging in instead.');
+        } else {
+          throw new Error(signUpError.message);
         }
       }
 
-      const successMessage = existingUser 
-        ? 'Welcome back! Your account has been activated.'
-        : 'Your account was created. Please wait for approval.';
-      
-      Alert.alert('Success!', successMessage);
-      router.replace('/(auth)/login');
-    } catch (error: any) {
-      Alert.alert('Signup Error', error.message);
-    } finally {
-      setLoading(false);
+      if (!signUpData?.user?.id) {
+        throw new Error('Failed to create user account.');
+      }
+
+      authUserId = signUpData.user.id;
+
+      // Create new user entry while user is still signed in for RLS
+      const { error: insertError } = await supabase.from('users').insert({
+        user_id: authUserId, // must equal auth.uid()
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone_number: phoneNumber ? parseInt(phoneNumber) : null,
+        uid: uid ? parseInt(uid) : null,
+        role,
+        pledge_class: pledgeClass || null,
+        graduation_year: graduationYear ? parseInt(graduationYear) : null,
+        major: major || null,
+        officer_position: role === 'officer' ? officerPosition : null,
+        activated_at: new Date().toISOString(),
+      });
+
+      if (insertError) {
+        console.error('Insert Error:', insertError);
+        throw new Error(insertError.message || 'Could not create user profile.');
+      }
+
+      // Sign out after successful operations
+      await supabase.auth.signOut();
     }
-  };
+
+    const successMessage = existingUser
+      ? 'Welcome! Your information has been transferred and your account is ready. You can now login with your new password.'
+      : 'Your account was created successfully.';
+
+    Alert.alert('Success!', successMessage);
+    router.replace('/(auth)/login');
+  } catch (error: any) {
+    Alert.alert('Signup Error', error.message || 'Something went wrong.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <KeyboardAvoidingView
