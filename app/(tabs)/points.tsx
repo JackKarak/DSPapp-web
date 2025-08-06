@@ -35,6 +35,19 @@ export default function PointsScreen() {
         return;
       }
 
+      // Check if user is approved
+      const { data: profile, error: profileError } = await supabase
+        .from('users')
+        .select('approved')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError || !profile?.approved) {
+        console.error('User not approved or profile error:', profileError);
+        setLoading(false);
+        return;
+      }
+
       const { data: attended, error: attendedError } = await supabase
         .from('event_attendance')
         .select('event_id')
@@ -57,7 +70,7 @@ export default function PointsScreen() {
 
       const { data: events, error: eventsError } = await supabase
         .from('events')
-        .select('id, point_type')
+        .select('id, point_type, point_value')
         .in('id', uniqueEventIds);
 
       if (eventsError) {
@@ -70,7 +83,9 @@ export default function PointsScreen() {
 
       events.forEach((event) => {
         const wasRegistered = registeredEventIds.includes(event.id);
-        const pointsEarned = wasRegistered ? 1.5 : 1;
+        // Use actual point value from database, with bonus for registration
+        const basePoints = event.point_value || 1;
+        const pointsEarned = wasRegistered ? basePoints * 1.5 : basePoints;
         const category = event.point_type;
 
         if (category) {

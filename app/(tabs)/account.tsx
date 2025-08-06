@@ -27,7 +27,8 @@ const EventRow: React.FC<{ event: Event }> = React.memo(({ event }) => (
 ));
 
 export default function AccountTab() {
-  const [name, setName] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState<string | null>(null);
+  const [lastName, setLastName] = useState<string | null>(null);
   const [pledgeClass, setPledgeClass] = useState<string | null>(null);
   const [major, setMajor] = useState<string | null>(null);
   const [graduationYear, setGraduationYear] = useState<string | null>(null);
@@ -61,7 +62,7 @@ export default function AccountTab() {
 
       const { data: profile, error: profileError } = await supabase
         .from('users')
-        .select('name, pledge_class, approved, major, graduation_year')
+        .select('first_name, last_name, pledge_class, approved, major, graduation_year')
         .eq('user_id', user.id)
         .single();
 
@@ -75,7 +76,8 @@ export default function AccountTab() {
         return;
       }
 
-      setName(profile.name);
+      setFirstName(profile.first_name);
+      setLastName(profile.last_name);
       setPledgeClass(profile.pledge_class);
       setMajor(profile.major);
       setGraduationYear(profile.graduation_year);
@@ -119,7 +121,8 @@ export default function AccountTab() {
     const { error } = await supabase
       .from('users')
       .update({
-        name,
+        first_name: firstName,
+        last_name: lastName,
         pledge_class: pledgeClass,
         major,
         graduation_year: graduationYear
@@ -225,9 +228,15 @@ export default function AccountTab() {
       <>
         <TextInput
           style={styles.input}
-          value={name ?? ''}
-          onChangeText={setName}
-          placeholder="Name"
+          value={firstName ?? ''}
+          onChangeText={setFirstName}
+          placeholder="First Name"
+        />
+        <TextInput
+          style={styles.input}
+          value={lastName ?? ''}
+          onChangeText={setLastName}
+          placeholder="Last Name"
         />
         <TextInput
           style={styles.input}
@@ -255,7 +264,7 @@ export default function AccountTab() {
     ) : (
       <>
         <View style={styles.profileInfo}>
-          <Text style={styles.meta}>Name: {name ?? '---'}</Text>
+          <Text style={styles.meta}>Name: {firstName && lastName ? `${firstName} ${lastName}` : '---'}</Text>
           <Text style={styles.meta}>Pledge Class: {pledgeClass ?? '---'}</Text>
           <Text style={styles.meta}>Major: {major ?? '---'}</Text>
           <Text style={styles.meta}>Graduation Year: {graduationYear ?? '---'}</Text>
@@ -265,7 +274,7 @@ export default function AccountTab() {
         </TouchableOpacity>
       </>
     )
-  ), [editing, name, pledgeClass, major, graduationYear, saveProfile]);
+  ), [editing, firstName, lastName, pledgeClass, major, graduationYear, saveProfile]);
 
   return (
     <SafeAreaView style={styles.container}>

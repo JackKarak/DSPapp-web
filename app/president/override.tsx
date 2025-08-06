@@ -27,7 +27,6 @@ export default function AdminPointOverride() {
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedUser, setSelectedUser] = useState('');
   const [selectedEvent, setSelectedEvent] = useState('');
-  const [pointType, setPointType] = useState('brotherhood');
   const [points, setPoints] = useState('');
   const [reason, setReason] = useState('');
 
@@ -63,10 +62,21 @@ export default function AdminPointOverride() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return Alert.alert('Error', 'You must be logged in.');
 
+    // Get the event details to get the point type
+    const { data: eventData, error: eventError } = await supabase
+      .from('events')
+      .select('point_type')
+      .eq('id', selectedEvent)
+      .single();
+
+    if (eventError || !eventData) {
+      return Alert.alert('Error', 'Could not fetch event details.');
+    }
+
     const { error } = await supabase.from('points').insert([
       {
         user_id: selectedUser,
-        point_type: pointType,
+        point_type: eventData.point_type,
         value: numericPoints,
         reason,
         event_id: selectedEvent,
@@ -80,7 +90,6 @@ export default function AdminPointOverride() {
       Alert.alert('Success', 'Points successfully overridden.');
       setSelectedUser('');
       setSelectedEvent('');
-      setPointType('brotherhood');
       setPoints('');
       setReason('');
     }
@@ -114,22 +123,6 @@ export default function AdminPointOverride() {
         {events.map((e) => (
           <Picker.Item key={e.id} label={e.title} value={e.id} />
         ))}
-      </Picker>
-
-      <Text style={styles.label}>Point Type:</Text>
-      <Picker
-        selectedValue={pointType}
-        onValueChange={setPointType}
-        style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
-        itemStyle={styles.pickerItem}
-      >
-        <Picker.Item label="Brotherhood" value="brotherhood" />
-        <Picker.Item label="Service" value="service" />
-        <Picker.Item label="Professionalism" value="professionalism" />
-        <Picker.Item label="Scholarship" value="scholarship" />
-        <Picker.Item label="DEI" value="dei" />
-        <Picker.Item label="Health & Wellness" value="h&w" />
-        <Picker.Item label="Fundraising" value="fundraising" />
       </Picker>
 
       <Text style={styles.label}>Point Amount:</Text>

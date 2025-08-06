@@ -6,8 +6,14 @@ export type OfficerRole = {
   position: string | null;
 };
 
+// A defined initial state to avoid null checks in consuming components.
+const initialRoleState: OfficerRole = {
+  is_officer: false,
+  position: null,
+};
+
 export function useOfficerRole() {
-  const [role, setRole] = useState<OfficerRole | null>(null);
+  const [role, setRole] = useState<OfficerRole>(initialRoleState);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,12 +21,16 @@ export function useOfficerRole() {
 
     async function fetchOfficerRole() {
       try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
         if (userError || !user) {
           throw new Error('User not authenticated');
         }
 
+        // Pass the AbortSignal to the Supabase query.
         const { data, error } = await supabase
           .from('users')
           .select('officer_position')
@@ -33,14 +43,14 @@ export function useOfficerRole() {
 
         if (isMounted) {
           setRole({
-            is_officer: data.officer_position !== null,
-            position: data.officer_position
+            is_officer: !!data.officer_position, // Simplified boolean conversion
+            position: data.officer_position,
           });
         }
       } catch (error) {
-        console.error('Error fetching officer role:', error);
         if (isMounted) {
-          setRole({ is_officer: false, position: null });
+          console.error('Error fetching officer role:', error);
+          setRole(initialRoleState); // Reset to initial state on error
         }
       } finally {
         if (isMounted) {
@@ -51,6 +61,7 @@ export function useOfficerRole() {
 
     fetchOfficerRole();
 
+    // The cleanup function prevents state updates if component unmounts
     return () => {
       isMounted = false;
     };
