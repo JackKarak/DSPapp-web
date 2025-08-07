@@ -1,89 +1,64 @@
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View
-} from 'react-native';
-import { supabase } from '../../../lib/supabase';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import PermissionGuard from '../../../components/PermissionGuard';
+import { useOfficer } from '../../../contexts/OfficerContext';
 
 export default function MarketingControl() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState<any>(null);
-
-  useEffect(() => {
-    checkAuthentication();
-  }, []);
-
-  const checkAuthentication = async () => {
-    try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        Alert.alert('Authentication Error', 'Please log in again.');
-        router.replace('/(auth)/login');
-        return;
-      }
-
-      // Verify Marketing Officer access
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('is_officer, officer_position, first_name, last_name')
-        .eq('user_id', user.id)
-        .single();
-
-      if (profileError || !profile?.is_officer || profile.officer_position?.toLowerCase() !== 'marketing') {
-        Alert.alert('Access Denied', 'This page is only accessible to Marketing Officers.');
-        router.replace('/(tabs)');
-        return;
-      }
-
-      setUserProfile(profile);
-      setLoading(false);
-    } catch (error) {
-      console.error('Authentication error:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
-      router.replace('/(auth)/login');
-    }
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8b5cf6" />
-        <Text style={styles.loadingText}>Loading marketing controls...</Text>
-      </View>
-    );
-  }
+  const { currentOfficer } = useOfficer();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }}>
-      <Text style={styles.header}>📢 Marketing Dashboard</Text>
-      <Text style={styles.subtitle}>Welcome, {userProfile?.first_name} {userProfile?.last_name}</Text>
+    <PermissionGuard permissions={['marketing:manage', 'vp_branding:manage']}>
+      <ScrollView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Marketing Dashboard</Text>
+          {currentOfficer && (
+            <Text style={styles.welcomeText}>
+              Welcome, {currentOfficer.first_name} {currentOfficer.last_name}
+            </Text>
+          )}
+        </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Campaign Management</Text>
-        <Text style={styles.description}>
-          Create and manage marketing campaigns for chapter events and initiatives.
-        </Text>
-        {/* Add your marketing-specific functionality here */}
-      </View>
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Brand Management</Text>
+          <TouchableOpacity style={styles.actionCard}>
+            <Text style={styles.cardTitle}>Logo & Branding</Text>
+            <Text style={styles.cardDescription}>
+              Manage fraternity logo, colors, and brand guidelines for events and materials.
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Marketing Tools</Text>
-        <Text style={styles.description}>
-          • Social media campaign planning{'\n'}
-          • Event promotion materials{'\n'}
-          • Brand guideline management{'\n'}
-          • Alumni engagement campaigns{'\n'}
-          • Recruitment marketing
-        </Text>
-      </View>
-    </ScrollView>
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Social Media</Text>
+          <TouchableOpacity style={styles.actionCard}>
+            <Text style={styles.cardTitle}>Content Calendar</Text>
+            <Text style={styles.cardDescription}>
+              Plan and schedule social media posts across all platforms.
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Event Promotion</Text>
+          <TouchableOpacity style={styles.actionCard}>
+            <Text style={styles.cardTitle}>Marketing Materials</Text>
+            <Text style={styles.cardDescription}>
+              Create flyers, posters, and digital content for upcoming events.
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Analytics</Text>
+          <TouchableOpacity style={styles.actionCard}>
+            <Text style={styles.cardTitle}>Engagement Metrics</Text>
+            <Text style={styles.cardDescription}>
+              Track social media performance and event attendance metrics.
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </PermissionGuard>
   );
 }
 
@@ -91,54 +66,53 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9fafb',
-    padding: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#6b7280',
-    fontWeight: '500',
   },
   header: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#1f2937',
-    textAlign: 'center',
-    marginBottom: 8,
-    marginTop: 20,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
+    backgroundColor: '#7B2CBF',
     padding: 20,
-    marginBottom: 20,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 5,
+  },
+  welcomeText: {
+    fontSize: 16,
+    color: '#E6D5F5',
+  },
+  sectionContainer: {
+    padding: 15,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#7B2CBF',
+    marginBottom: 10,
+  },
+  actionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FFD700',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  sectionTitle: {
-    fontSize: 20,
+  cardTitle: {
+    fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 12,
+    color: '#333',
+    marginBottom: 8,
   },
-  description: {
-    fontSize: 16,
-    color: '#4b5563',
-    lineHeight: 24,
+  cardDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
   },
 });

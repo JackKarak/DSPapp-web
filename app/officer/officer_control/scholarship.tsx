@@ -1,88 +1,54 @@
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View
-} from 'react-native';
-import { supabase } from '../../../lib/supabase';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import PermissionGuard from '../../../components/PermissionGuard';
+import { useOfficer } from '../../../contexts/OfficerContext';
 
 export default function ScholarshipControl() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState<any>(null);
-
-  useEffect(() => {
-    checkAuthentication();
-  }, []);
-
-  const checkAuthentication = async () => {
-    try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        Alert.alert('Authentication Error', 'Please log in again.');
-        router.replace('/(auth)/login');
-        return;
-      }
-
-      // Verify VP Scholarship access
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('is_officer, officer_position, first_name, last_name')
-        .eq('user_id', user.id)
-        .single();
-
-      if (profileError || !profile?.is_officer || profile.officer_position?.toLowerCase() !== 'vp_scholarship') {
-        Alert.alert('Access Denied', 'This page is only accessible to VP Scholarship.');
-        router.replace('/(tabs)');
-        return;
-      }
-
-      setUserProfile(profile);
-      setLoading(false);
-    } catch (error) {
-      console.error('Authentication error:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
-      router.replace('/(auth)/login');
-    }
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8b5cf6" />
-        <Text style={styles.loadingText}>Loading scholarship controls...</Text>
-      </View>
-    );
-  }
+  const { currentOfficer } = useOfficer();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }}>
-      <Text style={styles.header}>📚 VP Scholarship Dashboard</Text>
-      <Text style={styles.subtitle}>Welcome, {userProfile?.first_name} {userProfile?.last_name}</Text>
+    <PermissionGuard permissions="scholarship:manage">
+      <ScrollView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>VP Scholarship Dashboard</Text>
+          {currentOfficer && (
+            <Text style={styles.welcomeText}>
+              Welcome, {currentOfficer.first_name} {currentOfficer.last_name}
+            </Text>
+          )}
+        </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Test Bank Management</Text>
-        <Text style={styles.description}>
-          Manage and organize the fraternity's academic resources and test bank submissions.
-        </Text>
-        {/* Add your scholarship-specific functionality here */}
-      </View>
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Scholarship Management</Text>
+          <View style={styles.contentCard}>
+            <Text style={styles.cardTitle}>Scholar Programs</Text>
+            <Text style={styles.cardDescription}>
+              Manage scholarship applications, awards, and academic recognition programs.
+            </Text>
+          </View>
+        </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Academic Resources</Text>
-        <Text style={styles.description}>
-          • Review submitted test bank materials{'\n'}
-          • Organize study resources by course{'\n'}
-          • Monitor academic performance metrics{'\n'}
-          • Coordinate tutoring programs
-        </Text>
-      </View>
-    </ScrollView>
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Academic Events</Text>
+          <View style={styles.contentCard}>
+            <Text style={styles.cardTitle}>Study Sessions</Text>
+            <Text style={styles.cardDescription}>
+              Organize study groups, tutoring sessions, and academic workshops.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Recognition & Awards</Text>
+          <View style={styles.contentCard}>
+            <Text style={styles.cardTitle}>Academic Achievements</Text>
+            <Text style={styles.cardDescription}>
+              Track and celebrate academic milestones and achievements.
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+    </PermissionGuard>
   );
 }
 
@@ -90,54 +56,48 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9fafb',
-    padding: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#6b7280',
-    fontWeight: '500',
   },
   header: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#1f2937',
-    textAlign: 'center',
-    marginBottom: 8,
-    marginTop: 20,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
+    backgroundColor: '#7B2CBF',
     padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 5,
+  },
+  welcomeText: {
+    fontSize: 16,
+    color: '#E6D5F5',
+  },
+  sectionContainer: {
+    padding: 15,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 12,
+    color: '#7B2CBF',
+    marginBottom: 10,
   },
-  description: {
-    fontSize: 16,
-    color: '#4b5563',
-    lineHeight: 24,
+  contentCard: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FFD700',
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  cardDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
   },
 });

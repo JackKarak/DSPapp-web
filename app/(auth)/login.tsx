@@ -37,7 +37,8 @@ export default function LoginScreen() {
         .eq('email', email)
         .single();
 
-      if (!userData) {
+      if (userError || !userData) {
+        console.error('User lookup error:', userError);
         throw new Error('User not found. Please contact an administrator or complete the signup process.');
       }
 
@@ -74,7 +75,7 @@ export default function LoginScreen() {
       // Navigate based on role from users table data
       switch (userData.role) {
         case 'officer':
-          router.replace('/officer/index');
+          router.replace('/officer');
           break;
         case 'admin':
           router.replace('/president/presidentindex');
