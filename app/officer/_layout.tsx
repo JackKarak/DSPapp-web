@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs, useRouter, useLocalSearchParams } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, Alert, TouchableOpacity, View } from 'react-native';
 import { useOfficerRole } from '../../hooks/useOfficerRole';
@@ -45,17 +45,17 @@ export default function OfficerLayout() {
       case 'svp':
       case 'chancellor':
         console.log('Access: Executive leadership');
-        return ['officerindex', 'analytics', 'events', 'register'];
+        return ['index', 'analytics', 'events', 'register', 'specs'];
         
-      // VP Scholarship - Unique Testbank Access ONLY
+      // VP Scholarship - Access all tabs (no special testbank in officer area)
       case 'vp_scholarship':
         console.log('Access: VP Scholarship');
-        return ['officerindex', 'analytics', 'events', 'register', 'scholarship'];
+        return ['index', 'analytics', 'events', 'register', 'specs'];
         
-      // Marketing - Unique Marketing Tools ONLY
+      // Marketing - Access all tabs (no special marketing tools in officer area)
       case 'marketing':
         console.log('Access: Marketing');
-        return ['officerindex', 'analytics', 'events', 'register', 'marketing'];
+        return ['index', 'analytics', 'events', 'register', 'specs'];
         
       // Event-Creating VPs
       case 'vp_professional':
@@ -65,18 +65,18 @@ export default function OfficerLayout() {
       case 'brotherhood':
       case 'vp_branding':
         console.log('Access: Event-creating VP');
-        return ['officerindex', 'analytics', 'events', 'register'];
+        return ['index', 'analytics', 'events', 'register', 'specs'];
         
-      // Event-Creating Chairs (when their files are created)
+      // Event-Creating Chairs
       case 'social':
         console.log('Access: Social chair');
-        return ['officerindex', 'analytics', 'events', 'register']; // Add 'social' when file exists
+        return ['index', 'analytics', 'events', 'register', 'specs'];
       case 'wellness':
         console.log('Access: Wellness chair');
-        return ['officerindex', 'analytics', 'events', 'register']; // Add 'wellness' when file exists
+        return ['index', 'analytics', 'events', 'register', 'specs'];
       case 'fundraising':
         console.log('Access: Fundraising chair');
-        return ['officerindex', 'analytics', 'events', 'register']; // Add 'fundraising' when file exists
+        return ['index', 'analytics', 'events', 'register', 'specs'];
         
       // Administrative Roles - View Only
       case 'vp_operations':
@@ -84,12 +84,12 @@ export default function OfficerLayout() {
       case 'historian':
       case 'risk':
         console.log('Access: Administrative role');
-        return ['officerindex', 'analytics', 'events'];
+        return ['index', 'analytics', 'events', 'specs'];
         
       // Default fallback for unrecognized roles
       default:
         console.log('Access: Default fallback for position:', position);
-        return ['officerindex'];
+        return ['index', 'specs'];
     }
   };
 
@@ -115,9 +115,9 @@ export default function OfficerLayout() {
       }}
     >
       {/* Home tab - always visible */}
-      {accessibleTabs.includes('officerindex') && (
+      {accessibleTabs.includes('index') && (
         <Tabs.Screen
-          name="officerindex"
+          name="index"
           options={{
             title: 'Home',
             tabBarIcon: ({ color, size }) => (
@@ -162,80 +162,16 @@ export default function OfficerLayout() {
           }}
         />
       )}
-      {/* Scholarship tab - VP Scholarship only */}
-      {accessibleTabs.includes('scholarship') && (
-        <Tabs.Screen
-          name="scholarship"
-          options={{
-            title: 'Testbank',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="library-outline" size={size} color={color} />
-            ),
-          }}
-        />
-      )}
-      {/* Marketing tab - Marketing officer only */}
-      {accessibleTabs.includes('marketing') && (
-        <Tabs.Screen
-          name="marketing"
-          options={{
-            title: 'Marketing',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="megaphone-outline" size={size} color={color} />
-            ),
-          }}
-        />
-      )}
-      {/* Uncomment these when the corresponding files are created:
-      
-      {accessibleTabs.includes('wellness') && (
-        <Tabs.Screen
-          name="wellness"
-          options={{
-            title: 'Wellness',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="heart-outline" size={size} color={color} />
-            ),
-          }}
-        />
-      )}
-      
-      {accessibleTabs.includes('fundraising') && (
-        <Tabs.Screen
-          name="fundraising"
-          options={{
-            title: 'Fundraising',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="cash-outline" size={size} color={color} />
-            ),
-          }}
-        />
-      )}
-      
-      {accessibleTabs.includes('social') && (
-        <Tabs.Screen
-          name="social"
-          options={{
-            title: 'Social',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="people-outline" size={size} color={color} />
-            ),
-          }}
-        />
-      )}
-      
-      {accessibleTabs.includes('branding') && (
-        <Tabs.Screen
-          name="branding"
-          options={{
-            title: 'Branding',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="color-palette-outline" size={size} color={color} />
-            ),
-          }}
-        />
-      )}
-      */}
+      {/* Specs tab - shows officer role and links to control pages - available to all officers */}
+      <Tabs.Screen
+        name="specs"
+        options={{
+          title: 'Role',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="id-card-outline" size={size} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
