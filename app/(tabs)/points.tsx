@@ -24,73 +24,91 @@ export default function PointsScreen() {
     const fetchPoints = async () => {
       setLoading(true);
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
 
-      if (userError || !user) {
-        console.error('User fetch error:', userError);
-        setLoading(false);
-        return;
-      }
-
-      const { data: attended, error: attendedError } = await supabase
-        .from('event_attendance')
-        .select('event_id')
-        .eq('user_id', user.id);
-
-      const { data: registered, error: registeredError } = await supabase
-        .from('event_registration')
-        .select('event_id')
-        .eq('user_id', user.id);
-
-      if (attendedError || registeredError) {
-        console.error('Fetch error:', attendedError || registeredError);
-        setLoading(false);
-        return;
-      }
-
-      const attendedEventIds = attended.map((a) => a.event_id);
-      const registeredEventIds = registered.map((r) => r.event_id);
-      const uniqueEventIds = [...new Set(attendedEventIds)];
-
-      const { data: events, error: eventsError } = await supabase
-        .from('events')
-        .select('id, point_type, point_value')
-        .in('id', uniqueEventIds);
-
-      if (eventsError) {
-        console.error('Events error:', eventsError);
-        setLoading(false);
-        return;
-      }
-
-      const categoryPoints: Record<string, number> = {};
-
-      events.forEach((event) => {
-        const wasRegistered = registeredEventIds.includes(event.id);
-        // Use actual point value from database, with bonus for registration
-        const basePoints = event.point_value || 1;
-        const pointsEarned = wasRegistered ? basePoints * 1.5 : basePoints;
-        const category = event.point_type;
-
-        if (category) {
-          categoryPoints[category] = (categoryPoints[category] || 0) + pointsEarned;
+        if (userError || !user) {
+          console.error('User fetch error:', userError);
+          setLoading(false);
+          return;
         }
-      });
 
-      const metCount = Object.entries(POINT_REQUIREMENTS).reduce((count, [cat, required]) => {
-        return (categoryPoints[cat] || 0) >= required ? count + 1 : count;
-      }, 0);
+        // Fetch attended events
+        const { data: attended, error: attendedError } = await supabase
+          .from('event_attendance')
+          .select('event_id')
+          .eq('user_id', user.id);
 
-      setPointsByCategory(categoryPoints);
-      setPillarsMet(metCount);
-      if (metCount >= Object.keys(POINT_REQUIREMENTS).length) {
-        setTriggerConfetti(true);
+        // Fetch registered events
+        const { data: registered, error: registeredError } = await supabase
+          .from('event_registration')
+          .select('event_id')
+          .eq('user_id', user.id);
+
+        if (attendedError || registeredError) {
+          console.error('Fetch error:', attendedError || registeredError);
+          setLoading(false);
+          return;
+        }
+
+        const attendedEventIds = attended?.map((a) => a.event_id) || [];
+        const registeredEventIds = registered?.map((r) => r.event_id) || [];
+        const uniqueEventIds = [...new Set(attendedEventIds)];
+
+        if (uniqueEventIds.length === 0) {
+          // No events attended yet
+          setPointsByCategory({});
+          setPillarsMet(0);
+          setLoading(false);
+          return;
+        }
+
+        // Fetch event details for points calculation
+        const { data: events, error: eventsError } = await supabase
+          .from('events')
+          .select('id, point_type, point_value')
+          .in('id', uniqueEventIds);
+
+        if (eventsError) {
+          console.error('Events error:', eventsError);
+          setLoading(false);
+          return;
+        }
+
+        const categoryPoints: Record<string, number> = {};
+
+        events?.forEach((event) => {
+          const wasRegistered = registeredEventIds.includes(event.id);
+          // Use actual point value from database, with bonus for registration
+          const basePoints = event.point_value || 1;
+          const pointsEarned = wasRegistered ? Math.round(basePoints * 1.5) : basePoints;
+          const category = event.point_type;
+
+          if (category) {
+            categoryPoints[category] = (categoryPoints[category] || 0) + pointsEarned;
+          }
+        });
+
+        const metCount = Object.entries(POINT_REQUIREMENTS).reduce((count, [cat, required]) => {
+          return (categoryPoints[cat] || 0) >= required ? count + 1 : count;
+        }, 0);
+
+        setPointsByCategory(categoryPoints);
+        setPillarsMet(metCount);
+        
+        // Trigger confetti if all pillars are met
+        if (metCount >= Object.keys(POINT_REQUIREMENTS).length) {
+          setTriggerConfetti(true);
+        }
+
+      } catch (error) {
+        console.error('Error fetching points:', error);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     fetchPoints();

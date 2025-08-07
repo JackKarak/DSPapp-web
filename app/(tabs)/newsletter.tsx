@@ -14,6 +14,9 @@ export default function NewsletterScreen() {
 
   const fetchNewsletterUrl = async () => {
     try {
+      setLoading(true);
+      setError('');
+      
       const { data, error } = await supabase
         .from('app_settings')
         .select('value')
@@ -22,19 +25,21 @@ export default function NewsletterScreen() {
 
       if (error && error.code !== 'PGRST116') {
         // PGRST116 means no rows found
-        throw error;
+        throw new Error(`Database error: ${error.message}`);
       }
 
-      const url = data?.value || '';
+      const url = data?.value?.trim() || '';
       
       if (!url) {
         setError('No newsletter available at this time. Check back later!');
+      } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        setError('Invalid newsletter URL format. Please contact an administrator.');
       } else {
         setNewsletterUrl(url);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching newsletter URL:', error);
-      setError('Unable to load newsletter. Please try again later.');
+      setError(error.message || 'Unable to load newsletter. Please try again later.');
     } finally {
       setLoading(false);
     }

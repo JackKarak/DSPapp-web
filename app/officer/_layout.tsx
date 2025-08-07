@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs, useRouter, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, Alert, TouchableOpacity, View } from 'react-native';
 import { useOfficerRole } from '../../hooks/useOfficerRole';

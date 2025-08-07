@@ -30,7 +30,20 @@ export default function LoginScreen() {
     try {
       console.log('Attempting login for email:', email);
       
-      // Step 1: Sign in
+      // Check if user exists in users table
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (!userData) {
+        throw new Error('User not found. Please contact an administrator or complete the signup process.');
+      }
+
+      console.log('✅ User found in users table - proceeding with authentication');
+      
+      // Proceed with normal authentication
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -38,41 +51,30 @@ export default function LoginScreen() {
 
       if (authError || !authData?.user) {
         console.error('Auth error:', authError);
-        throw new Error(authError?.message || 'Unable to sign in.');
+        console.error('Auth error details:', {
+          message: authError?.message,
+          status: authError?.status,
+          code: authError?.code
+        });
+        
+        // Provide more specific error messages
+        if (authError?.message?.includes('Invalid login credentials')) {
+          throw new Error('Invalid email or password. Please check your credentials and try again.');
+        } else if (authError?.message?.includes('Email not confirmed')) {
+          throw new Error('Please check your email and click the confirmation link before logging in.');
+        } else {
+          throw new Error(authError?.message || 'Unable to sign in.');
+        }
       }
 
       const userId = authData.user.id;
       console.log('Successfully authenticated user:', userId);
+      console.log('User role:', userData.role);
 
-      // Step 2: Fetch user profile
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      console.log('Profile query result:', { profile, profileError });
-
-      if (profileError) {
-        if (profileError.code === 'PGRST116') {
-          throw new Error('No user profile found. Please complete the signup process first.');
-        } else {
-          console.error('Profile fetch error:', profileError);
-          throw new Error(`Profile fetch failed: ${profileError.message}`);
-        }
-      }
-
-      if (!profile) {
-        throw new Error('User profile is empty. Please contact support.');
-      }
-
-      const { role } = profile;
-      console.log('User role:', role);
-
-      // Step 3: Navigate based on role
-      switch (role) {
+      // Navigate based on role from users table data
+      switch (userData.role) {
         case 'officer':
-          router.replace('/officer/officerindex');
+          router.replace('/officer/index');
           break;
         case 'admin':
           router.replace('/president/presidentindex');
@@ -118,6 +120,53 @@ export default function LoginScreen() {
       Alert.alert('Reset Error', error.message);
     } finally {
       setResetLoading(false);
+    }
+  };
+
+  // Debug function to check user status
+  const checkUserStatus = async () => {
+    if (!email) {
+      Alert.alert('Email Required', 'Please enter an email address first.');
+      return;
+    }
+
+    try {
+      // Check in brother table
+      const { data: brotherData } = await supabase
+        .from('brother')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      // Check in users table
+      const { data: userData } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      let message = `Email: ${email}\n\n`;
+      
+      if (brotherData) {
+        message += `✅ Found in brother table:\n`;
+        message += `- Name: ${brotherData.first_name} ${brotherData.last_name}\n`;
+        message += `- Status: Needs to complete signup\n\n`;
+      } else {
+        message += `❌ Not found in brother table\n\n`;
+      }
+
+      if (userData) {
+        message += `✅ Found in users table:\n`;
+        message += `- Name: ${userData.first_name} ${userData.last_name}\n`;
+        message += `- Role: ${userData.role}\n`;
+        message += `- Status: Account active\n`;
+      } else {
+        message += `❌ Not found in users table\n`;
+      }
+
+      Alert.alert('User Status Check', message);
+    } catch (error: any) {
+      Alert.alert('Check Error', 'Unable to check user status.');
     }
   };
 
@@ -171,6 +220,15 @@ export default function LoginScreen() {
         Forgot Password?
       </Button>
 
+      <Button
+        onPress={checkUserStatus}
+        mode="outlined"
+        disabled={loading || resetLoading}
+        style={styles.debugButton}
+      >
+        Debug: Check User Status
+      </Button>
+
       <View style={styles.signupContainer}>
         <Text style={styles.signupText}>Don't have an account?</Text>
         <Button onPress={goToSignUp} mode="text" disabled={loading || resetLoading}>
@@ -205,6 +263,10 @@ const styles = StyleSheet.create({
   },
   forgotButton: {
     marginTop: 8,
+  },
+  debugButton: {
+    marginTop: 8,
+    marginBottom: 8,
   },
   signupContainer: {
     marginTop: 24,

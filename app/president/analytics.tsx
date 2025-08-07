@@ -1,11 +1,13 @@
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native';
 import { PieChart } from 'react-native-chart-kit';
 import { supabase } from '../../lib/supabase';
@@ -38,6 +40,7 @@ const screenWidth = Dimensions.get('window').width;
 
 export default function AdminAnalytics() {
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
   const [userStats, setUserStats] = useState<UserStats>({
     total: 0,
     by_pledge_class: {},
@@ -69,13 +72,30 @@ export default function AdminAnalytics() {
   useEffect(() => {
     const fetchAnalytics = async () => {
       setLoading(true);
+      
       try {
+        // Check authentication first
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          Alert.alert('Authentication Error', 'Please log in again.');
+          router.replace('/(auth)/login');
+          return;
+        }
+
         // Fetch user statistics (all users)
         const { data: usersData, error: usersError } = await supabase
           .from('users')
           .select('pledge_class, major, graduation_year')
           .eq('approved', true);
-        if (usersError) throw usersError;
+          
+        if (usersError) {
+          Alert.alert('Data Error', 'Unable to load user statistics. Please try again.');
+          return;
+        }
         const userStats: UserStats = {
           total: usersData.length,
           by_pledge_class: {},
@@ -100,7 +120,11 @@ export default function AdminAnalytics() {
           .from('events')
           .select('id, point_value, point_type, start_time')
           .eq('status', 'approved');
-        if (eventsError) throw eventsError;
+          
+        if (eventsError) {
+          Alert.alert('Events Error', 'Unable to load event statistics. Please try again.');
+          return;
+        }
         const eventIds = eventsData.map(e => e.id);
         const now = new Date();
         const eventStats: EventStats = {
@@ -122,10 +146,14 @@ export default function AdminAnalytics() {
           const { data: attendanceData, error: attendanceError } = await supabase
             .from('event_attendance')
             .select('event_id');
-          if (attendanceError) throw attendanceError;
-          attendanceData.forEach(record => {
-            attendanceByEvent[record.event_id] = (attendanceByEvent[record.event_id] || 0) + 1;
-          });
+            
+          if (attendanceError) {
+            console.warn('Unable to fetch attendance data:', attendanceError);
+          } else {
+            attendanceData.forEach(record => {
+              attendanceByEvent[record.event_id] = (attendanceByEvent[record.event_id] || 0) + 1;
+            });
+          }
         }
         eventStats.average_attendance = 
           Object.values(attendanceByEvent).reduce((sum, count) => sum + count, 0) / (Object.keys(attendanceByEvent).length || 1);
@@ -152,27 +180,32 @@ export default function AdminAnalytics() {
             .from('event_feedback')
             .select('rating, comments, would_attend_again, well_organized, created_at, event_id')
             .in('event_id', eventIds);
-          if (feedbackError) throw feedbackError;
-          const ratings = feedbackData.map(fb => fb.rating).filter(r => typeof r === 'number');
-          feedbackStatsData.avgRating = ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length) : 0;
-          const wouldAttendCount = feedbackData.filter(fb => fb.would_attend_again === true).length;
-          feedbackStatsData.wouldAttendAgainPct = feedbackData.length ? (wouldAttendCount / feedbackData.length) * 100 : 0;
-          const wellOrgCount = feedbackData.filter(fb => fb.well_organized === true).length;
-          feedbackStatsData.wellOrganizedPct = feedbackData.length ? (wellOrgCount / feedbackData.length) * 100 : 0;
-          feedbackStatsData.recentComments = feedbackData
-            .filter(fb => fb.comments && fb.comments.trim() !== '')
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            .slice(0, 5)
-            .map(fb => ({
-              rating: fb.rating,
-              comments: fb.comments,
-              created_at: fb.created_at,
-              event_id: fb.event_id,
-            }));
+            
+          if (feedbackError) {
+            console.warn('Unable to fetch feedback data:', feedbackError);
+          } else {
+            const ratings = feedbackData.map(fb => fb.rating).filter(r => typeof r === 'number');
+            feedbackStatsData.avgRating = ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length) : 0;
+            const wouldAttendCount = feedbackData.filter(fb => fb.would_attend_again === true).length;
+            feedbackStatsData.wouldAttendAgainPct = feedbackData.length ? (wouldAttendCount / feedbackData.length) * 100 : 0;
+            const wellOrgCount = feedbackData.filter(fb => fb.well_organized === true).length;
+            feedbackStatsData.wellOrganizedPct = feedbackData.length ? (wellOrgCount / feedbackData.length) * 100 : 0;
+            feedbackStatsData.recentComments = feedbackData
+              .filter(fb => fb.comments && fb.comments.trim() !== '')
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+              .slice(0, 5)
+              .map(fb => ({
+                rating: fb.rating,
+                comments: fb.comments,
+                created_at: fb.created_at,
+                event_id: fb.event_id,
+              }));
+          }
         }
         setFeedbackStats(feedbackStatsData);
       } catch (error) {
         console.error('Error fetching analytics:', error);
+        Alert.alert('Unexpected Error', 'Something went wrong while loading analytics. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -183,11 +216,18 @@ export default function AdminAnalytics() {
 
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: 80 }}
+      showsVerticalScrollIndicator={true}
+    >
       <Text style={styles.header}>📊 Admin Analytics</Text>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#330066" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#8b5cf6" />
+          <Text style={styles.loadingText}>Loading analytics...</Text>
+        </View>
       ) : (
         <>
           <Text style={styles.sectionHeader}>👥 Membership Stats</Text>
@@ -316,13 +356,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: '#f8f9fa',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#6b7280',
+    fontWeight: '500',
   },
   header: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#330066',
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1a1a1a',
     marginBottom: 24,
+    marginTop: 8,
   },
   sectionHeader: {
     fontSize: 20,

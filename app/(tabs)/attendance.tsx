@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import {
-  Alert,
-  Button,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    Button,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
@@ -38,11 +38,17 @@ export default function AttendanceScreen() {
     const { data: events, error: eventError } = await supabase
       .from('events')
       .select('*')
-      .eq('code', code.trim());
+      .eq('code', code.trim().toUpperCase()); // Case insensitive
 
-    if (eventError || !events || events.length === 0) {
+    if (eventError) {
       setLoading(false);
-      Alert.alert('❌ Error', 'Invalid or expired code.');
+      Alert.alert('❌ Database Error', 'Unable to verify code. Please try again.');
+      return;
+    }
+
+    if (!events || events.length === 0) {
+      setLoading(false);
+      Alert.alert('❌ Invalid Code', 'This attendance code is not valid or has expired.');
       return;
     }
 

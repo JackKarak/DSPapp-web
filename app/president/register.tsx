@@ -1,19 +1,91 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert,
-  Button,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+
+// Custom Dropdown Component for Point Types
+interface DropdownProps {
+  label: string;
+  value: string;
+  options: Array<{ label: string; value: string }>;
+  onValueChange: (value: string) => void;
+  disabled?: boolean;
+}
+
+const CustomDropdown: React.FC<DropdownProps> = ({ label, value, options, onValueChange, disabled = false }) => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  const selectedOption = options.find(option => option.value === value);
+
+  return (
+    <View style={styles.dropdownContainer}>
+      <Text style={styles.label}>{label}</Text>
+      <TouchableOpacity
+        style={[styles.dropdownButton, disabled && styles.dropdownButtonDisabled]}
+        onPress={() => !disabled && setIsVisible(true)}
+        activeOpacity={disabled ? 1 : 0.7}
+      >
+        <Text style={[styles.dropdownButtonText, disabled && styles.dropdownButtonTextDisabled]} numberOfLines={1}>
+          {selectedOption?.label || 'Select...'}
+        </Text>
+        <Text style={[styles.dropdownArrow, disabled && styles.dropdownArrowDisabled]}>▼</Text>
+      </TouchableOpacity>
+
+      <Modal
+        visible={isVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setIsVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{label}</Text>
+            <ScrollView style={styles.optionsList}>
+              {options.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.optionItem,
+                    option.value === value && styles.selectedOption
+                  ]}
+                  onPress={() => {
+                    onValueChange(option.value);
+                    setIsVisible(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.optionText,
+                    option.value === value && styles.selectedOptionText
+                  ]}>
+                    {option.label}
+                  </Text>
+                  {option.value === value && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+};
 
 export default function AdminRegisterEvent() {
   const [title, setTitle] = useState('');
@@ -34,6 +106,8 @@ export default function AdminRegisterEvent() {
   const [availableToPledges, setAvailableToPledges] = useState(true);
   const [isMultiDay, setIsMultiDay] = useState(false);
   const [isNoPoint, setIsNoPoint] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   function roundToNearestMinute(date: Date) {
     const rounded = new Date(date);
@@ -44,145 +118,180 @@ export default function AdminRegisterEvent() {
 
   const handleSubmit = async () => {
     if (!title || !location || (!pointType && !isNoPoint)) {
-      Alert.alert('Please fill out all required fields');
+      Alert.alert('Validation Error', 'Please fill out all required fields');
       return;
     }
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    setLoading(true);
 
-    if (userError || !user) {
-      Alert.alert('Error', 'User not authenticated');
-      return;
-    }
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    const combinedStart = new Date(
-      startDate.getFullYear(),
-      startDate.getMonth(),
-      startDate.getDate(),
-      startTime.getHours(),
-      startTime.getMinutes()
-    );
+      if (userError || !user) {
+        Alert.alert('Authentication Error', 'User not authenticated. Please log in again.');
+        router.replace('/(auth)/login');
+        return;
+      }
 
-    const finalEndDate = isMultiDay ? endDate : startDate;
+      const combinedStart = new Date(
+        startDate.getFullYear(),
+        startDate.getMonth(),
+        startDate.getDate(),
+        startTime.getHours(),
+        startTime.getMinutes()
+      );
 
-    const combinedEnd = new Date(
-      finalEndDate.getFullYear(),
-      finalEndDate.getMonth(),
-      finalEndDate.getDate(),
-      endTime.getHours(),
-      endTime.getMinutes()
-    );
+      const finalEndDate = isMultiDay ? endDate : startDate;
 
-    const roundedStart = roundToNearestMinute(combinedStart);
-    const roundedEnd = roundToNearestMinute(combinedEnd);
+      const combinedEnd = new Date(
+        finalEndDate.getFullYear(),
+        finalEndDate.getMonth(),
+        finalEndDate.getDate(),
+        endTime.getHours(),
+        endTime.getMinutes()
+      );
 
-    const { error } = await supabase.from('events').insert({
-      title,
-      description,
-      location,
-      point_type: isNoPoint ? 'No Point' : pointType,
-      point_value: isNoPoint ? 0 : 1,
-      start_time: roundedStart.toISOString(),
-      end_time: roundedEnd.toISOString(),
-      created_by: user.id, // Using user.id from auth, which maps to user_id in users table
-      is_registerable: isRegisterable,
-      available_to_pledges: availableToPledges,
-      status: 'pending',
-    });
+      const roundedStart = roundToNearestMinute(combinedStart);
+      const roundedEnd = roundToNearestMinute(combinedEnd);
 
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      Alert.alert('Success', 'Event created successfully');
-      setTitle('');
-      setDescription('');
-      setLocation('');
-      setPointType('none');
-      setStartDate(new Date());
-      setStartTime(new Date());
-      setEndDate(new Date());
-      setEndTime(new Date());
-      setIsRegisterable(true);
-      setAvailableToPledges(true);
-      setIsMultiDay(false);
-      setIsNoPoint(false);
+      const { error } = await supabase.from('events').insert({
+        title,
+        description,
+        location,
+        point_type: isNoPoint ? 'No Point' : pointType,
+        point_value: isNoPoint ? 0 : 1,
+        start_time: roundedStart.toISOString(),
+        end_time: roundedEnd.toISOString(),
+        created_by: user.id, // Using user.id from auth, which maps to user_id in users table
+        is_registerable: isRegisterable,
+        available_to_pledges: availableToPledges,
+        status: 'pending',
+      });
+
+      if (error) {
+        Alert.alert('Submission Error', error.message);
+      } else {
+        Alert.alert('Success', 'Event created successfully and is pending approval');
+        setTitle('');
+        setDescription('');
+        setLocation('');
+        setPointType('none');
+        setStartDate(new Date());
+        setStartTime(new Date());
+        setEndDate(new Date());
+        setEndTime(new Date());
+        setIsRegisterable(true);
+        setAvailableToPledges(true);
+        setIsMultiDay(false);
+        setIsNoPoint(false);
+      }
+    } catch (error) {
+      console.error('Error creating event:', error);
+      Alert.alert('Unexpected Error', 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
-
   return (
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.header}>Register New Event</Text>
+        <Text style={styles.subtitle}>Create a new event for member participation</Text>
 
+        <Text style={styles.label}>Event Title *</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter title"
-          placeholderTextColor="#000"
+          placeholder="Enter event title"
+          placeholderTextColor="#9ca3af"
           value={title}
           onChangeText={setTitle}
         />
+
+        <Text style={styles.label}>Location *</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter location"
-          placeholderTextColor="#000"
+          placeholder="Enter event location"
+          placeholderTextColor="#9ca3af"
           value={location}
           onChangeText={setLocation}
         />
+
+        <Text style={styles.label}>Description</Text>
         <TextInput
-          style={[styles.input, { height: 80 }]}
-          placeholder="Enter description"
-          placeholderTextColor="#000"
+          style={[styles.input, styles.textArea]}
+          placeholder="Enter event description"
+          placeholderTextColor="#9ca3af"
           value={description}
           multiline
+          numberOfLines={3}
           onChangeText={setDescription}
         />
 
         <View style={styles.switchRow}>
-          <Text>No Point Event?</Text>
-          <Switch value={isNoPoint} onValueChange={setIsNoPoint} />
+          <Text style={styles.switchLabel}>No Point Event?</Text>
+          <Switch 
+            value={isNoPoint} 
+            onValueChange={setIsNoPoint}
+            thumbColor={isNoPoint ? '#8b5cf6' : '#f4f3f4'}
+            trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
+          />
         </View>
+
         {!isNoPoint && (
-          <>
-            <Text style={styles.label}>Point Type</Text>
-            <Picker
-              selectedValue={pointType}
-              onValueChange={(itemValue) => setPointType(itemValue)}
-              style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
-              itemStyle={styles.pickerItem}
-            >
-              <Picker.Item label="Select point type" value="none" />
-              <Picker.Item label="Brotherhood" value="brotherhood" />
-              <Picker.Item label="Professional" value="professional" />
-              <Picker.Item label="Service" value="service" />
-              <Picker.Item label="Scholarship" value="scholarship" />
-              <Picker.Item label="Health" value="health" />
-              <Picker.Item label="Fundraising" value="fundraising" />
-              <Picker.Item label="DEI" value="dei" />
-            </Picker>
-          </>
+          <CustomDropdown
+            label="Point Type *"
+            value={pointType}
+            options={[
+              { label: 'Select point type', value: 'none' },
+              { label: 'Brotherhood', value: 'brotherhood' },
+              { label: 'Professional', value: 'professional' },
+              { label: 'Service', value: 'service' },
+              { label: 'Scholarship', value: 'scholarship' },
+              { label: 'Health & Wellness', value: 'h&w' },
+              { label: 'Fundraising', value: 'fundraising' },
+              { label: 'DEI', value: 'dei' }
+            ]}
+            onValueChange={(value) => setPointType(value)}
+            disabled={isNoPoint}
+          />
         )}
 
         <View style={styles.switchRow}>
-          <Text>Registerable Event?</Text>
-          <Switch value={isRegisterable} onValueChange={setIsRegisterable} />
+          <Text style={styles.switchLabel}>Registerable Event?</Text>
+          <Switch 
+            value={isRegisterable} 
+            onValueChange={setIsRegisterable}
+            thumbColor={isRegisterable ? '#8b5cf6' : '#f4f3f4'}
+            trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
+          />
         </View>
 
         <View style={styles.switchRow}>
-          <Text>Available to Pledges?</Text>
-          <Switch value={availableToPledges} onValueChange={setAvailableToPledges} />
+          <Text style={styles.switchLabel}>Available to Pledges?</Text>
+          <Switch 
+            value={availableToPledges} 
+            onValueChange={setAvailableToPledges}
+            thumbColor={availableToPledges ? '#8b5cf6' : '#f4f3f4'}
+            trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
+          />
         </View>
 
         <View style={styles.switchRow}>
-          <Text>Is this a multi-day event?</Text>
-          <Switch value={isMultiDay} onValueChange={setIsMultiDay} />
+          <Text style={styles.switchLabel}>Is this a multi-day event?</Text>
+          <Switch 
+            value={isMultiDay} 
+            onValueChange={setIsMultiDay}
+            thumbColor={isMultiDay ? '#8b5cf6' : '#f4f3f4'}
+            trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
+          />
         </View>
 
-        <Text style={styles.label}>Start Date:</Text>
+        <Text style={styles.label}>Start Date</Text>
         <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.pickerButton}>
-          <Text>{startDate.toDateString()}</Text>
+          <Text style={styles.pickerButtonText}>{startDate.toDateString()}</Text>
         </TouchableOpacity>
         {showStartDatePicker && (
           <DateTimePicker
@@ -198,9 +307,9 @@ export default function AdminRegisterEvent() {
 
         {isMultiDay && (
           <>
-            <Text style={styles.label}>End Date:</Text>
+            <Text style={styles.label}>End Date</Text>
             <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.pickerButton}>
-              <Text>{endDate.toDateString()}</Text>
+              <Text style={styles.pickerButtonText}>{endDate.toDateString()}</Text>
             </TouchableOpacity>
             {showEndDatePicker && (
               <DateTimePicker
@@ -216,9 +325,9 @@ export default function AdminRegisterEvent() {
           </>
         )}
 
-        <Text style={styles.label}>Start Time:</Text>
+        <Text style={styles.label}>Start Time</Text>
         <TouchableOpacity onPress={() => setShowStartTimePicker(true)} style={styles.pickerButton}>
-          <Text>{startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+          <Text style={styles.pickerButtonText}>{startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
         </TouchableOpacity>
         {showStartTimePicker && (
           <DateTimePicker
@@ -234,9 +343,9 @@ export default function AdminRegisterEvent() {
           />
         )}
 
-        <Text style={styles.label}>End Time:</Text>
+        <Text style={styles.label}>End Time</Text>
         <TouchableOpacity onPress={() => setShowEndTimePicker(true)} style={styles.pickerButton}>
-          <Text>{endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+          <Text style={styles.pickerButtonText}>{endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
         </TouchableOpacity>
         {showEndTimePicker && (
           <DateTimePicker
@@ -252,9 +361,16 @@ export default function AdminRegisterEvent() {
           />
         )}
 
-        <View style={{ marginVertical: 20 }}>
-          <Button title="Submit Event" onPress={handleSubmit} color="#0038A8" />
-        </View>
+        <TouchableOpacity 
+          style={[styles.submitButton, loading && styles.submitButtonDisabled]} 
+          onPress={handleSubmit}
+          disabled={loading}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.submitButtonText}>
+            {loading ? 'Creating Event...' : 'Submit Event'}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -263,32 +379,51 @@ export default function AdminRegisterEvent() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    padding: 24,
-    paddingTop: 20,
-    paddingBottom: 60,
-    backgroundColor: '#fff',
+    padding: 20,
+    paddingTop: 40,
+    paddingBottom: 80,
+    backgroundColor: '#f9fafb',
   },
   header: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: 'bold',
-    color: '#330066',
+    color: '#1f2937',
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 30,
   },
   input: {
-    borderColor: '#ADAFAA',
+    height: 50,
+    borderColor: '#d1d5db',
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginVertical: 10,
     fontSize: 16,
-    color: '#000',
+    color: '#374151',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
   },
   label: {
-    fontWeight: '600',
-    marginTop: 12,
-    marginBottom: 4,
     fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 5,
+    marginTop: 15,
   },
   picker: {
     marginBottom: 20,
@@ -302,17 +437,175 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   pickerButton: {
-    borderColor: '#ADAFAA',
+    height: 50,
+    borderColor: '#d1d5db',
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 10,
-    backgroundColor: '#f1f1f1',
-    marginBottom: 10,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    justifyContent: 'center',
+    marginVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  pickerButtonText: {
+    fontSize: 16,
+    color: '#374151',
   },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 8,
+    marginVertical: 15,
+    paddingVertical: 10,
+  },
+  switchLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  submitButton: {
+    backgroundColor: '#8b5cf6',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    marginTop: 30,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#9ca3af',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  submitButtonText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  dropdown: {
+    borderColor: '#d1d5db',
+    borderWidth: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    marginVertical: 10,
+  },
+  dropdownContainer: {
+    position: 'relative',
+    marginVertical: 10,
+  },
+  dropdownButton: {
+    height: 50,
+    paddingHorizontal: 15,
+    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderColor: '#d1d5db',
+    borderWidth: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  dropdownButtonDisabled: {
+    backgroundColor: '#f9fafb',
+    opacity: 0.6,
+  },
+  dropdownButtonText: {
+    fontSize: 16,
+    color: '#374151',
+    flex: 1,
+  },
+  dropdownButtonTextDisabled: {
+    color: '#9ca3af',
+  },
+  dropdownArrow: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginLeft: 8,
+  },
+  dropdownArrowDisabled: {
+    color: '#d1d5db',
+  },
+  dropdownPlaceholder: {
+    color: '#9ca3af',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    margin: 20,
+    maxHeight: '70%',
+    width: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  optionItem: {
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  optionsList: {
+    maxHeight: 300,
+  },
+  optionText: {
+    fontSize: 16,
+    color: '#374151',
+    flex: 1,
+  },
+  checkmark: {
+    color: '#8b5cf6',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  selectedOption: {
+    backgroundColor: '#f3f4f6',
+  },
+  selectedOptionText: {
+    color: '#8b5cf6',
+    fontWeight: '600',
+  },
+  modalCloseButton: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    paddingVertical: 10,
+    marginTop: 15,
+  },
+  modalCloseButtonText: {
+    color: '#6b7280',
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

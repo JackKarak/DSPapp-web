@@ -1,19 +1,90 @@
-import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  Platform,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { supabase } from '../../lib/supabase';
+
+// Custom Dropdown Component
+interface DropdownProps {
+  label: string;
+  value: string;
+  options: Array<{ label: string; value: string }>;
+  onValueChange: (value: string) => void;
+}
+
+const CustomDropdown: React.FC<DropdownProps> = ({ label, value, options, onValueChange }) => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  const selectedOption = options.find(option => option.value === value);
+
+  return (
+    <View style={styles.dropdownContainer}>
+      <Text style={styles.filterLabel}>{label}</Text>
+      <TouchableOpacity
+        style={styles.dropdownButton}
+        onPress={() => setIsVisible(true)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.dropdownButtonText} numberOfLines={1}>
+          {selectedOption?.label || 'Select...'}
+        </Text>
+        <Text style={styles.dropdownArrow}>▼</Text>
+      </TouchableOpacity>
+
+      <Modal
+        visible={isVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setIsVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{label}</Text>
+            <ScrollView style={styles.optionsList}>
+              {options.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.optionItem,
+                    option.value === value && styles.selectedOption
+                  ]}
+                  onPress={() => {
+                    onValueChange(option.value);
+                    setIsVisible(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.optionText,
+                    option.value === value && styles.selectedOptionText
+                  ]}>
+                    {option.label}
+                  </Text>
+                  {option.value === value && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+};
 
 type Event = {
   id: string;
@@ -46,74 +117,93 @@ export default function CalendarTab() {
   const fetchData = async () => {
     setLoading(true);
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    if (userError || !user) {
-      Alert.alert('Error', 'Unable to load user session.');
+      if (userError || !user) {
+        Alert.alert('Authentication Error', 'Please log in again.');
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      // Fetch user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('users')
+        .select('first_name, last_name')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        Alert.alert('Profile Error', 'Unable to load your profile. Please contact support.');
+        setLoading(false);
+        return;
+      }
+
+      const fullName = profile.first_name && profile.last_name 
+        ? `${profile.first_name} ${profile.last_name}` 
+        : 'Brother';
+      setBrotherName(fullName);
+
+      // Fetch events
+      const { data: eventsData, error: eventsError } = await supabase
+        .from('events')
+        .select('id, title, start_time, end_time, location, point_value, point_type, created_by, is_registerable')
+        .order('start_time', { ascending: true });
+
+      if (eventsError) {
+        Alert.alert('Events Error', 'Unable to load events. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      // Fetch event creators info
+      const createdByIds = [...new Set(eventsData.map(e => e.created_by))];
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('user_id, first_name, last_name')
+        .in('user_id', createdByIds);
+
+      if (usersError) {
+        console.warn('Unable to fetch event creators:', usersError);
+      }
+
+      const usersMap = usersData?.reduce((acc, user) => {
+        const fullName = user.first_name && user.last_name 
+          ? `${user.first_name} ${user.last_name}` 
+          : 'Unknown';
+        acc[user.user_id] = fullName;
+        return acc;
+      }, {} as Record<string, string>) || {};
+
+      const enrichedEvents = eventsData.map(event => ({
+        ...event,
+        host_name: usersMap[event.created_by] || 'Unknown',
+        is_registerable: event.is_registerable ?? true, // default to true for backward compatibility
+      }));
+
+      setEvents(enrichedEvents);
+
+      // Fetch user's registrations
+      const { data: registrations, error: registrationError } = await supabase
+        .from('event_registration')
+        .select('event_id')
+        .eq('user_id', user.id);
+
+      if (registrationError) {
+        console.warn('Unable to fetch registrations:', registrationError);
+      }
+
+      setRegisteredEventIds(registrations?.map((r) => r.event_id) || []);
+      
+    } catch (error) {
+      console.error('Error in fetchData:', error);
+      Alert.alert('Unexpected Error', 'Something went wrong. Please try again.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('first_name, last_name')
-      .eq('user_id', user.id)
-      .single();
-
-    if (profileError || !profile) {
-      Alert.alert('Error', 'Unable to load user profile.');
-      setLoading(false);
-      return;
-    }
-
-    const fullName = profile.first_name && profile.last_name 
-      ? `${profile.first_name} ${profile.last_name}` 
-      : 'Brother';
-    setBrotherName(fullName);
-
-    const { data: eventsData, error: eventsError } = await supabase
-      .from('events')
-      .select('id, title, start_time, end_time, location, point_value, point_type, created_by, is_registerable')
-      .order('start_time', { ascending: true });
-
-    if (eventsError) {
-      Alert.alert('Error', eventsError.message);
-      setLoading(false);
-      return;
-    }
-
-    const createdByIds = [...new Set(eventsData.map(e => e.created_by))];
-    const { data: usersData } = await supabase
-      .from('users')
-      .select('user_id, first_name, last_name')
-      .in('user_id', createdByIds);
-
-    const usersMap = usersData?.reduce((acc, user) => {
-      const fullName = user.first_name && user.last_name 
-        ? `${user.first_name} ${user.last_name}` 
-        : 'Unknown';
-      acc[user.user_id] = fullName;
-      return acc;
-    }, {} as Record<string, string>) || {};
-
-    const enrichedEvents = eventsData.map(event => ({
-      ...event,
-      host_name: usersMap[event.created_by] || 'Unknown',
-      is_registerable: event.is_registerable ?? true, // default to true for backward compatibility
-    }));
-
-    setEvents(enrichedEvents);
-
-    const { data: registrations } = await supabase
-      .from('event_registration')
-      .select('event_id')
-      .eq('user_id', user.id);
-
-    setRegisteredEventIds(registrations?.map((r) => r.event_id) || []);
-    setLoading(false);
   };
 
   const filteredEvents = events.filter(e => {
@@ -160,35 +250,59 @@ export default function CalendarTab() {
   });
 
   const handleRegister = async (eventId: string) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    const { error } = await supabase.from('event_registration').insert({
-      user_id: user?.id,
-      event_id: eventId,
-    });
+      if (userError || !user) {
+        Alert.alert('Authentication Error', 'Please log in again.');
+        return;
+      }
 
-    if (error) {
-      Alert.alert('Registration Failed', error.message);
-    } else {
-      setRegisteredEventIds((prev) => [...prev, eventId]);
+      const { error } = await supabase.from('event_registration').insert({
+        user_id: user.id,
+        event_id: eventId,
+      });
+
+      if (error) {
+        Alert.alert('Registration Failed', error.message);
+      } else {
+        setRegisteredEventIds((prev) => [...prev, eventId]);
+        Alert.alert('Success', 'You have been registered for this event!');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to register. Please try again.');
     }
   };
 
   const handleUnregister = async (eventId: string) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    const { error } = await supabase
-      .from('event_registration')
-      .delete()
-      .eq('event_id', eventId)
-      .eq('user_id', user?.id);
+      if (userError || !user) {
+        Alert.alert('Authentication Error', 'Please log in again.');
+        return;
+      }
 
-    if (!error) {
-      setRegisteredEventIds((prev) => prev.filter((id) => id !== eventId));
+      const { error } = await supabase
+        .from('event_registration')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        Alert.alert('Unregistration Failed', error.message);
+      } else {
+        setRegisteredEventIds((prev) => prev.filter((id) => id !== eventId));
+        Alert.alert('Success', 'You have been unregistered from this event.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to unregister. Please try again.');
     }
   };
 
@@ -257,48 +371,40 @@ export default function CalendarTab() {
           <Text style={styles.filterBarTitle}>Filters</Text>
           
           <View style={styles.filterRow}>
-            <View style={styles.filterGroup}>
-              <Text style={styles.filterLabel}>Type:</Text>
-              <Picker
-                selectedValue={selectedType}
-                style={[styles.filterPicker, Platform.OS === 'ios' && { height: 120 }]}
-                itemStyle={styles.pickerItem}
-                onValueChange={(itemValue) => setSelectedType(itemValue)}
-              >
-                <Picker.Item label="All Types" value="All" />
-                {[...new Set(events.map(e => e.point_type))].map((type) => (
-                  <Picker.Item key={type} label={type} value={type} />
-                ))}
-              </Picker>
-            </View>
+            <CustomDropdown
+              label="Type"
+              value={selectedType}
+              options={[
+                { label: 'All Types', value: 'All' },
+                ...[...new Set(events.map(e => e.point_type))].map((type) => ({
+                  label: type,
+                  value: type
+                }))
+              ]}
+              onValueChange={(value) => setSelectedType(value)}
+            />
 
-            <View style={styles.filterGroup}>
-              <Text style={styles.filterLabel}>Registration:</Text>
-              <Picker
-                selectedValue={filterRegisterable}
-                style={[styles.filterPicker, Platform.OS === 'ios' && { height: 120 }]}
-                itemStyle={styles.pickerItem}
-                onValueChange={(itemValue) => setFilterRegisterable(itemValue)}
-              >
-                <Picker.Item label="All Events" value="All" />
-                <Picker.Item label="Registerable" value="Registerable" />
-                <Picker.Item label="Non-Registerable" value="Non-Registerable" />
-              </Picker>
-            </View>
+            <CustomDropdown
+              label="Registration"
+              value={filterRegisterable}
+              options={[
+                { label: 'All Events', value: 'All' },
+                { label: 'Registerable', value: 'Registerable' },
+                { label: 'Non-Registerable', value: 'Non-Registerable' }
+              ]}
+              onValueChange={(value) => setFilterRegisterable(value)}
+            />
 
-            <View style={styles.filterGroup}>
-              <Text style={styles.filterLabel}>Status:</Text>
-              <Picker
-                selectedValue={filterPastEvents}
-                style={[styles.filterPicker, Platform.OS === 'ios' && { height: 120 }]}
-                itemStyle={styles.pickerItem}
-                onValueChange={(itemValue) => setFilterPastEvents(itemValue)}
-              >
-                <Picker.Item label="All Events" value="All" />
-                <Picker.Item label="Upcoming" value="Upcoming" />
-                <Picker.Item label="Past Events" value="Past" />
-              </Picker>
-            </View>
+            <CustomDropdown
+              label="Status"
+              value={filterPastEvents}
+              options={[
+                { label: 'All Events', value: 'All' },
+                { label: 'Upcoming', value: 'Upcoming' },
+                { label: 'Past Events', value: 'Past' }
+              ]}
+              onValueChange={(value) => setFilterPastEvents(value)}
+            />
           </View>
         </View>
       )}
@@ -450,7 +556,8 @@ const styles = StyleSheet.create({
   filterBar: {
     backgroundColor: '#fff',
     borderRadius: 16,
-    padding: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -459,40 +566,105 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   filterBarTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#1f2937',
-    marginBottom: 12,
+    marginBottom: 10,
+    textAlign: 'center',
   },
   filterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 8,
   },
-  filterGroup: {
+  // Custom Dropdown Styles
+  dropdownContainer: {
     flex: 1,
+    minWidth: 0,
   },
-  filterPicker: {
+  filterLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  dropdownButton: {
     backgroundColor: '#f9fafb',
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 40,
   },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+  dropdownButtonText: {
+    fontSize: 13,
     color: '#374151',
+    flex: 1,
+    textAlign: 'left',
   },
-  picker: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+  dropdownArrow: {
+    fontSize: 10,
+    color: '#6b7280',
+    marginLeft: 8,
   },
-  pickerItem: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    width: '80%',
+    maxHeight: '70%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  optionsList: {
+    maxHeight: 300,
+  },
+  optionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  selectedOption: {
+    backgroundColor: '#f0f9ff',
+  },
+  optionText: {
     fontSize: 16,
     color: '#374151',
+    flex: 1,
+  },
+  selectedOptionText: {
+    color: '#0369a1',
+    fontWeight: '600',
+  },
+  checkmark: {
+    fontSize: 16,
+    color: '#0369a1',
+    fontWeight: '700',
   },
   calendarContainer: {
     height: Dimensions.get('window').height * 0.6,
