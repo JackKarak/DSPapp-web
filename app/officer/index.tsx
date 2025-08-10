@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View, Text, Alert } from 'react-native';
+import { ActivityIndicator, Alert, Text, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
 export default function OfficerDashboard() {

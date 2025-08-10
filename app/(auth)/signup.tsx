@@ -55,6 +55,13 @@ export default function SignupScreen() {
       const phoneNum = parseInt(phoneNumber);
       const uidNum = parseInt(uid);
       
+      console.log('Converted values - phoneNum:', phoneNum, 'uidNum:', uidNum);
+      
+      // Check if conversion was successful
+      if (isNaN(phoneNum) || isNaN(uidNum)) {
+        throw new Error('Please enter valid numbers for phone number and UID.');
+      }
+      
       // Check if brother exists in the brother table
       const { data: brotherData, error } = await supabase
         .from('brother')
@@ -102,7 +109,8 @@ export default function SignupScreen() {
         Alert.alert('Not Found', 'No brother found with this phone number and UID. Please contact an officer if you believe this is an error.');
       }
     } catch (error: any) {
-      Alert.alert('Error', 'Failed to check brother information.');
+      console.error('Brother verification error:', error);
+      Alert.alert('Error', `Failed to check brother information: ${error.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }

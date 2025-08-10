@@ -8,7 +8,7 @@ import {
   View
 } from 'react-native';
 import { PieChart } from 'react-native-chart-kit';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../../lib/supabase';
 
 type Event = {
   id: string;

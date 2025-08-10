@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    View,
 } from 'react-native';
 import { Button, Text, TextInput, useTheme } from 'react-native-paper';
 import { supabase } from '../../lib/supabase';
@@ -74,7 +74,7 @@ export default function LoginScreen() {
       // Navigate based on role from users table data
       switch (userData.role) {
         case 'officer':
-          router.replace('/officer/index');
+          router.replace('/officer/officerspecs');
           break;
         case 'admin':
           router.replace('/president/presidentindex');
