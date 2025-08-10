@@ -440,24 +440,28 @@ export default function SignupScreen() {
               </>
             )}
 
-            <Text style={styles.label}>Graduation Year</Text>
-            <TextInput
-              placeholder="e.g. 2026"
-              value={graduationYear}
-              onChangeText={setGraduationYear}
-              keyboardType="numeric"
-              style={styles.input}
-              placeholderTextColor="#999"
-            />
+            {(role === 'brother' || role === 'pledge') && (
+              <>
+                <Text style={styles.label}>Graduation Year</Text>
+                <TextInput
+                  placeholder="e.g. 2026"
+                  value={graduationYear}
+                  onChangeText={setGraduationYear}
+                  keyboardType="numeric"
+                  style={styles.input}
+                  placeholderTextColor="#999"
+                />
 
-            <Text style={styles.label}>Major</Text>
-            <TextInput
-              placeholder="e.g. Finance"
-              value={major}
-              onChangeText={setMajor}
-              style={styles.input}
-              placeholderTextColor="#999"
-            />
+                <Text style={styles.label}>Major</Text>
+                <TextInput
+                  placeholder="e.g. Finance"
+                  value={major}
+                  onChangeText={setMajor}
+                  style={styles.input}
+                  placeholderTextColor="#999"
+                />
+              </>
+            )}
 
             <TextInput
               placeholder="Password"

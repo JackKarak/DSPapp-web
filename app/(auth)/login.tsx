@@ -37,7 +37,8 @@ export default function LoginScreen() {
         .eq('email', email)
         .single();
 
-      if (!userData) {
+      if (userError || !userData) {
+        console.error('User lookup error:', userError);
         throw new Error('User not found. Please contact an administrator or complete the signup process.');
       }
 
