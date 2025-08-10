@@ -17,36 +17,11 @@ export default function OfficerSpecs() {
           router.replace('/officer/scholarship');
           break;
         case 'marketing':
+        case 'vp_branding':
           router.replace('/officer/marketing');
           break;
-        case 'svp':
-        case 'chancellor':
-          router.replace('/officer/officerindex');
-          break;
-        case 'vp_professional':
-        case 'vp_service':
-        case 'vp_dei':
-        case 'vp_pledge_ed':
-        case 'brotherhood':
-        case 'vp_branding':
-          router.replace('/officer/officerindex');
-          break;
-        case 'social':
-          router.replace('/officer/social');
-          break;
-        case 'wellness':
-          router.replace('/officer/wellness');
-          break;
-        case 'fundraising':
-          router.replace('/officer/fundraising');
-          break;
-        case 'vp_operations':
-        case 'vp_finance':
-        case 'historian':
-        case 'risk':
-          router.replace('/officer/officerindex');
-          break;
         default:
+          // All other officer positions use the main officer dashboard
           router.replace('/officer/officerindex');
       }
     } else if (!loading && !role?.is_officer) {

@@ -1,175 +1,169 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useOfficerRole } from '../../hooks/useOfficerRole';
 import { supabase } from '../../lib/supabase';
 
-type Event = {
-  id: number;
-  title: string;
-  location: string;
-  start_time: string;
-  end_time: string;
-  status: string;
-  code: string | null;
-  denial_note: string | null;
-};
-
-export default function OfficerEvents() {
-  const [approvedEvents, setApprovedEvents] = useState<Event[]>([]);
-  const [deniedEvents, setDeniedEvents] = useState<Event[]>([]);
-  const [pendingEvents, setPendingEvents] = useState<Event[]>([]);
+export default function OfficerHome() {
+  const { role, loading: roleLoading } = useOfficerRole();
+  const [stats, setStats] = useState({
+    totalEvents: 0,
+    pendingEvents: 0,
+    approvedEvents: 0,
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchEvents();
-  }, []);
+    if (!roleLoading && role?.is_officer) {
+      fetchStats();
+    }
+  }, [role, roleLoading]);
 
-  const fetchEvents = async () => {
-    setLoading(true);
+  const fetchStats = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const {
-      data: authData,
-      error: authError,
-    } = await supabase.auth.getUser();
+      // Get officer's event statistics
+      const { data: events } = await supabase
+        .from('events')
+        .select('status')
+        .eq('created_by', user.id);
 
-    const user = authData?.user;
-
-    if (authError || !user) {
-      Alert.alert('Authentication Error', authError?.message || 'User not authenticated');
+      if (events) {
+        setStats({
+          totalEvents: events.length,
+          pendingEvents: events.filter(e => e.status === 'pending').length,
+          approvedEvents: events.filter(e => e.status === 'approved').length,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const { data: events, error } = await supabase
-      .from('events')
-      .select('id, title, location, start_time, end_time, status, code, denial_note')
-      .eq('created_by', user.id);
-
-    if (error) {
-      Alert.alert('Error Fetching Events', error.message);
-    } else {
-      setApprovedEvents(events.filter((e) => e.status === 'approved'));
-      setDeniedEvents(events.filter((e) => e.status === 'denied'));
-      setPendingEvents(events.filter((e) => e.status === 'pending'));
-    }
-
-    setLoading(false);
   };
 
-  const cancelEvent = async (eventId: number) => {
-    Alert.alert('Cancel Event', 'Are you sure you want to cancel this event?', [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes',
-        onPress: async () => {
-          const { error } = await supabase.from('events').delete().eq('id', eventId);
-          if (error) {
-            Alert.alert('Error', error.message);
-          } else {
-            Alert.alert('Event Cancelled');
-            fetchEvents();
-          }
-        },
-      },
-    ]);
-  };
-
-  const renderEvent = (event: Event) => (
-    <View key={event.id} style={styles.eventCard}>
-      <Text style={styles.eventTitle}>{event.title}</Text>
-      <Text style={styles.eventDetail}>Location: {event.location}</Text>
-      <Text style={styles.eventDetail}>
-        Time: {new Date(event.start_time).toLocaleString()} -{' '}
-        {new Date(event.end_time).toLocaleTimeString()}
-      </Text>
-      {event.status === 'approved' && event.code && (
-        <Text style={styles.eventDetail}>Event Code: {event.code}</Text>
-      )}
-      {event.status === 'denied' && event.denial_note && (
-        <Text style={styles.eventDetail}>Denial Note: {event.denial_note}</Text>
-      )}
-      <View style={styles.buttonWrapper}>
-        <Button title="Cancel Event" onPress={() => cancelEvent(event.id)} color="#C40043" />
-      </View>
-    </View>
-  );
-
-  if (loading) {
+  if (roleLoading || loading) {
     return (
-      <View style={styles.centered}>
+      <View style={styles.loading}>
         <ActivityIndicator size="large" color="#330066" />
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.header}>Pending Events</Text>
-      {pendingEvents.length === 0 ? (
-        <Text style={styles.noEvents}>No pending events.</Text>
-      ) : (
-        pendingEvents.map(renderEvent)
-      )}
+    <ScrollView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Welcome, Officer!</Text>
+        <Text style={styles.subtitle}>
+          {role?.position ? `Position: ${role.position.replace(/_/g, ' ').toUpperCase()}` : 'Officer Dashboard'}
+        </Text>
+      </View>
 
-      <Text style={styles.header}>Approved Events</Text>
-      {approvedEvents.length === 0 ? (
-        <Text style={styles.noEvents}>No approved events.</Text>
-      ) : (
-        approvedEvents.map(renderEvent)
-      )}
+      <View style={styles.statsContainer}>
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{stats.totalEvents}</Text>
+          <Text style={styles.statLabel}>Total Events</Text>
+        </View>
+        
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{stats.pendingEvents}</Text>
+          <Text style={styles.statLabel}>Pending</Text>
+        </View>
+        
+        <View style={styles.statCard}>
+          <Text style={styles.statNumber}>{stats.approvedEvents}</Text>
+          <Text style={styles.statLabel}>Approved</Text>
+        </View>
+      </View>
 
-      <Text style={styles.header}>Not Approved</Text>
-      {deniedEvents.length === 0 ? (
-        <Text style={styles.noEvents}>No denied events.</Text>
-      ) : (
-        deniedEvents.map(renderEvent)
-      )}
+      <View style={styles.quickActions}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <Text style={styles.actionText}>• Use the tabs below to navigate</Text>
+        <Text style={styles.actionText}>• Create events in the Register tab</Text>
+        <Text style={styles.actionText}>• View analytics to track performance</Text>
+        <Text style={styles.actionText}>• Manage events in the Events tab</Text>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
+    flex: 1,
     backgroundColor: '#fff',
   },
-  header: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#330066',
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  eventCard: {
-    backgroundColor: '#f9f9f9',
-    borderColor: '#ADAFAA',
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 16,
-  },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-    color: '#0038A8',
-  },
-  eventDetail: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 2,
-  },
-  noEvents: {
-    fontSize: 14,
-    color: '#666',
-    fontStyle: 'italic',
-    marginBottom: 10,
-  },
-  buttonWrapper: {
-    marginTop: 10,
-  },
-  centered: {
+  loading: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+    fontSize: 16,
+  },
+  header: {
+    padding: 24,
+    backgroundColor: '#330066',
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#E0E0E0',
+    textAlign: 'center',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    padding: 20,
+    justifyContent: 'space-around',
+  },
+  statCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    flex: 1,
+    marginHorizontal: 8,
+    borderColor: '#e0e0e0',
+    borderWidth: 1,
+  },
+  statNumber: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#330066',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  quickActions: {
+    padding: 20,
+    backgroundColor: '#f8f9fa',
+    margin: 20,
+    borderRadius: 12,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#330066',
+    marginBottom: 12,
+  },
+  actionText: {
+    fontSize: 16,
+    color: '#444',
+    marginBottom: 8,
+    lineHeight: 22,
   },
 });

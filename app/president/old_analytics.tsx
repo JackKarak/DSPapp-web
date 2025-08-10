@@ -5,19 +5,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View
+  View,
 } from 'react-native';
 import { PieChart } from 'react-native-chart-kit';
-import { supabase } from '../../../lib/supabase';
-
-type Event = {
-  id: string;
-  point_value: number;
-  rating: number | null;
-  point_type: string;
-  title: string;
-  start_time: string;
-};
+import { supabase } from '../../lib/supabase';
 
 type UserStats = {
   total: number;
@@ -35,8 +26,9 @@ type EventStats = {
 };
 
 const screenWidth = Dimensions.get('window').width;
+const pieColors = ['#FF6384', '#36A2EB', '#FFCE56', '#00C49F', '#8A2BE2', '#FFA07A'];
 
-export default function OfficerAnalytics() {
+export default function PresidentAnalytics() {
   const [loading, setLoading] = useState(true);
   const [userStats, setUserStats] = useState<UserStats>({
     total: 0,
@@ -54,7 +46,6 @@ export default function OfficerAnalytics() {
   const [pointDistribution, setPointDistribution] = useState<
     { name: string; points: number; color: string; legendFontColor: string; legendFontSize: number }[]
   >([]);
-  const [officerId, setOfficerId] = useState<string | null>(null);
   const [feedbackStats, setFeedbackStats] = useState<{
     avgRating: number;
     wouldAttendAgainPct: number;
@@ -68,21 +59,45 @@ export default function OfficerAnalytics() {
   });
 
   useEffect(() => {
-    const fetchOfficerIdAndAnalytics = async () => {
+    const fetchAnalytics = async () => {
       setLoading(true);
       try {
-        // Get current officer's user ID
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError || !user) throw userError || new Error('No user');
-        setOfficerId(user.id);
+        // Fetch user statistics (all users)
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('pledge_class, major, graduation_year')
+          .eq('approved', true);
+        
+        if (usersError) throw usersError;
+        
+        const userStats: UserStats = {
+          total: usersData.length,
+          by_pledge_class: {},
+          by_major: {},
+          by_graduation_year: {},
+        };
+        
+        usersData.forEach(user => {
+          if (user.pledge_class) {
+            userStats.by_pledge_class[user.pledge_class] = (userStats.by_pledge_class[user.pledge_class] || 0) + 1;
+          }
+          if (user.major) {
+            userStats.by_major[user.major] = (userStats.by_major[user.major] || 0) + 1;
+          }
+          if (user.graduation_year) {
+            userStats.by_graduation_year[user.graduation_year] = (userStats.by_graduation_year[user.graduation_year] || 0) + 1;
+          }
+        });
+        setUserStats(userStats);
 
-        // Fetch only this officer's events
+        // Fetch all events
         const { data: eventsData, error: eventsError } = await supabase
           .from('events')
           .select('id, point_value, point_type, start_time')
-          .eq('status', 'approved')
-          .eq('created_by', user.id);
+          .eq('status', 'approved');
+        
         if (eventsError) throw eventsError;
+        
         const eventIds = eventsData.map(e => e.id);
         const now = new Date();
         const eventStats: EventStats = {
@@ -92,29 +107,34 @@ export default function OfficerAnalytics() {
           by_month: {},
           upcoming: 0,
         };
+        
         eventStats.upcoming = eventsData.filter(event => new Date(event.start_time) > now).length;
+        
         eventsData.forEach(event => {
           eventStats.by_point_type[event.point_type] = (eventStats.by_point_type[event.point_type] || 0) + 1;
           const month = new Date(event.start_time).toLocaleString('default', { month: 'long' });
           eventStats.by_month[month] = (eventStats.by_month[month] || 0) + 1;
         });
-        // Fetch attendance for only this officer's events
+        
+        // Fetch attendance for all events
         let attendanceByEvent: Record<string, number> = {};
-        let attendeeUserIds: Set<string> = new Set();
         if (eventIds.length > 0) {
           const { data: attendanceData, error: attendanceError } = await supabase
             .from('event_attendance')
-            .select('event_id, user_id')
-            .in('event_id', eventIds);
+            .select('event_id');
+          
           if (attendanceError) throw attendanceError;
+          
           attendanceData.forEach(record => {
             attendanceByEvent[record.event_id] = (attendanceByEvent[record.event_id] || 0) + 1;
-            attendeeUserIds.add(record.user_id);
           });
         }
+        
         eventStats.average_attendance = 
           Object.values(attendanceByEvent).reduce((sum, count) => sum + count, 0) / (Object.keys(attendanceByEvent).length || 1);
+        
         setEventStats(eventStats);
+        
         // Format point type distribution for pie chart
         const formattedData = Object.entries(eventStats.by_point_type).map(([name, points], i) => ({
           name,
@@ -125,53 +145,31 @@ export default function OfficerAnalytics() {
         }));
         setPointDistribution(formattedData);
 
-        // Fetch user stats for only attendees of this officer's events
-        let attendeeStats: UserStats = {
-          total: 0,
-          by_pledge_class: {},
-          by_major: {},
-          by_graduation_year: {},
-        };
-        if (attendeeUserIds.size > 0) {
-          const { data: attendeeProfiles, error: attendeeError } = await supabase
-            .from('users')
-            .select('pledge_class, major, graduation_year')
-            .in('user_id', Array.from(attendeeUserIds));
-          if (attendeeError) throw attendeeError;
-          attendeeStats.total = attendeeProfiles.length;
-          attendeeProfiles.forEach(user => {
-            if (user.pledge_class) {
-              attendeeStats.by_pledge_class[user.pledge_class] = (attendeeStats.by_pledge_class[user.pledge_class] || 0) + 1;
-            }
-            if (user.major) {
-              attendeeStats.by_major[user.major] = (attendeeStats.by_major[user.major] || 0) + 1;
-            }
-            if (user.graduation_year) {
-              attendeeStats.by_graduation_year[user.graduation_year] = (attendeeStats.by_graduation_year[user.graduation_year] || 0) + 1;
-            }
-          });
-        }
-        setUserStats(attendeeStats);
-
-        // Fetch event feedback for only this officer's events
+        // Fetch event feedback for all events
         let feedbackStatsData = {
           avgRating: 0,
           wouldAttendAgainPct: 0,
           wellOrganizedPct: 0,
           recentComments: [] as Array<{ rating: number; comments: string; created_at: string; event_id: string }>,
         };
+        
         if (eventIds.length > 0) {
           const { data: feedbackData, error: feedbackError } = await supabase
             .from('event_feedback')
             .select('rating, comments, would_attend_again, well_organized, created_at, event_id')
             .in('event_id', eventIds);
+          
           if (feedbackError) throw feedbackError;
+          
           const ratings = feedbackData.map(fb => fb.rating).filter(r => typeof r === 'number');
           feedbackStatsData.avgRating = ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length) : 0;
+          
           const wouldAttendCount = feedbackData.filter(fb => fb.would_attend_again === true).length;
           feedbackStatsData.wouldAttendAgainPct = feedbackData.length ? (wouldAttendCount / feedbackData.length) * 100 : 0;
+          
           const wellOrgCount = feedbackData.filter(fb => fb.well_organized === true).length;
           feedbackStatsData.wellOrganizedPct = feedbackData.length ? (wellOrgCount / feedbackData.length) * 100 : 0;
+          
           feedbackStatsData.recentComments = feedbackData
             .filter(fb => fb.comments && fb.comments.trim() !== '')
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -190,17 +188,19 @@ export default function OfficerAnalytics() {
         setLoading(false);
       }
     };
-    fetchOfficerIdAndAnalytics();
+    
+    fetchAnalytics();
   }, []);
-
-
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.header}>📊 Chapter Analytics</Text>
+      <Text style={styles.header}>📊 Presidential Analytics</Text>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#330066" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#330066" />
+          <Text style={styles.loadingText}>Loading analytics...</Text>
+        </View>
       ) : (
         <>
           <Text style={styles.sectionHeader}>👥 Membership Stats</Text>
@@ -212,21 +212,25 @@ export default function OfficerAnalytics() {
 
           <View style={styles.metricCard}>
             <Text style={styles.metricTitle}>Pledge Class Distribution</Text>
-            <PieChart
-              data={Object.entries(userStats.by_pledge_class).map(([name, count], i) => ({
-                name,
-                points: count,
-                color: pieColors[i % pieColors.length],
-                legendFontColor: '#333',
-                legendFontSize: 13,
-              }))}
-              width={screenWidth - 32}
-              height={200}
-              chartConfig={{ color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})` }}
-              accessor="points"
-              backgroundColor="transparent"
-              paddingLeft="15"
-            />
+            {Object.keys(userStats.by_pledge_class).length > 0 ? (
+              <PieChart
+                data={Object.entries(userStats.by_pledge_class).map(([name, count], i) => ({
+                  name,
+                  population: count,
+                  color: pieColors[i % pieColors.length],
+                  legendFontColor: '#333',
+                  legendFontSize: 13,
+                }))}
+                width={screenWidth - 32}
+                height={200}
+                chartConfig={{ color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})` }}
+                accessor="population"
+                backgroundColor="transparent"
+                paddingLeft="15"
+              />
+            ) : (
+              <Text style={styles.noDataText}>No pledge class data available</Text>
+            )}
           </View>
 
           <View style={styles.metricCard}>
@@ -241,6 +245,9 @@ export default function OfficerAnalytics() {
                 </View>
               ))
             }
+            {Object.keys(userStats.by_major).length === 0 && (
+              <Text style={styles.noDataText}>No major data available</Text>
+            )}
           </View>
 
           <Text style={styles.sectionHeader}>📅 Event Analytics</Text>
@@ -250,6 +257,7 @@ export default function OfficerAnalytics() {
               <Text style={styles.metricTitle}>Total Events</Text>
               <Text style={styles.metricValue}>{eventStats.total}</Text>
             </View>
+
             <View style={[styles.metricCard, styles.halfCard]}>
               <Text style={styles.metricTitle}>Upcoming</Text>
               <Text style={styles.metricValue}>{eventStats.upcoming}</Text>
@@ -258,15 +266,19 @@ export default function OfficerAnalytics() {
 
           <View style={styles.metricCard}>
             <Text style={styles.metricTitle}>Event Type Distribution</Text>
-            <PieChart
-              data={pointDistribution}
-              width={screenWidth - 32}
-              height={200}
-              chartConfig={{ color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})` }}
-              accessor="points"
-              backgroundColor="transparent"
-              paddingLeft="15"
-            />
+            {pointDistribution.length > 0 ? (
+              <PieChart
+                data={pointDistribution}
+                width={screenWidth - 32}
+                height={200}
+                chartConfig={{ color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})` }}
+                accessor="points"
+                backgroundColor="transparent"
+                paddingLeft="15"
+              />
+            ) : (
+              <Text style={styles.noDataText}>No event data available</Text>
+            )}
           </View>
 
           <View style={styles.metricCard}>
@@ -279,6 +291,9 @@ export default function OfficerAnalytics() {
                 </View>
               ))
             }
+            {Object.keys(eventStats.by_month).length === 0 && (
+              <Text style={styles.noDataText}>No monthly data available</Text>
+            )}
           </View>
 
           <View style={styles.metricCard}>
@@ -289,30 +304,37 @@ export default function OfficerAnalytics() {
           </View>
 
           <Text style={styles.sectionHeader}>⭐ Event Feedback</Text>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricTitle}>Average Event Rating</Text>
-            <Text style={styles.metricValue}>{feedbackStats.avgRating.toFixed(2)} / 5</Text>
+          
+          <View style={styles.rowContainer}>
+            <View style={[styles.metricCard, styles.halfCard]}>
+              <Text style={styles.metricTitle}>Avg Rating</Text>
+              <Text style={styles.metricValue}>{feedbackStats.avgRating.toFixed(2)} / 5</Text>
+            </View>
+            
+            <View style={[styles.metricCard, styles.halfCard]}>
+              <Text style={styles.metricTitle}>Would Attend Again</Text>
+              <Text style={styles.metricValue}>{feedbackStats.wouldAttendAgainPct.toFixed(1)}%</Text>
+            </View>
           </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricTitle}>Would Attend Again</Text>
-            <Text style={styles.metricValue}>{feedbackStats.wouldAttendAgainPct.toFixed(1)}%</Text>
-          </View>
+          
           <View style={styles.metricCard}>
             <Text style={styles.metricTitle}>Well Organized</Text>
             <Text style={styles.metricValue}>{feedbackStats.wellOrganizedPct.toFixed(1)}%</Text>
           </View>
+          
           <View style={styles.metricCard}>
             <Text style={styles.metricTitle}>Recent Comments</Text>
             {feedbackStats.recentComments.length === 0 ? (
-              <Text style={styles.statLabel}>No comments yet.</Text>
+              <Text style={styles.noDataText}>No comments yet.</Text>
             ) : (
               feedbackStats.recentComments.map((fb, idx) => (
-                <View key={idx} style={styles.statRow}>
-                  <Text style={styles.statLabel}>
-                    {fb.comments}
-                    <Text style={{ color: '#888', fontSize: 12 }}> (Rating: {fb.rating ?? 'N/A'})</Text>
+                <View key={idx} style={styles.commentRow}>
+                  <Text style={styles.commentText}>
+                    "{fb.comments}"
                   </Text>
-                  <Text style={{ color: '#888', fontSize: 12 }}>{new Date(fb.created_at).toLocaleDateString()}</Text>
+                  <Text style={styles.commentMeta}>
+                    Rating: {fb.rating ?? 'N/A'} • {new Date(fb.created_at).toLocaleDateString()}
+                  </Text>
                 </View>
               ))
             )}
@@ -323,18 +345,29 @@ export default function OfficerAnalytics() {
   );
 }
 
-const pieColors = ['#FF6384', '#36A2EB', '#FFCE56', '#00C49F', '#8A2BE2', '#FFA07A'];
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+    paddingBottom: 100,
     backgroundColor: '#fff',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
   },
   header: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#330066',
+    textAlign: 'center',
     marginBottom: 24,
   },
   sectionHeader: {
@@ -378,7 +411,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
@@ -392,5 +425,27 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#0038A8',
     marginLeft: 8,
-  }
+  },
+  commentRow: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  commentText: {
+    fontSize: 14,
+    color: '#333',
+    fontStyle: 'italic',
+    marginBottom: 4,
+  },
+  commentMeta: {
+    fontSize: 12,
+    color: '#666',
+  },
+  noDataText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    fontStyle: 'italic',
+    padding: 20,
+  },
 });

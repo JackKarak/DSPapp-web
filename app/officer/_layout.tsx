@@ -174,6 +174,16 @@ export default function OfficerLayout() {
           href: accessibleTabs.includes('marketing') ? '/officer/marketing' : null,
         }}
       />
+      <Tabs.Screen
+        name="officerspecs"
+        options={{
+          title: 'Officer Control',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings-outline" size={size} color={color} />
+          ),
+          href: null, // Hidden tab - used for routing only
+        }}
+      />
     </Tabs>
   );
 }
