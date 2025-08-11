@@ -45,17 +45,17 @@ export default function OfficerLayout() {
       case 'svp':
       case 'chancellor':
         console.log('Access: Executive leadership');
-        return ['officerindex', 'shared/analytics', 'shared/events', 'shared/register'];
+        return ['index', 'analytics', 'events', 'register'];
         
       // VP Scholarship - Unique Testbank Access ONLY
       case 'vp_scholarship':
         console.log('Access: VP Scholarship');
-        return ['officerindex', 'shared/analytics', 'shared/events', 'shared/register', 'scholarship'];
+        return ['index', 'analytics', 'events', 'register', 'scholarship'];
         
       // Marketing - Unique Marketing Tools ONLY
       case 'marketing':
         console.log('Access: Marketing');
-        return ['officerindex', 'shared/analytics', 'shared/events', 'shared/register', 'marketing'];
+        return ['index', 'analytics', 'events', 'register', 'marketing'];
         
       // Event-Creating VPs
       case 'vp_professional':
@@ -65,18 +65,18 @@ export default function OfficerLayout() {
       case 'brotherhood':
       case 'vp_branding':
         console.log('Access: Event-creating VP');
-        return ['officerindex', 'shared/analytics', 'shared/events', 'shared/register'];
+        return ['index', 'analytics', 'events', 'register'];
         
       // Event-Creating Chairs (when their files are created)
       case 'social':
         console.log('Access: Social chair');
-        return ['officerindex', 'shared/analytics', 'shared/events', 'shared/register']; // Add 'social' when file exists
+        return ['index', 'analytics', 'events', 'register']; // Add 'social' when file exists
       case 'wellness':
         console.log('Access: Wellness chair');
-        return ['officerindex', 'shared/analytics', 'shared/events', 'shared/register']; // Add 'wellness' when file exists
+        return ['index', 'analytics', 'events', 'register']; // Add 'wellness' when file exists
       case 'fundraising':
         console.log('Access: Fundraising chair');
-        return ['officerindex', 'shared/analytics', 'shared/events', 'shared/register']; // Add 'fundraising' when file exists
+        return ['index', 'analytics', 'events', 'register']; // Add 'fundraising' when file exists
         
       // Administrative Roles - View Only
       case 'vp_operations':
@@ -84,12 +84,12 @@ export default function OfficerLayout() {
       case 'historian':
       case 'risk':
         console.log('Access: Administrative role');
-        return ['officerindex', 'shared/analytics', 'shared/events'];
+        return ['index', 'analytics', 'events'];
         
       // Default fallback for unrecognized roles
       default:
         console.log('Access: Default fallback for position:', position);
-        return ['officerindex'];
+        return ['index'];
     }
   };
 
@@ -115,43 +115,43 @@ export default function OfficerLayout() {
       }}
     >
       <Tabs.Screen
-        name="officerindex"
+        name="index"
         options={{
           title: 'Home',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
-          href: accessibleTabs.includes('officerindex') ? '/officer/officerindex' : null,
+          href: accessibleTabs.includes('index') ? undefined : null,
         }}
       />
       <Tabs.Screen
-        name="shared/analytics"
+        name="analytics"
         options={{
           title: 'Analytics',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bar-chart-outline" size={size} color={color} />
           ),
-          href: accessibleTabs.includes('shared/analytics') ? '/officer/shared/analytics' : null,
+          href: accessibleTabs.includes('analytics') ? undefined : null,
         }}
       />
       <Tabs.Screen
-        name="shared/events"
+        name="events"
         options={{
           title: 'Events',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" size={size} color={color} />
           ),
-          href: accessibleTabs.includes('shared/events') ? '/officer/shared/events' : null,
+          href: accessibleTabs.includes('events') ? undefined : null,
         }}
       />
       <Tabs.Screen
-        name="shared/register"
+        name="register"
         options={{
           title: 'Register',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-add-outline" size={size} color={color} />
           ),
-          href: accessibleTabs.includes('shared/register') ? '/officer/shared/register' : null,
+          href: accessibleTabs.includes('register') ? undefined : null,
         }}
       />
       <Tabs.Screen

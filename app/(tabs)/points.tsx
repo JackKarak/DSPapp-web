@@ -129,7 +129,7 @@ export default function PointsScreen() {
         // Get all users with their profile information
         const { data: profiles, error: profilesError } = await supabase
           .from('users')
-          .select('id, first_name, last_name');
+          .select('user_id, first_name, last_name');
 
         if (profilesError) {
           console.error('Error fetching profiles:', profilesError);
@@ -170,7 +170,7 @@ export default function PointsScreen() {
         const userPoints: Record<string, number> = {};
         
         profiles?.forEach((profile) => {
-          const userId = profile.id;
+          const userId = profile.user_id;
           const userAttendance = allAttendance?.filter(a => a.user_id === userId) || [];
           const userRegistrations = allRegistrations?.filter(r => r.user_id === userId) || [];
           
@@ -191,9 +191,9 @@ export default function PointsScreen() {
 
         // Create leaderboard array with names
         const leaderboardData = profiles?.map(profile => ({
-          id: profile.id,
+          id: profile.user_id,
           name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown',
-          totalPoints: userPoints[profile.id] || 0,
+          totalPoints: userPoints[profile.user_id] || 0,
         })) || [];
 
         // Sort by total points (descending)

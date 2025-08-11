@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 // Custom Dropdown Component for Point Types
 interface DropdownProps {

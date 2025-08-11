@@ -35,7 +35,7 @@ export default function ScholarshipTab() {
       // Check if user is VP Scholarship
       const { data: userData, error: roleError } = await supabase
         .from('users')
-        .select('is_officer, officer_position')
+        .select('officer_position')
         .eq('user_id', user.id)
         .single();
 
@@ -54,9 +54,9 @@ export default function ScholarshipTab() {
         return;
       }
 
-      if (!userData.is_officer) {
+      if (!userData.officer_position) {
         Alert.alert('Access Denied', 'You do not have officer permissions.');
-        router.replace('/officer/officerindex');
+        router.replace('/officer');
         return;
       }
 
@@ -64,7 +64,7 @@ export default function ScholarshipTab() {
       if (userData.officer_position !== 'scholarship' && userData.officer_position !== 'vp_scholarship') {
         console.log('Position mismatch:', userData.officer_position);
         Alert.alert('Access Denied', 'You do not have permission to access the scholarship test bank.');
-        router.replace('/officer/officerindex');
+        router.replace('/officer');
         return;
       }
 

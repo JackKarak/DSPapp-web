@@ -73,7 +73,7 @@ export default function AttendanceScreen() {
       return;
     }
 
-    const { error: insertError } = await supabase
+    const { data: insertData, error: insertError } = await supabase
       .from('event_attendance')
       .insert([
         {
@@ -82,13 +82,16 @@ export default function AttendanceScreen() {
           scanned_by: user.id, // optional: record who scanned if you want
           attended_at: new Date().toISOString(),
         },
-      ]);
+      ])
+      .select(); // Add select to get back the inserted data
 
     setLoading(false);
 
     if (insertError) {
-      Alert.alert('❌ Error', insertError.message);
+      console.error('Attendance insert error:', insertError);
+      Alert.alert('❌ Error', `Failed to record attendance: ${insertError.message}\n\nError code: ${insertError.code || 'Unknown'}\nDetails: ${insertError.details || 'None'}`);
     } else {
+      console.log('Successfully inserted attendance record:', insertData);
       // Get user profile for personalized message
       const { data: profile } = await supabase
         .from('users')

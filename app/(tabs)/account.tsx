@@ -2,30 +2,38 @@ import { Picker } from '@react-native-picker/picker';
 import * as DocumentPicker from 'expo-document-picker';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Modal,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { Event } from '../../types/account';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const EventRow: React.FC<{ event: Event }> = React.memo(({ event }) => (
+const EventRow: React.FC<{ event: Event; onFeedbackPress: (event: Event) => void }> = React.memo(({ event, onFeedbackPress }) => (
   <View style={styles.tableRow}>
     <Text style={styles.cell}>{event.title}</Text>
     <Text style={styles.cell}>
       {new Date(event.date).toLocaleDateString()}
     </Text>
     <Text style={styles.cell}>{event.host_name}</Text>
+    <TouchableOpacity 
+      style={styles.feedbackButton}
+      onPress={() => onFeedbackPress(event)}
+      activeOpacity={0.7}
+    >
+      <Text style={styles.feedbackButtonText}>📝</Text>
+    </TouchableOpacity>
   </View>
 ));
 
@@ -79,6 +87,18 @@ export default function AccountTab() {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showTestBankForm, setShowTestBankForm] = useState(false);
+  
+  // Event feedback modal state
+  const [showEventFeedback, setShowEventFeedback] = useState(false);
+  const [eventFeedbackModalVisible, setEventFeedbackModalVisible] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [eventFeedbackData, setEventFeedbackData] = useState({
+    rating: 5,
+    would_attend_again: null as boolean | null,
+    well_organized: null as boolean | null,
+    comments: '',
+  });
+  
   const [classCode, setClassCode] = useState('');
   const [fileType, setFileType] = useState<'test' | 'notes' | 'materials'>('test');
   const [selectedFile, setSelectedFile] = useState<any>(null);
@@ -404,6 +424,60 @@ export default function AccountTab() {
     }
   };
 
+  // Event feedback functions
+  const handleEventFeedbackPress = (event: Event) => {
+    setSelectedEvent(event);
+    setEventFeedbackModalVisible(true);
+  };
+
+  const submitEventFeedback = async () => {
+    if (!selectedEvent) return;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    try {
+      console.log('📝 Submitting feedback data:', {
+        user_id: user?.id,
+        event_id: selectedEvent.id,
+        rating: eventFeedbackData.rating,
+        would_attend_again: eventFeedbackData.would_attend_again,
+        well_organized: eventFeedbackData.well_organized,
+        comments: eventFeedbackData.comments,
+      });
+
+      const { error } = await supabase.from('event_feedback').insert({
+        user_id: user?.id,
+        event_id: selectedEvent.id,
+        rating: eventFeedbackData.rating,
+        would_attend_again: eventFeedbackData.would_attend_again,
+        well_organized: eventFeedbackData.well_organized,
+        comments: eventFeedbackData.comments,
+        created_at: new Date().toISOString(),
+      });
+
+      if (error) {
+        console.error('❌ Event feedback submission error:', error);
+        throw error;
+      }
+
+      console.log('✅ Event feedback submitted successfully!');
+      Alert.alert('Thanks!', 'Your event feedback was submitted successfully.');
+      setEventFeedbackModalVisible(false);
+      setSelectedEvent(null);
+      setEventFeedbackData({
+        rating: 5,
+        would_attend_again: null,
+        well_organized: null,
+        comments: '',
+      });
+    } catch (error) {
+      console.error('Event feedback submission error:', error);
+      Alert.alert('Error', 'Could not submit feedback. Please try again.');
+    }
+  };
+
   const handlePickFeedbackFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -720,9 +794,10 @@ export default function AccountTab() {
                 <Text style={styles.cellHeader}>Title</Text>
                 <Text style={styles.cellHeader}>Date</Text>
                 <Text style={styles.cellHeader}>Organizer</Text>
+                <Text style={styles.cellHeader}>Feedback</Text>
               </View>
               {events.map((event) => (
-                <EventRow key={event.id} event={event} />
+                <EventRow key={event.id} event={event} onFeedbackPress={handleEventFeedbackPress} />
               ))}
             </View>
           )
@@ -844,6 +919,161 @@ export default function AccountTab() {
           <Text style={[styles.link, { color: 'red' }]}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Event Feedback Modal */}
+      <Modal
+        visible={eventFeedbackModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setEventFeedbackModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Event Feedback</Text>
+              <TouchableOpacity
+                style={styles.exitButton}
+                onPress={() => setEventFeedbackModalVisible(false)}
+              >
+                <Text style={styles.exitButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {selectedEvent && (
+                <>
+                  <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
+                  <Text style={styles.eventDate}>
+                    {new Date(selectedEvent.date).toLocaleDateString()}
+                  </Text>
+                </>
+              )}
+
+            {/* Overall Rating */}
+            <View style={styles.feedbackSection}>
+              <Text style={styles.feedbackLabel}>Overall Rating (1-5)</Text>
+              <View style={styles.ratingContainer}>
+                {[1, 2, 3, 4, 5].map((rating) => (
+                  <TouchableOpacity
+                    key={rating}
+                    style={[
+                      styles.ratingButton,
+                      eventFeedbackData.rating === rating && styles.ratingButtonActive
+                    ]}
+                    onPress={() => setEventFeedbackData(prev => ({ ...prev, rating: rating }))}
+                  >
+                    <Text style={[
+                      styles.ratingButtonText,
+                      eventFeedbackData.rating === rating && styles.ratingButtonTextActive
+                    ]}>
+                      {rating}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Boolean Questions */}
+            <View style={styles.feedbackSection}>
+              <Text style={styles.feedbackLabel}>Would you attend again?</Text>
+              <View style={styles.booleanContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.booleanButton,
+                    eventFeedbackData.would_attend_again === true && styles.booleanButtonActive
+                  ]}
+                  onPress={() => setEventFeedbackData(prev => ({ ...prev, would_attend_again: true }))}
+                >
+                  <Text style={[
+                    styles.booleanButtonText,
+                    eventFeedbackData.would_attend_again === true && styles.booleanButtonTextActive
+                  ]}>
+                    Yes
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.booleanButton,
+                    eventFeedbackData.would_attend_again === false && styles.booleanButtonActive
+                  ]}
+                  onPress={() => setEventFeedbackData(prev => ({ ...prev, would_attend_again: false }))}
+                >
+                  <Text style={[
+                    styles.booleanButtonText,
+                    eventFeedbackData.would_attend_again === false && styles.booleanButtonTextActive
+                  ]}>
+                    No
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.feedbackSection}>
+              <Text style={styles.feedbackLabel}>Was it well organized?</Text>
+              <View style={styles.booleanContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.booleanButton,
+                    eventFeedbackData.well_organized === true && styles.booleanButtonActive
+                  ]}
+                  onPress={() => setEventFeedbackData(prev => ({ ...prev, well_organized: true }))}
+                >
+                  <Text style={[
+                    styles.booleanButtonText,
+                    eventFeedbackData.well_organized === true && styles.booleanButtonTextActive
+                  ]}>
+                    Yes
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.booleanButton,
+                    eventFeedbackData.well_organized === false && styles.booleanButtonActive
+                  ]}
+                  onPress={() => setEventFeedbackData(prev => ({ ...prev, well_organized: false }))}
+                >
+                  <Text style={[
+                    styles.booleanButtonText,
+                    eventFeedbackData.well_organized === false && styles.booleanButtonTextActive
+                  ]}>
+                    No
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Comments */}
+            <View style={styles.feedbackSection}>
+              <Text style={styles.feedbackLabel}>Additional Comments (optional)</Text>
+              <TextInput
+                style={styles.commentsInput}
+                multiline
+                numberOfLines={4}
+                placeholder="Share your thoughts about the event..."
+                value={eventFeedbackData.comments || ''}
+                onChangeText={(text) => setEventFeedbackData(prev => ({ ...prev, comments: text }))}
+              />
+            </View>
+            </ScrollView>
+
+            {/* Action Buttons */}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setEventFeedbackModalVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.submitButton]}
+                onPress={submitEventFeedback}
+              >
+                <Text style={styles.submitButtonText}>Submit Feedback</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1208,9 +1438,11 @@ const styles = StyleSheet.create({
   },
   tableRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     borderBottomWidth: 1,
     borderColor: '#F0F0F0',
     paddingVertical: 12,
+    paddingHorizontal: 8,
     backgroundColor: 'white',
   },
   cellHeader: {
@@ -1368,5 +1600,186 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  eventInfoSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flex: 1,
+  },
+  feedbackButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 6,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+    flexShrink: 0,
+  },
+  feedbackButtonText: {
+    fontSize: 16,
+    color: 'white',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    margin: 20,
+    borderRadius: 12,
+    padding: 20,
+    maxHeight: '80%',
+    width: screenWidth - 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+    flex: 1,
+  },
+  exitButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F8F9FA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  exitButtonText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  eventTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    color: '#007AFF',
+    marginBottom: 4,
+  },
+  eventDate: {
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#666',
+    marginBottom: 20,
+  },
+  feedbackSection: {
+    marginBottom: 20,
+  },
+  feedbackLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginBottom: 8,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  ratingButton: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    borderWidth: 2,
+    borderColor: '#E9ECEF',
+    backgroundColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ratingButtonActive: {
+    borderColor: '#007AFF',
+    backgroundColor: '#007AFF',
+  },
+  ratingButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  ratingButtonTextActive: {
+    color: 'white',
+  },
+  booleanContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  booleanButton: {
+    flex: 1,
+    marginHorizontal: 5,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#E9ECEF',
+    backgroundColor: 'white',
+    alignItems: 'center',
+  },
+  booleanButtonActive: {
+    borderColor: '#007AFF',
+    backgroundColor: '#007AFF',
+  },
+  booleanButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  booleanButtonTextActive: {
+    color: 'white',
+  },
+  commentsInput: {
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    textAlignVertical: 'top',
+    minHeight: 80,
+    backgroundColor: 'white',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  cancelButton: {
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  submitButton: {
+    backgroundColor: '#007AFF',
+  },
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
   },
 });

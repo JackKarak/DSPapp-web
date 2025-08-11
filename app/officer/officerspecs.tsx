@@ -22,7 +22,7 @@ export default function OfficerSpecs() {
           break;
         default:
           // All other officer positions use the main officer dashboard
-          router.replace('/officer/officerindex');
+          router.replace('/officer');
       }
     } else if (!loading && !role?.is_officer) {
       // Not an officer, redirect to main tabs

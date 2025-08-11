@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View
+    ActivityIndicator,
+    Dimensions,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native';
 import { BarChart, LineChart, PieChart, ProgressChart } from 'react-native-chart-kit';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 type UserStats = {
   total: number;
@@ -91,22 +91,23 @@ export default function OfficerAnalytics() {
         // Get the officer's position from users table
         const { data: officerData, error: officerError } = await supabase
           .from('users')
-          .select('position')
+          .select('officer_position')
           .eq('user_id', user.id)
           .single();
         
-        if (officerError || !officerData?.position) {
+        if (officerError || !officerData?.officer_position) {
+          console.error('Role check error:', officerError);
           throw new Error('Officer position not found');
         }
         
-        setOfficerPosition(officerData.position);
+        setOfficerPosition(officerData.officer_position);
 
         // Get all officers with the same position
         const { data: officersWithSamePosition, error: officersError } = await supabase
           .from('users')
           .select('user_id')
-          .eq('position', officerData.position)
-          .eq('is_officer', true);
+          .eq('officer_position', officerData.officer_position)
+          .neq('officer_position', null);
         
         if (officersError) throw officersError;
         
@@ -245,12 +246,18 @@ export default function OfficerAnalytics() {
         };
         
         if (eventIds.length > 0) {
+          console.log('🔍 Officer Analytics - Fetching feedback for event IDs:', eventIds);
           const { data: feedbackData, error: feedbackError } = await supabase
             .from('event_feedback')
             .select('rating, comments, would_attend_again, well_organized, created_at, event_id')
             .in('event_id', eventIds);
           
-          if (feedbackError) throw feedbackError;
+          console.log('📊 Officer Analytics - Feedback query result:', { feedbackData, feedbackError });
+          
+          if (feedbackError) {
+            console.error('❌ Officer Analytics - Feedback query error:', feedbackError);
+            throw feedbackError;
+          }
           
           const ratings = feedbackData.map(fb => fb.rating).filter(r => typeof r === 'number');
           feedbackStatsData.avgRating = ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length) : 0;
@@ -275,6 +282,15 @@ export default function OfficerAnalytics() {
         setFeedbackStats(feedbackStatsData);
       } catch (error) {
         console.error('Error fetching analytics:', error);
+        // Provide more specific error handling
+        if (error instanceof Error) {
+          if (error.message.includes('Officer position not found')) {
+            console.log('User may not be an officer or officer_position is null');
+          }
+          if (error.message.includes('column') && error.message.includes('does not exist')) {
+            console.log('Database schema issue - check column names');
+          }
+        }
       } finally {
         setLoading(false);
       }

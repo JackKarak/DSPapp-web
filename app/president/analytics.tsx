@@ -154,12 +154,18 @@ export default function PresidentAnalytics() {
         };
         
         if (eventIds.length > 0) {
+          console.log('🔍 Fetching feedback for event IDs:', eventIds);
           const { data: feedbackData, error: feedbackError } = await supabase
             .from('event_feedback')
             .select('rating, comments, would_attend_again, well_organized, created_at, event_id')
             .in('event_id', eventIds);
           
-          if (feedbackError) throw feedbackError;
+          console.log('📊 Feedback query result:', { feedbackData, feedbackError });
+          
+          if (feedbackError) {
+            console.error('❌ Feedback query error:', feedbackError);
+            throw feedbackError;
+          }
           
           const ratings = feedbackData.map(fb => fb.rating).filter(r => typeof r === 'number');
           feedbackStatsData.avgRating = ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length) : 0;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 type Event = {
   id: number;

@@ -47,6 +47,10 @@ export default function ConfirmEventsScreen() {
           start_time,
           end_time,
           created_by,
+          is_registerable,
+          point_type,
+          point_value,
+          description,
           users!inner(first_name, last_name)
         `)
         .eq('status', 'pending')
@@ -67,6 +71,8 @@ export default function ConfirmEventsScreen() {
   };
 
   const approveEvent = async (eventId: number) => {
+    // Generate attendance code for all approved events
+    // Both registerable and non-registerable events get codes for attendance tracking
     const code = generateRandomCode();
 
     const { error } = await supabase
@@ -78,7 +84,7 @@ export default function ConfirmEventsScreen() {
       console.error('Approval error:', error.message);
       Alert.alert('Error', error.message);
     } else {
-      Alert.alert('Success', `Event approved with code: ${code}`);
+      Alert.alert('Success', `Event approved with attendance code: ${code}\n\nBrothers can now use this code to record attendance and earn points.`);
       fetchPendingEvents();
     }
   };
@@ -164,6 +170,35 @@ export default function ConfirmEventsScreen() {
               {end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </Text>
           </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Points:</Text>
+            <Text style={styles.detailValue}>
+              {item.point_value || 0} ({item.point_type || 'none'})
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Type:</Text>
+            <View style={styles.typeContainer}>
+              <Text style={[
+                styles.detailValue, 
+                item.is_registerable ? styles.registerableEvent : styles.nonRegisterableEvent
+              ]}>
+                {item.is_registerable ? '📝 Registerable' : '📋 Non-Registerable'}
+              </Text>
+            </View>
+          </View>
+          {item.description && (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Description:</Text>
+              <Text style={styles.detailValue}>{item.description}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.approvalNote}>
+          <Text style={styles.approvalNoteText}>
+            ℹ️ All approved events receive attendance codes, regardless of registration type
+          </Text>
         </View>
 
         <View style={styles.buttonRow}>
@@ -199,7 +234,7 @@ export default function ConfirmEventsScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>📋 Confirm Events</Text>
-      <Text style={styles.subtitle}>Review and approve pending event requests</Text>
+      <Text style={styles.subtitle}>Review and approve pending events - all approved events receive attendance codes</Text>
       
       <FlatList
         data={pendingEvents}
@@ -330,6 +365,32 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'right',
     fontWeight: '500',
+  },
+  typeContainer: {
+    alignItems: 'flex-end',
+    flex: 1,
+  },
+  registerableEvent: {
+    color: '#10b981',
+    fontWeight: '600',
+  },
+  nonRegisterableEvent: {
+    color: '#6366f1',
+    fontWeight: '600',
+  },
+  approvalNote: {
+    backgroundColor: '#eff6ff',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
+  },
+  approvalNoteText: {
+    fontSize: 13,
+    color: '#1e40af',
+    fontWeight: '500',
+    lineHeight: 18,
   },
   buttonRow: {
     flexDirection: 'row',
