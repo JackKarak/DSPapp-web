@@ -1,90 +1,26 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { supabase } from '../../lib/supabase';
+
+const NEWSLETTER_URL = 'https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798?e=bbc0848b47';
 
 export default function NewsletterScreen() {
-  const [newsletterUrl, setNewsletterUrl] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    fetchNewsletterUrl();
-  }, []);
-
-  const fetchNewsletterUrl = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('value')
-        .eq('key', 'newsletter_url')
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        // PGRST116 means no rows found
-        throw new Error(`Database error: ${error.message}`);
-      }
-
-      const url = data?.value?.trim() || '';
-      
-      if (!url) {
-        setError('No newsletter available at this time. Check back later!');
-      } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        setError('Invalid newsletter URL format. Please contact an administrator.');
-      } else {
-        setNewsletterUrl(url);
-      }
-    } catch (error: any) {
-      console.error('Error fetching newsletter URL:', error);
-      setError(error.message || 'Unable to load newsletter. Please try again later.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#330066" />
-        <Text style={styles.loadingText}>Loading newsletter...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>📰</Text>
-        <Text style={styles.errorMessage}>{error}</Text>
-      </View>
-    );
-  }
-
-  if (!newsletterUrl) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>📰</Text>
-        <Text style={styles.errorMessage}>
-          No newsletter available at this time.{'\n'}Check back later!
-        </Text>
-      </View>
-    );
-  }
 
   return (
     <WebView
-      source={{ uri: newsletterUrl }}
+      source={{ uri: NEWSLETTER_URL }}
       startInLoadingState
       renderLoading={() => (
         <View style={styles.loaderContainer}>
           <ActivityIndicator size="large" color="#330066" />
         </View>
       )}
-      onError={() => {
-        setError('Failed to load newsletter. Please check your internet connection.');
+      onLoadStart={() => setLoading(true)}
+      onLoadEnd={() => setLoading(false)}
+      onError={(syntheticEvent) => {
+        const { nativeEvent } = syntheticEvent;
+        console.error('WebView error: ', nativeEvent);
       }}
     />
   );
@@ -94,27 +30,7 @@ const styles = StyleSheet.create({
   loaderContainer: {
     flex: 1,
     justifyContent: 'center',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#330066',
-    textAlign: 'center',
-  },
-  errorText: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  errorMessage: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 24,
+    backgroundColor: '#f5f5f5',
   },
 });

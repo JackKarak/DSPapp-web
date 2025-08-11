@@ -3,6 +3,8 @@ export type Event = {
   title: string;
   date: string;
   host_name?: string;
+  point_value?: number;
+  point_type?: string;
 };
 
 export type Profile = {

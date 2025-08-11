@@ -39,13 +39,20 @@ export default function PresidentHome() {
       } = await supabase.auth.getUser();
 
       if (userError || !user) {
+        console.log('Authentication failed:', userError);
         Alert.alert('Authentication Error', 'Please log in again.');
         router.replace('/(auth)/login');
         return;
       }
 
-      // Fetch admin feedback with user details
-      const { data: feedbackData, error: feedbackError } = await supabase
+      console.log('Fetching admin feedback...');
+
+      // First try with join, then fallback to separate queries
+      let feedbackData: any[] = [];
+      let hasError = false;
+
+      // Try the join query first
+      const joinResult = await supabase
         .from('admin_feedback')
         .select(`
           id,
@@ -53,15 +60,51 @@ export default function PresidentHome() {
           subject,
           message,
           user_id,
-          users!inner(first_name, last_name)
+          users(first_name, last_name)
         `)
         .order('submitted_at', { ascending: false });
 
-      if (feedbackError) {
-        Alert.alert('Feedback Error', 'Unable to load feedback. Please try again.');
+      if (joinResult.error) {
+        console.log('Join query failed:', joinResult.error.message);
+        console.log('Trying separate queries...');
+        
+        // Fallback: Get feedback without user join
+        const basicResult = await supabase
+          .from('admin_feedback')
+          .select('id, submitted_at, subject, message, user_id')
+          .order('submitted_at', { ascending: false });
+
+        if (basicResult.error) {
+          console.error('Basic query also failed:', basicResult.error);
+          Alert.alert('Database Error', `Unable to access feedback table: ${basicResult.error.message}`);
+          hasError = true;
+        } else {
+          // Get unique user IDs and fetch user names separately
+          const userIds = [...new Set(basicResult.data.map(fb => fb.user_id))];
+          const { data: usersData } = await supabase
+            .from('users')
+            .select('user_id, first_name, last_name')
+            .in('user_id', userIds);
+
+          // Combine the data
+          feedbackData = basicResult.data.map((fb: any) => ({
+            ...fb,
+            users: {
+              first_name: usersData?.find(u => u.user_id === fb.user_id)?.first_name,
+              last_name: usersData?.find(u => u.user_id === fb.user_id)?.last_name,
+            }
+          }));
+        }
+      } else {
+        feedbackData = joinResult.data || [];
+      }
+
+      if (hasError) {
         setLoading(false);
         return;
       }
+
+      console.log('Feedback data loaded:', feedbackData?.length || 0, 'items');
 
       const formattedFeedbacks: Feedback[] = feedbackData.map((fb: any) => ({
         id: fb.id,
@@ -77,7 +120,7 @@ export default function PresidentHome() {
       setFeedbacks(formattedFeedbacks);
     } catch (error) {
       console.error('Error fetching feedback:', error);
-      Alert.alert('Unexpected Error', 'Something went wrong. Please try again.');
+      Alert.alert('Unexpected Error', `Something went wrong: ${error}`);
     } finally {
       setLoading(false);
     }

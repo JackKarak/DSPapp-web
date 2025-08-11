@@ -7,7 +7,7 @@ import {
   Text,
   View
 } from 'react-native';
-import { PieChart, LineChart, BarChart, ProgressChart } from 'react-native-chart-kit';
+import { BarChart, LineChart, PieChart, ProgressChart } from 'react-native-chart-kit';
 import { supabase } from '../../../lib/supabase';
 
 type UserStats = {

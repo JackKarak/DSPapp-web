@@ -24,20 +24,46 @@ export default function ScholarshipTab() {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError || !user) {
+        console.log('User authentication failed:', userError);
         Alert.alert('Authentication Error', 'Please log in again.');
         router.replace('/(auth)/login');
         return;
       }
 
+      console.log('User authenticated:', user.id);
+
       // Check if user is VP Scholarship
       const { data: userData, error: roleError } = await supabase
         .from('users')
-        .select('is_officer, position')
+        .select('is_officer, officer_position')
         .eq('user_id', user.id)
         .single();
 
-      if (roleError || !userData?.is_officer || userData?.position !== 'vp_scholarship') {
-        Alert.alert('Access Denied', 'You do not have permission to access this page.');
+      console.log('User role data:', userData, 'Error:', roleError);
+
+      if (roleError) {
+        console.error('Role check error:', roleError);
+        Alert.alert('Error', 'Failed to verify your permissions. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      if (!userData) {
+        Alert.alert('Error', 'User data not found. Please contact support.');
+        setLoading(false);
+        return;
+      }
+
+      if (!userData.is_officer) {
+        Alert.alert('Access Denied', 'You do not have officer permissions.');
+        router.replace('/officer/officerindex');
+        return;
+      }
+
+      // Allow access for VP Scholarship or scholarship officers
+      if (userData.officer_position !== 'scholarship' && userData.officer_position !== 'vp_scholarship') {
+        console.log('Position mismatch:', userData.officer_position);
+        Alert.alert('Access Denied', 'You do not have permission to access the scholarship test bank.');
         router.replace('/officer/officerindex');
         return;
       }
@@ -46,12 +72,14 @@ export default function ScholarshipTab() {
     } catch (error) {
       console.error('Authentication check failed:', error);
       Alert.alert('Error', 'Authentication check failed. Please try again.');
-      router.replace('/(auth)/login');
+      setLoading(false);
     }
   };
 
   const fetchTestBankItems = async () => {
     try {
+      console.log('Fetching test bank items...');
+      
       const { data, error } = await supabase
         .from('test_bank')
         .select(`
@@ -66,13 +94,16 @@ export default function ScholarshipTab() {
 
       if (error) {
         console.error('Error fetching test bank:', error);
-        Alert.alert('Error', 'Failed to load test bank items.');
+        Alert.alert('Error', `Failed to load test bank items: ${error.message}`);
+        setTestBankItems([]);
       } else {
+        console.log('Test bank items loaded:', data?.length || 0, 'items');
         setTestBankItems(data || []);
       }
     } catch (error) {
-      console.error('Error:', error);
-      Alert.alert('Error', 'An unexpected error occurred.');
+      console.error('Unexpected error:', error);
+      Alert.alert('Error', 'An unexpected error occurred while loading test bank items.');
+      setTestBankItems([]);
     } finally {
       setLoading(false);
     }

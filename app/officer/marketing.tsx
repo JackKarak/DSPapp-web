@@ -37,11 +37,11 @@ export default function Marketing() {
       // Verify marketing officer role
       const { data: profile, error: profileError } = await supabase
         .from('users')
-        .select('is_officer, position')
+        .select('is_officer, officer_position')
         .eq('user_id', user.id)
         .single();
 
-      if (profileError || !profile?.is_officer || profile.position?.toLowerCase() !== 'marketing') {
+      if (profileError || !profile?.is_officer || profile.officer_position?.toLowerCase() !== 'marketing') {
         Alert.alert('Access Denied', 'This page is only accessible to Marketing Officers.');
         router.replace('/');
         return;
