@@ -157,6 +157,16 @@ export default function OfficerRegisterEvent() {
       const roundedStart = roundToNearestMinute(combinedStart);
       const roundedEnd = roundToNearestMinute(combinedEnd);
 
+      // Ensure proper timestamp format for Supabase/PostgreSQL
+      const formatTimestamp = (date: Date) => {
+        return date.toISOString().replace('T', ' ').replace('Z', '+00');
+      };
+
+      console.log('Inserting event with timestamps:', {
+        start_time: roundedStart.toISOString(),
+        end_time: roundedEnd.toISOString()
+      });
+
       const { error } = await supabase.from('events').insert({
         title,
         description,
@@ -172,7 +182,8 @@ export default function OfficerRegisterEvent() {
       });
 
       if (error) {
-        Alert.alert('Submission Error', error.message);
+        console.error('Event creation error:', error);
+        Alert.alert('Submission Error', `Failed to create event: ${error.message}\n\nDetails: ${error.details || 'None'}\nHint: ${error.hint || 'None'}`);
       } else {
         Alert.alert('Success', 'Event created successfully and is pending approval');
         setTitle('');

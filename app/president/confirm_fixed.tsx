@@ -137,7 +137,6 @@ export default function ConfirmEventsScreen() {
   const [pendingEvents, setPendingEvents] = useState<any[]>([]);
   const [allEvents, setAllEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
   const router = useRouter();
 
   useEffect(() => {
@@ -253,18 +252,6 @@ export default function ConfirmEventsScreen() {
     }
   };
 
-  const toggleCardExpansion = (eventId: number) => {
-    setExpandedCards(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(eventId)) {
-        newSet.delete(eventId);
-      } else {
-        newSet.add(eventId);
-      }
-      return newSet;
-    });
-  };
-
   const renderEventCard = ({ item }: { item: any }) => {
     const start = new Date(item.start_time);
     const end = new Date(item.end_time);
@@ -274,16 +261,11 @@ export default function ConfirmEventsScreen() {
     const creatorName = item.created_by_user 
       ? `${item.created_by_user.first_name} ${item.created_by_user.last_name}`
       : 'Unknown';
-    const isExpanded = expandedCards.has(item.id);
 
     return (
       <View style={styles.eventCard}>
-        {/* Event Hero Section - Always Visible */}
-        <TouchableOpacity 
-          style={styles.heroSection}
-          onPress={() => toggleCardExpansion(item.id)}
-          activeOpacity={0.7}
-        >
+        {/* Event Hero Section */}
+        <View style={styles.heroSection}>
           <View style={styles.dateColumn}>
             <Text style={styles.dateMonth}>
               {start.toLocaleDateString([], { month: 'short' }).toUpperCase()}
@@ -299,10 +281,18 @@ export default function ConfirmEventsScreen() {
           <View style={styles.eventInfo}>
             <View style={styles.eventHeader}>
               <Text style={styles.eventTitle} numberOfLines={2}>{item.title}</Text>
-              <View style={styles.expandIcon}>
-                <Text style={styles.expandIconText}>
-                  {isExpanded ? '−' : '+'}
-                </Text>
+              <View style={styles.statusContainer}>
+                <View style={[styles.statusBadge, 
+                  hasErrors ? styles.statusError : 
+                  hasWarnings ? styles.statusWarning : styles.statusPending
+                ]}>
+                  <Text style={[styles.statusText,
+                    hasErrors ? styles.statusTextError : 
+                    hasWarnings ? styles.statusTextWarning : styles.statusTextPending
+                  ]}>
+                    {hasErrors ? '🔴 REQUIRES ATTENTION' : hasWarnings ? '🟡 REVIEW NEEDED' : '🟢 READY FOR REVIEW'}
+                  </Text>
+                </View>
               </View>
             </View>
             
@@ -320,113 +310,98 @@ export default function ConfirmEventsScreen() {
                   {end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Text>
               </View>
-              {redFlags.length > 0 && (
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaIcon}>
-                    {hasErrors ? '🔴' : hasWarnings ? '🟡' : '�'}
-                  </Text>
-                  <Text style={styles.metaText}>
-                    {redFlags.length} issue{redFlags.length !== 1 ? 's' : ''} detected
-                  </Text>
-                </View>
-              )}
+              <View style={styles.metaRow}>
+                <Text style={styles.metaIcon}>👤</Text>
+                <Text style={styles.metaText}>Created by {creatorName}</Text>
+              </View>
             </View>
           </View>
-        </TouchableOpacity>
+        </View>
 
-        {/* Expandable Content */}
-        {isExpanded && (
-          <>
-            {/* Event Details */}
-            <View style={styles.detailsSection}>
-              <Text style={styles.sectionTitle}>Event Details</Text>
-              <View style={styles.detailGrid}>
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Type</Text>
-                  <Text style={styles.detailValue}>{item.event_type || 'Not specified'}</Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Points</Text>
-                  <Text style={styles.detailValue}>
-                    {item.point_value || 0} {item.point_type || 'points'}
-                  </Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Registration</Text>
-                  <Text style={styles.detailValue}>
-                    {item.is_registerable ? 'Required' : 'Not required'}
-                  </Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Pledges</Text>
-                  <Text style={styles.detailValue}>
-                    {item.available_to_pledges ? 'Allowed' : 'Brothers only'}
-                  </Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Creator</Text>
-                  <Text style={styles.detailValue}>{creatorName}</Text>
-                </View>
-              </View>
-              
-              {item.description && (
-                <View style={styles.descriptionContainer}>
-                  <Text style={styles.detailLabel}>Description</Text>
-                  <Text style={styles.descriptionText}>{item.description}</Text>
-                </View>
-              )}
+        {/* Event Details */}
+        <View style={styles.detailsSection}>
+          <Text style={styles.sectionTitle}>Event Details</Text>
+          <View style={styles.detailGrid}>
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>Type</Text>
+              <Text style={styles.detailValue}>{item.event_type || 'Not specified'}</Text>
             </View>
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>Points</Text>
+              <Text style={styles.detailValue}>
+                {item.point_value || 0} {item.point_type || 'points'}
+              </Text>
+            </View>
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>Registration</Text>
+              <Text style={styles.detailValue}>
+                {item.is_registerable ? 'Required' : 'Not required'}
+              </Text>
+            </View>
+            <View style={styles.detailItem}>
+              <Text style={styles.detailLabel}>Pledges</Text>
+              <Text style={styles.detailValue}>
+                {item.available_to_pledges ? 'Allowed' : 'Brothers only'}
+              </Text>
+            </View>
+          </View>
+          
+          {item.description && (
+            <View style={styles.descriptionContainer}>
+              <Text style={styles.detailLabel}>Description</Text>
+              <Text style={styles.descriptionText}>{item.description}</Text>
+            </View>
+          )}
+        </View>
 
-            {/* Quality Assurance Issues */}
-            {redFlags.length > 0 && (
-              <View style={styles.flagsSection}>
-                <Text style={styles.redFlagsTitle}>
-                  Quality Assurance Issues ({redFlags.length})
-                </Text>
-                {redFlags.map((flag, index) => (
-                  <View key={index} style={[
-                    styles.flagItem,
-                    flag.type === 'error' && styles.flagError,
-                    flag.type === 'warning' && styles.flagWarning,
-                    flag.type === 'info' && styles.flagInfo
+        {/* Quality Assurance Issues */}
+        {redFlags.length > 0 && (
+          <View style={styles.flagsSection}>
+            <Text style={styles.redFlagsTitle}>
+              Quality Assurance Issues ({redFlags.length})
+            </Text>
+            {redFlags.map((flag, index) => (
+              <View key={index} style={[
+                styles.flagItem,
+                flag.type === 'error' && styles.flagError,
+                flag.type === 'warning' && styles.flagWarning,
+                flag.type === 'info' && styles.flagInfo
+              ]}>
+                <Text style={styles.flagIcon}>{flag.icon}</Text>
+                <View style={styles.flagContent}>
+                  <Text style={[
+                    styles.flagMessage,
+                    flag.type === 'error' && styles.flagMessageError,
+                    flag.type === 'warning' && styles.flagMessageWarning,
+                    flag.type === 'info' && styles.flagMessageInfo
                   ]}>
-                    <Text style={styles.flagIcon}>{flag.icon}</Text>
-                    <View style={styles.flagContent}>
-                      <Text style={[
-                        styles.flagMessage,
-                        flag.type === 'error' && styles.flagMessageError,
-                        flag.type === 'warning' && styles.flagMessageWarning,
-                        flag.type === 'info' && styles.flagMessageInfo
-                      ]}>
-                        {flag.message}
-                      </Text>
-                      {flag.details && (
-                        <Text style={styles.flagDetails}>{flag.details}</Text>
-                      )}
-                    </View>
-                  </View>
-                ))}
+                    {flag.message}
+                  </Text>
+                  {flag.details && (
+                    <Text style={styles.flagDetails}>{flag.details}</Text>
+                  )}
+                </View>
               </View>
-            )}
-
-            {/* Action Buttons */}
-            <View style={styles.actionSection}>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.denyButton]}
-                onPress={() => denyEvent(item.id)}
-              >
-                <Text style={styles.denyButtonText}>Deny Event</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.actionButton, styles.approveButton]}
-                onPress={() => approveEvent(item.id)}
-              >
-                <Text style={styles.approveButtonText}>Approve Event</Text>
-              </TouchableOpacity>
-            </View>
-          </>
+            ))}
+          </View>
         )}
+
+        {/* Action Buttons */}
+        <View style={styles.actionSection}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.denyButton]}
+            onPress={() => denyEvent(item.id)}
+          >
+            <Text style={styles.denyButtonText}>Deny Event</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.actionButton, styles.approveButton]}
+            onPress={() => approveEvent(item.id)}
+          >
+            <Text style={styles.approveButtonText}>Approve Event</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -607,20 +582,6 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 16,
     lineHeight: 28,
-  },
-  expandIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  expandIconText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#6B7280',
   },
   statusContainer: {
     alignItems: 'flex-end',

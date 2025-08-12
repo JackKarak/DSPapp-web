@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
@@ -88,7 +88,7 @@ export default function ScholarshipTab() {
           file_type,
           file_name,
           uploaded_at,
-          users(first_name, last_name)
+          users!test_bank_submitted_by_fkey(first_name, last_name)
         `)
         .order('uploaded_at', { ascending: false });
 
