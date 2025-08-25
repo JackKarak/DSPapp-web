@@ -5,6 +5,7 @@ export type Event = {
   host_name?: string;
   point_value?: number;
   point_type?: string;
+  is_non_event?: boolean;
 };
 
 export type Profile = {

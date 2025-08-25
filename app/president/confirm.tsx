@@ -1,15 +1,18 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
+import { Colors } from '../../constants/colors';
+import { CalendarEvent, googleCalendarService } from '../../lib/googleCalendar';
+import { createGoogleCalendarLink, SimpleCalendarEvent } from '../../lib/simpleCalendar';
 import { supabase } from '../../lib/supabase';
 
 function generateRandomCode(length = 5) {
@@ -191,21 +194,81 @@ export default function ConfirmEventsScreen() {
   };
 
   const approveEvent = async (eventId: number) => {
-    // Generate attendance code for all approved events
-    // Both registerable and non-registerable events get codes for attendance tracking
-    const code = generateRandomCode();
+    try {
+      // Generate attendance code for all approved events
+      // Both registerable and non-registerable events get codes for attendance tracking
+      const code = generateRandomCode();
 
-    const { error } = await supabase
-      .from('events')
-      .update({ status: 'approved', code })
-      .eq('id', eventId);
+      // First, get the event details
+      const { data: eventData, error: fetchError } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', eventId)
+        .single();
 
-    if (error) {
-      console.error('Approval error:', error.message);
-      Alert.alert('Error', error.message);
-    } else {
-      Alert.alert('Success', `Event approved with attendance code: ${code}\n\nBrothers can now use this code to record attendance and earn points.`);
+      if (fetchError) {
+        throw new Error(`Failed to fetch event: ${fetchError.message}`);
+      }
+
+      // Update the event status in the database
+      const { error: updateError } = await supabase
+        .from('events')
+        .update({ status: 'approved', code })
+        .eq('id', eventId);
+
+      if (updateError) {
+        throw new Error(`Failed to approve event: ${updateError.message}`);
+      }
+
+      // Create Google Calendar event (only for regular events, not non-events)
+      let successMessage = `Event approved with attendance code: ${code}\n\nBrothers can now use this code to record attendance and earn points.`;
+      
+      if (!eventData.is_non_event) {
+        const calendarEvent: CalendarEvent = {
+          title: eventData.title,
+          description: `${eventData.description || ''}\n\nAttendance Code: ${code}\n\nPoints: ${eventData.point_value || 0} ${eventData.point_type || 'points'}\n\nRegistration: ${eventData.is_registerable ? 'Required' : 'Not required'}\n\nOpen to Pledges: ${eventData.available_to_pledges ? 'Yes' : 'No'}`,
+          location: eventData.location || '',
+          startTime: eventData.start_time,
+          endTime: eventData.end_time,
+          isAllDay: false
+        };
+
+        // Attempt to create the calendar event
+        const calendarResult = await googleCalendarService.createCalendarEvent(calendarEvent);
+        
+        if (calendarResult.success) {
+          // Store the Google Calendar event ID for future reference
+          await supabase
+            .from('events')
+            .update({ google_calendar_id: calendarResult.eventId })
+            .eq('id', eventId);
+          
+          successMessage += '\n\n✅ Event added to public Google Calendar!';
+        } else {
+          console.warn('Failed to add to Google Calendar:', calendarResult.error);
+          
+          // Fallback: Create a Google Calendar link for manual addition
+          const simpleEvent: SimpleCalendarEvent = {
+            title: eventData.title,
+            description: `${eventData.description || ''}\n\nAttendance Code: ${code}`,
+            location: eventData.location || '',
+            startTime: eventData.start_time,
+            endTime: eventData.end_time
+          };
+          
+          const calendarLink = createGoogleCalendarLink(simpleEvent);
+          successMessage += '\n\n⚠️ Could not auto-add to Google Calendar, but here\'s a link for manual addition:\n\n' + calendarLink;
+        }
+      } else {
+        // For non-events, mention they won't appear in the calendar
+        successMessage += '\n\nℹ️ This is a non-event and will not be added to the public calendar.';
+      }
+
+      Alert.alert('Success', successMessage);
       fetchPendingEvents();
+    } catch (error) {
+      console.error('Approval error:', error);
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to approve event');
     }
   };
 
@@ -434,7 +497,7 @@ export default function ConfirmEventsScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#FF6B35" />
+        <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loadingText}>Loading pending events...</Text>
       </View>
     );
@@ -517,7 +580,7 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     fontSize: 16,
-    color: '#FF6B35',
+    color: Colors.primary,
     fontWeight: '600',
   },
   title: {
@@ -566,7 +629,7 @@ const styles = StyleSheet.create({
   },
   dateColumn: {
     alignItems: 'center',
-    backgroundColor: '#FF6B35',
+    backgroundColor: Colors.primary,
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 12,
@@ -635,7 +698,7 @@ const styles = StyleSheet.create({
   statusPending: {
     backgroundColor: '#FFF3F0',
     borderWidth: 1,
-    borderColor: '#FF6B35',
+    borderColor: Colors.primary,
   },
   statusWarning: {
     backgroundColor: '#FEF3C7',
@@ -654,7 +717,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   statusTextPending: {
-    color: '#FF6B35',
+    color: Colors.primary,
   },
   statusTextWarning: {
     color: '#D97706',
@@ -813,7 +876,7 @@ const styles = StyleSheet.create({
     borderColor: '#D1D5DB',
   },
   approveButton: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: Colors.primary,
   },
   denyButtonText: {
     fontSize: 16,

@@ -8,6 +8,7 @@ import {
   Text,
   View
 } from 'react-native';
+import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 
 export default function ScholarshipTab() {
@@ -61,13 +62,15 @@ export default function ScholarshipTab() {
       }
 
       // Allow access for VP Scholarship or scholarship officers
-      if (userData.officer_position !== 'scholarship' && userData.officer_position !== 'vp_scholarship') {
-        console.log('Position mismatch:', userData.officer_position);
+      const validPositions = ['scholarship', 'vp_scholarship', 'president'];
+      if (!validPositions.includes(userData.officer_position)) {
+        console.log('Position mismatch:', userData.officer_position, 'Valid positions:', validPositions);
         Alert.alert('Access Denied', 'You do not have permission to access the scholarship test bank.');
         router.replace('/officer');
         return;
       }
 
+      console.log('Access granted for position:', userData.officer_position);
       fetchTestBankItems();
     } catch (error) {
       console.error('Authentication check failed:', error);
@@ -88,19 +91,28 @@ export default function ScholarshipTab() {
           file_type,
           file_name,
           uploaded_at,
-          users!test_bank_submitted_by_fkey(first_name, last_name)
+          submitted_by,
+          users:submitted_by(first_name, last_name)
         `)
         .order('uploaded_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching test bank:', error);
-        Alert.alert('Error', `Failed to load test bank items: ${error.message}`);
-        setTestBankItems([]);
+        
+        // Check if it's a table not found error
+        if (error.message?.includes('test_bank') && error.message?.includes('does not exist')) {
+          console.log('Test bank table does not exist - this is normal if no migrations have been run');
+          // Set mock data for development/testing
+          setTestBankItems([]);
+        } else {
+          Alert.alert('Database Error', `Failed to load test bank items: ${error.message}\n\nThis feature requires database setup. Contact your system administrator.`);
+          setTestBankItems([]);
+        }
       } else {
         console.log('Test bank items loaded:', data?.length || 0, 'items');
         setTestBankItems(data || []);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Unexpected error:', error);
       Alert.alert('Error', 'An unexpected error occurred while loading test bank items.');
       setTestBankItems([]);
@@ -112,7 +124,7 @@ export default function ScholarshipTab() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8b5cf6" />
+        <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loadingText}>Loading test bank...</Text>
       </View>
     );
@@ -126,7 +138,12 @@ export default function ScholarshipTab() {
       {testBankItems.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No test bank items yet</Text>
-          <Text style={styles.emptySubtext}>Submissions from members will appear here</Text>
+          <Text style={styles.emptySubtext}>
+            Submissions from members will appear here when they upload study materials through their account page.
+          </Text>
+          <Text style={styles.infoText}>
+            💡 Brothers can submit tests, notes, and study materials by going to their Account tab and using the "Submit to Test Bank" feature.
+          </Text>
         </View>
       ) : (
         <View style={styles.itemsContainer}>
@@ -200,6 +217,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#9ca3af',
     textAlign: 'center',
+    marginBottom: 15,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#4b5563',
+    textAlign: 'center',
+    marginTop: 10,
+    lineHeight: 20,
+    fontStyle: 'italic',
   },
   itemsContainer: {
     gap: 16,
@@ -229,7 +255,7 @@ const styles = StyleSheet.create({
   },
   fileType: {
     fontSize: 14,
-    color: '#8b5cf6',
+    color: Colors.primary,
     backgroundColor: '#f3f4f6',
     paddingHorizontal: 8,
     paddingVertical: 4,

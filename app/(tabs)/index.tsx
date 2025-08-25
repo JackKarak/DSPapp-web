@@ -12,6 +12,7 @@ import {
   View
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 
 // Custom Dropdown Component
@@ -147,14 +148,23 @@ export default function CalendarTab() {
         : 'Brother';
       setBrotherName(fullName);
 
-      // Fetch events
+      // Fetch events - simplified query for debugging
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('id, title, start_time, end_time, location, point_value, point_type, created_by, is_registerable')
         .order('start_time', { ascending: true });
 
       if (eventsError) {
-        Alert.alert('Events Error', 'Unable to load events. Please try again.');
+        console.error('Events Error:', eventsError);
+        Alert.alert('Events Error', `Unable to load events: ${eventsError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      console.log('Loaded events:', eventsData?.length || 0);
+
+      if (!eventsData) {
+        Alert.alert('Events Error', 'No events data received');
         setLoading(false);
         return;
       }
@@ -306,29 +316,33 @@ export default function CalendarTab() {
     }
   };
 
-  // Helper functions for styling
+  // Helper functions for styling using DSP colors
   const getTypeTagStyle = (type: string) => {
     const colors = {
-      brotherhood: { backgroundColor: '#f3e8ff' },
-      service: { backgroundColor: '#fef3c7' },
-      scholarship: { backgroundColor: '#fef3c7' },
-      professionalism: { backgroundColor: '#f3e8ff' },
-      dei: { backgroundColor: '#fce7f3' },
-      fundraising: { backgroundColor: '#f0fdf4' },
-      'h&w': { backgroundColor: '#fef3c7' },
+      brotherhood: { backgroundColor: '#f3e8ff' }, // Light purple tint
+      service: { backgroundColor: '#fffbeb' }, // Light gold tint  
+      scholarship: { backgroundColor: '#fffbeb' }, // Light gold tint
+      professional: { backgroundColor: '#f3e8ff' }, // Light purple tint
+      professionalism: { backgroundColor: '#f3e8ff' }, // Light purple tint
+      dei: { backgroundColor: '#f9f1ff' }, // Very light purple
+      fundraising: { backgroundColor: '#fffbeb' }, // Light gold tint
+      health: { backgroundColor: '#fffbeb' }, // Light gold tint
+      'h&w': { backgroundColor: '#fffbeb' }, // Light gold tint
     };
     return colors[type.toLowerCase() as keyof typeof colors] || { backgroundColor: '#F5F5F5' };
   };
 
   const getTypeTagTextStyle = (type: string) => {
     const colors = {
-      brotherhood: { color: '#7c3aed' },
-      service: { color: '#d97706' },
-      scholarship: { color: '#d97706' },
-      professionalism: { color: '#7c3aed' },
-      dei: { color: '#be185d' },
-      fundraising: { color: '#16a34a' },
-      'h&w': { color: '#d97706' },
+      brotherhood: { color: Colors.primary },
+      service: { color: Colors.secondary },
+      scholarship: { color: Colors.secondary },
+      professional: { color: Colors.primary },
+      professionalism: { color: Colors.primary },
+      dei: { color: Colors.primary },
+      fundraising: { color: Colors.secondary },
+      health: { color: Colors.secondary },
+      'h&w': { color: Colors.secondary },
     };
     return colors[type.toLowerCase() as keyof typeof colors] || { color: '#666' };
   };
@@ -472,7 +486,9 @@ export default function CalendarTab() {
                   <View style={styles.tagContainer}>
                     <View style={[styles.typeTag, getTypeTagStyle(item.point_type)]}>
                       <Text style={[styles.typeTagText, getTypeTagTextStyle(item.point_type)]}>
-                        {item.point_type.toUpperCase()}
+                        {item.point_type === 'dei' ? 'DEI' : 
+                         item.point_type === 'h&w' ? 'H&W' : 
+                         item.point_type.toUpperCase()}
                       </Text>
                     </View>
                     {!isUpcoming && (

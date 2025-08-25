@@ -1,24 +1,54 @@
+﻿import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import * as DocumentPicker from 'expo-document-picker';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Modal,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 import { Event } from '../../types/account';
 
 const { width: screenWidth } = Dimensions.get('window');
+
+// Achievement configurations
+const ACHIEVEMENTS = {
+  // Consistency & Streaks
+  streak_starter: { title: 'Streak Starter', icon: 'ðŸ”¥', description: 'Attended 3 meetings in a row', category: 'Consistency' },
+  iron_brother: { title: 'Iron Brother', icon: 'ðŸ’ª', description: 'Attended 10 meetings in a row', category: 'Consistency' },
+  unstoppable: { title: 'Unstoppable', icon: 'âš¡', description: 'Attended 20 meetings in a row', category: 'Consistency' },
+  
+  // Milestone Attendance  
+  first_timer: { title: 'First Timer', icon: 'ðŸŽ¯', description: 'Attended your first meeting', category: 'Milestones' },
+  ten_strong: { title: '10 Strong', icon: 'ðŸƒ', description: 'Attended 10 meetings total', category: 'Milestones' },
+  silver_brother: { title: 'Silver Brother', icon: 'ðŸ¥ˆ', description: 'Attended 25 meetings total', category: 'Milestones' },
+  gold_brother: { title: 'Gold Brother', icon: 'ðŸ¥‡', description: 'Attended 50 meetings total', category: 'Milestones' },
+  diamond_brother: { title: 'Diamond Brother', icon: 'ðŸ’Ž', description: 'Attended 100 meetings total', category: 'Milestones' },
+  
+  // Points & Performance
+  points_50: { title: 'Scholar', icon: 'ðŸ“š', description: '50 total points', category: 'Performance' },
+  points_100: { title: 'Master', icon: 'ðŸ†', description: '100 total points', category: 'Performance' },
+  points_250: { title: 'Elite', icon: 'ðŸ‘‘', description: '250 total points', category: 'Performance' },
+  punctual_pro: { title: 'Punctual Pro', icon: 'â°', description: '75%+ attendance rate', category: 'Performance' },
+  perfect_semester: { title: 'Perfect Semester', icon: 'ðŸŒŸ', description: '100% attendance this semester', category: 'Performance' },
+  monthly_champion: { title: 'Monthly Champion', icon: 'ðŸ“…', description: 'Attended 5+ events this month', category: 'Performance' },
+  
+  // Leadership & Recognition
+  top_3: { title: 'Top Performer', icon: 'â­', description: 'Top 3 in pledge class', category: 'Leadership' },
+  community_leader: { title: 'Community Leader', icon: 'ðŸ¤', description: 'Attended 3+ different event types', category: 'Leadership' },
+  dedicated_member: { title: 'Dedicated Member', icon: 'ðŸŽ–ï¸', description: 'Active for full semester', category: 'Leadership' }
+};
 
 const EventRow: React.FC<{ event: Event; onFeedbackPress: (event: Event) => void }> = React.memo(({ event, onFeedbackPress }) => (
   <View style={styles.tableRow}>
@@ -32,13 +62,13 @@ const EventRow: React.FC<{ event: Event; onFeedbackPress: (event: Event) => void
       onPress={() => onFeedbackPress(event)}
       activeOpacity={0.7}
     >
-      <Text style={styles.feedbackButtonText}>📝</Text>
+      <Text style={styles.feedbackButtonText}>ðŸ“</Text>
     </TouchableOpacity>
   </View>
 ));
 
 // Analytics Components
-const StatCard: React.FC<{ title: string; value: string | number; subtitle?: string; color?: string; icon?: string }> = ({ title, value, subtitle, color = '#4CAF50', icon }) => (
+const StatCard: React.FC<{ title: string; value: string | number; subtitle?: string; color?: string; icon?: string }> = ({ title, value, subtitle, color = Colors.primary, icon }) => (
   <View style={styles.statCard}>
     <View style={styles.statHeader}>
       <Text style={styles.statIcon}>{icon}</Text>
@@ -74,7 +104,22 @@ const AchievementBadge: React.FC<{ title: string; icon: string; earned: boolean;
 );
 
 export default function AccountTab() {
+  // Profile state variables
   const [name, setName] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState<string>('');
+  const [lastName, setLastName] = useState<string>('');
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [dateOfBirth, setDateOfBirth] = useState<string>('');
+  const [majors, setMajors] = useState<string>('');
+  const [minors, setMinors] = useState<string>('');
+  const [houseMembership, setHouseMembership] = useState<string>('');
+  const [race, setRace] = useState<string>('');
+  const [pronouns, setPronouns] = useState<string>('');
+  const [livingType, setLivingType] = useState<string>('');
+  const [gender, setGender] = useState<string>('');
+  const [sexualOrientation, setSexualOrientation] = useState<string>('');
+  const [expectedGraduation, setExpectedGraduation] = useState<string>('');
   const [pledgeClass, setPledgeClass] = useState<string | null>(null);
   const [major, setMajor] = useState<string | null>(null);
   const [graduationYear, setGraduationYear] = useState<string | null>(null);
@@ -84,7 +129,9 @@ export default function AccountTab() {
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [feedbackSubject, setFeedbackSubject] = useState('');
   const [feedbackFile, setFeedbackFile] = useState<any>(null);
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showTestBankForm, setShowTestBankForm] = useState(false);
   
@@ -102,6 +149,7 @@ export default function AccountTab() {
   const [classCode, setClassCode] = useState('');
   const [fileType, setFileType] = useState<'test' | 'notes' | 'materials'>('test');
   const [selectedFile, setSelectedFile] = useState<any>(null);
+  const [achievementsExpanded, setAchievementsExpanded] = useState(false);
 
   // Analytics state
   const [analytics, setAnalytics] = useState({
@@ -224,13 +272,38 @@ export default function AccountTab() {
       
       // Determine achievements
       const achievements = [];
-      if (currentStreak >= 3) achievements.push('streak_3');
-      if (currentStreak >= 5) achievements.push('streak_5');
+      
+      // Get unique event types for diversity check
+      const uniqueEventTypes = [...new Set(userEvents.map(event => event.point_type).filter(Boolean))];
+      
+      // Consistency & Streaks
+      if (currentStreak >= 3) achievements.push('streak_starter');
+      if (currentStreak >= 10) achievements.push('iron_brother');
+      if (currentStreak >= 20) achievements.push('unstoppable');
+      
+      // Milestone Attendance
+      if (eventsThisSemester >= 1) achievements.push('first_timer');
+      if (eventsThisSemester >= 10) achievements.push('ten_strong');
+      if (eventsThisSemester >= 25) achievements.push('silver_brother');
+      if (eventsThisSemester >= 50) achievements.push('gold_brother');
+      if (eventsThisSemester >= 100) achievements.push('diamond_brother');
+      
+      // Points-based achievements
       if (totalPoints >= 50) achievements.push('points_50');
       if (totalPoints >= 100) achievements.push('points_100');
-      if (eventsThisSemester >= 10) achievements.push('semester_10');
-      if (attendanceRate >= 75) achievements.push('attendance_75');
+      if (totalPoints >= 250) achievements.push('points_250');
+      
+      // Attendance rate achievements
+      if (attendanceRate >= 75) achievements.push('punctual_pro');
+      if (attendanceRate >= 100) achievements.push('perfect_semester');
+      
+      // Monthly performance
+      if (eventsThisMonth >= 5) achievements.push('monthly_champion');
+      
+      // Leadership & Community
       if (rankInPledgeClass <= 3 && totalInPledgeClass > 3) achievements.push('top_3');
+      if (uniqueEventTypes.length >= 3) achievements.push('community_leader');
+      if (eventsThisSemester >= 15) achievements.push('dedicated_member');
       
       setAnalytics({
         totalPoints,
@@ -275,7 +348,26 @@ export default function AccountTab() {
       // Step 2: Fetch user profile
       const { data: profile, error: profileError } = await supabase
         .from('users')
-        .select('first_name, last_name, pledge_class, approved, major, graduation_year')
+        .select(`
+          first_name, 
+          last_name, 
+          pledge_class, 
+          approved, 
+          major, 
+          graduation_year,
+          phone_number,
+          email,
+          date_of_birth,
+          majors,
+          minors,
+          house_membership,
+          race,
+          pronouns,
+          living_type,
+          gender,
+          sexual_orientation,
+          expected_graduation
+        `)
         .eq('user_id', user.id)
         .single();
 
@@ -301,6 +393,20 @@ export default function AccountTab() {
 
       const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
       setName(fullName);
+      setFirstName(profile.first_name || '');
+      setLastName(profile.last_name || '');
+      setPhoneNumber(profile.phone_number || '');
+      setEmail(profile.email || '');
+      setDateOfBirth(profile.date_of_birth || '');
+      setMajors(profile.majors || '');
+      setMinors(profile.minors || '');
+      setHouseMembership(profile.house_membership || '');
+      setRace(profile.race || '');
+      setPronouns(profile.pronouns || '');
+      setLivingType(profile.living_type || '');
+      setGender(profile.gender || '');
+      setSexualOrientation(profile.sexual_orientation || '');
+      setExpectedGraduation(profile.expected_graduation || '');
       setPledgeClass(profile.pledge_class);
       setMajor(profile.major);
       setGraduationYear(profile.graduation_year);
@@ -355,10 +461,27 @@ export default function AccountTab() {
       data: { user },
     } = await supabase.auth.getUser();
 
+    // Combine first and last name for the name field
+    const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+
     const { error } = await supabase
       .from('users')
       .update({
-        name,
+        name: fullName || name, // fallback to existing name if first/last names aren't provided
+        first_name: firstName,
+        last_name: lastName,
+        phone_number: phoneNumber,
+        email: email,
+        date_of_birth: dateOfBirth,
+        majors: majors,
+        minors: minors,
+        house_membership: houseMembership,
+        race: race,
+        pronouns: pronouns,
+        living_type: livingType,
+        gender: gender,
+        sexual_orientation: sexualOrientation,
+        expected_graduation: expectedGraduation,
         pledge_class: pledgeClass,
         major,
         graduation_year: graduationYear
@@ -366,61 +489,120 @@ export default function AccountTab() {
       .eq('user_id', user?.id);
 
     if (error) {
-      Alert.alert('Error', 'Could not update profile.');
+      console.error('Profile update error:', error);
+      Alert.alert('Error', 'Could not update profile. Please try again.');
     } else {
       setEditing(false);
-      Alert.alert('Saved', 'Your profile has been updated.');
+      Alert.alert('Saved', 'Your profile has been updated successfully!');
+      // Refresh account data to show updated information
+      fetchAccountData();
     }
   };
 
   const submitFeedback = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!feedbackSubject.trim() || !feedbackMessage.trim()) {
-      Alert.alert('Error', 'Please fill in both subject and message.');
-      return;
-    }
-
+    if (submittingFeedback) return; // Prevent double submission
+    
+    console.log('ðŸ”„ Starting feedback submission...');
+    setSubmittingFeedback(true);
+    
     try {
-      // Prepare the feedback data
-      const feedbackData: any = {
-        user_id: user?.id,
-        subject: feedbackSubject,
-        message: feedbackMessage,
-        submitted_at: new Date().toISOString()
-      };
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      // If a file is attached, add file information
-      if (feedbackFile) {
-        feedbackData.file_name = feedbackFile.name;
-        feedbackData.file_size = feedbackFile.size;
-        feedbackData.file_type = feedbackFile.mimeType || 'application/octet-stream';
-        // In a full implementation, you would upload the file to Supabase Storage here
-        // For now, we'll store the file metadata and indicate that a file was attached
-        feedbackData.has_attachment = true;
-        feedbackData.attachment_info = JSON.stringify({
+      console.log('ðŸ‘¤ Current user:', user ? 'authenticated' : 'not authenticated');
+      console.log('ðŸ†” User ID:', user?.id);
+
+      // Check if user is authenticated
+      if (!user) {
+        console.log('âŒ User not authenticated');
+        Alert.alert('Error', 'You must be logged in to submit feedback.');
+        return;
+      }
+
+      if (!feedbackSubject.trim() || !feedbackMessage.trim()) {
+        console.log('âŒ Missing subject or message');
+        Alert.alert('Error', 'Please fill in both subject and message.');
+        return;
+      }
+
+      // Simple direct insert approach with proper user ID handling
+      const feedbackData = {
+        user_id: user.id, // Supabase auth.uid() should match this
+        subject: feedbackSubject.trim(),
+        message: feedbackMessage.trim(),
+        file_name: feedbackFile?.name || null,
+        file_size: feedbackFile?.size || null,
+        file_type: feedbackFile?.mimeType || null,
+        has_attachment: !!feedbackFile,
+        attachment_info: feedbackFile ? JSON.stringify({
           name: feedbackFile.name,
           size: feedbackFile.size,
           type: feedbackFile.mimeType,
           uri: feedbackFile.uri
+        }) : null
+      };
+
+      console.log('ðŸ“ Submitting feedback data:', {
+        user_id: feedbackData.user_id,
+        subject: feedbackData.subject,
+        message: feedbackData.message.substring(0, 50) + '...',
+        has_attachment: feedbackData.has_attachment
+      });
+
+      const { data: result, error: submitError } = await supabase
+        .from('admin_feedback')
+        .insert(feedbackData)
+        .select();
+
+      if (submitError) {
+        console.error('ðŸ’¥ Submit failed:', {
+          code: submitError.code,
+          message: submitError.message,
+          details: submitError.details,
+          hint: submitError.hint
         });
+        throw submitError;
       }
 
-      const { error } = await supabase.from('admin_feedback').insert(feedbackData);
-
-      if (error) {
-        throw error;
-      }
+      console.log('âœ… Feedback submitted successfully:', result);
 
       Alert.alert('Thanks!', `Your feedback${feedbackFile ? ' and attachment' : ''} was submitted successfully.`);
       setFeedbackSubject('');
       setFeedbackMessage('');
       setFeedbackFile(null);
     } catch (error) {
-      console.error('Feedback submission error:', error);
-      Alert.alert('Error', 'Could not send feedback. Please try again.');
+            console.error('ðŸ’¥ Feedback submission error:', error);
+      
+      // More specific error messages
+      if (error && typeof error === 'object' && 'code' in error) {
+        const dbError = error as any;
+        if (dbError.code === '42501') {
+          Alert.alert(
+            'Permission Error', 
+            'There seems to be a database permission issue. Please contact an administrator.'
+          );
+        } else if (dbError.code === '23505') {
+          Alert.alert(
+            'Duplicate Entry', 
+            'It looks like you may have already submitted this feedback. Please try with different content.'
+          );
+        } else {
+          Alert.alert(
+            'Database Error', 
+            `Error ${dbError.code}: ${dbError.message || 'Unknown database error'}`
+          );
+        }
+      } else {
+        Alert.alert(
+          'Submission Failed', 
+          error instanceof Error 
+            ? `Error: ${error.message}` 
+            : 'Could not send feedback. Please try again.'
+        );
+      }
+    } finally {
+      setSubmittingFeedback(false);
     }
   };
 
@@ -438,7 +620,7 @@ export default function AccountTab() {
     } = await supabase.auth.getUser();
 
     try {
-      console.log('📝 Submitting feedback data:', {
+      console.log('ðŸ“ Submitting feedback data:', {
         user_id: user?.id,
         event_id: selectedEvent.id,
         rating: eventFeedbackData.rating,
@@ -458,11 +640,11 @@ export default function AccountTab() {
       });
 
       if (error) {
-        console.error('❌ Event feedback submission error:', error);
+        console.error('âŒ Event feedback submission error:', error);
         throw error;
       }
 
-      console.log('✅ Event feedback submitted successfully!');
+      console.log('âœ… Event feedback submitted successfully!');
       Alert.alert('Thanks!', 'Your event feedback was submitted successfully.');
       setEventFeedbackModalVisible(false);
       setSelectedEvent(null);
@@ -565,59 +747,293 @@ export default function AccountTab() {
 
   const renderProfileSection = useMemo(() => (
     editing ? (
-      <>
+      <View style={styles.profileFormContainer}>
+        <Text style={styles.formTitle}>Edit Profile</Text>
+        
+        {/* Personal Information Section */}
+        <Text style={styles.sectionLabel}>Personal Information</Text>
+        
+        <Text style={styles.fieldLabel}>First Name *</Text>
         <TextInput
-          style={styles.input}
-          value={name ?? ''}
-          onChangeText={setName}
-          placeholder="Name"
+          style={[styles.input, styles.formInput]}
+          value={firstName}
+          onChangeText={setFirstName}
+          placeholder="Enter your first name"
+          autoCapitalize="words"
         />
+
+        <Text style={styles.fieldLabel}>Last Name *</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, styles.formInput]}
+          value={lastName}
+          onChangeText={setLastName}
+          placeholder="Enter your last name"
+          autoCapitalize="words"
+        />
+
+        <Text style={styles.fieldLabel}>Phone Number</Text>
+        <TextInput
+          style={[styles.input, styles.formInput]}
+          value={phoneNumber}
+          onChangeText={setPhoneNumber}
+          placeholder="(123) 456-7890"
+          keyboardType="phone-pad"
+        />
+
+        <Text style={styles.fieldLabel}>Email (Non-Terpmail)</Text>
+        <TextInput
+          style={[styles.input, styles.formInput]}
+          value={email}
+          onChangeText={setEmail}
+          placeholder="your.email@gmail.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+
+        <Text style={styles.fieldLabel}>Date of Birth</Text>
+        <TouchableOpacity
+          style={[styles.input, styles.formInput, styles.dateInput]}
+          onPress={() => setShowDatePicker(true)}
+        >
+          <Text style={dateOfBirth ? styles.dateText : styles.placeholderText}>
+            {dateOfBirth ? new Date(dateOfBirth).toLocaleDateString() : 'Select date of birth'}
+          </Text>
+        </TouchableOpacity>
+
+        {showDatePicker && (
+          <DateTimePicker
+            value={dateOfBirth ? new Date(dateOfBirth) : new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(false);
+              if (selectedDate) {
+                setDateOfBirth(selectedDate.toISOString().split('T')[0]);
+              }
+            }}
+            maximumDate={new Date()}
+          />
+        )}
+
+        <Text style={styles.fieldLabel}>Pronouns</Text>
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={pronouns}
+            style={styles.picker}
+            onValueChange={setPronouns}
+          >
+            <Picker.Item label="Select pronouns" value="" />
+            <Picker.Item label="He/Him" value="he/him" />
+            <Picker.Item label="She/Her" value="she/her" />
+            <Picker.Item label="They/Them" value="they/them" />
+            <Picker.Item label="He/They" value="he/they" />
+            <Picker.Item label="She/They" value="she/they" />
+            <Picker.Item label="Other" value="other" />
+            <Picker.Item label="Prefer not to say" value="prefer_not_to_say" />
+          </Picker>
+        </View>
+
+        {/* Academic Information Section */}
+        <Text style={styles.sectionLabel}>Academic Information</Text>
+
+        <Text style={styles.fieldLabel}>Majors / Intended Majors</Text>
+        <TextInput
+          style={[styles.input, styles.formInput]}
+          value={majors}
+          onChangeText={setMajors}
+          placeholder="Computer Science, Mathematics"
+          multiline={true}
+          numberOfLines={2}
+        />
+
+        <Text style={styles.fieldLabel}>Minors / Intended Minors</Text>
+        <TextInput
+          style={[styles.input, styles.formInput]}
+          value={minors}
+          onChangeText={setMinors}
+          placeholder="Statistics, Business"
+          multiline={true}
+          numberOfLines={2}
+        />
+
+        <Text style={styles.fieldLabel}>Expected Graduation</Text>
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={expectedGraduation}
+            style={styles.picker}
+            onValueChange={setExpectedGraduation}
+          >
+            <Picker.Item label="Select graduation date" value="" />
+            <Picker.Item label="Spring 2025" value="Spring 2025" />
+            <Picker.Item label="Fall 2025" value="Fall 2025" />
+            <Picker.Item label="Spring 2026" value="Spring 2026" />
+            <Picker.Item label="Fall 2026" value="Fall 2026" />
+            <Picker.Item label="Spring 2027" value="Spring 2027" />
+            <Picker.Item label="Fall 2027" value="Fall 2027" />
+            <Picker.Item label="Spring 2028" value="Spring 2028" />
+            <Picker.Item label="Fall 2028" value="Fall 2028" />
+          </Picker>
+        </View>
+
+        {/* Fraternity Information Section */}
+        <Text style={styles.sectionLabel}>Fraternity Information</Text>
+
+        <Text style={styles.fieldLabel}>House Membership</Text>
+        <TextInput
+          style={[styles.input, styles.formInput]}
+          value={houseMembership}
+          onChangeText={setHouseMembership}
+          placeholder="Internal family/buddy system (not address)"
+          multiline={true}
+          numberOfLines={2}
+        />
+
+        <Text style={styles.fieldLabel}>Pledge Class</Text>
+        <TextInput
+          style={[styles.input, styles.formInput]}
           value={pledgeClass ?? ''}
           onChangeText={setPledgeClass}
-          placeholder="Pledge Class"
+          placeholder="Fall 2023, Spring 2024, etc."
         />
+
+        {/* Personal Details Section */}
+        <Text style={styles.sectionLabel}>Personal Details (Optional)</Text>
+
+        <Text style={styles.fieldLabel}>Gender</Text>
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={gender}
+            style={styles.picker}
+            onValueChange={setGender}
+          >
+            <Picker.Item label="Select gender" value="" />
+            <Picker.Item label="Male" value="male" />
+            <Picker.Item label="Female" value="female" />
+            <Picker.Item label="Non-binary" value="non_binary" />
+            <Picker.Item label="Genderfluid" value="genderfluid" />
+            <Picker.Item label="Other" value="other" />
+            <Picker.Item label="Prefer not to say" value="prefer_not_to_say" />
+          </Picker>
+        </View>
+
+        <Text style={styles.fieldLabel}>Sexual Orientation</Text>
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={sexualOrientation}
+            style={styles.picker}
+            onValueChange={setSexualOrientation}
+          >
+            <Picker.Item label="Select sexual orientation" value="" />
+            <Picker.Item label="Heterosexual" value="heterosexual" />
+            <Picker.Item label="Gay" value="gay" />
+            <Picker.Item label="Lesbian" value="lesbian" />
+            <Picker.Item label="Bisexual" value="bisexual" />
+            <Picker.Item label="Pansexual" value="pansexual" />
+            <Picker.Item label="Asexual" value="asexual" />
+            <Picker.Item label="Questioning" value="questioning" />
+            <Picker.Item label="Other" value="other" />
+            <Picker.Item label="Prefer not to say" value="prefer_not_to_say" />
+          </Picker>
+        </View>
+
+        <Text style={styles.fieldLabel}>Race/Ethnicity</Text>
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={race}
+            style={styles.picker}
+            onValueChange={setRace}
+          >
+            <Picker.Item label="Select race/ethnicity" value="" />
+            <Picker.Item label="American Indian or Alaska Native" value="american_indian_alaska_native" />
+            <Picker.Item label="Asian" value="asian" />
+            <Picker.Item label="Black or African American" value="black_african_american" />
+            <Picker.Item label="Hispanic or Latino" value="hispanic_latino" />
+            <Picker.Item label="Native Hawaiian or Other Pacific Islander" value="native_hawaiian_pacific_islander" />
+            <Picker.Item label="White" value="white" />
+            <Picker.Item label="Two or more races" value="two_or_more_races" />
+            <Picker.Item label="Other" value="other" />
+            <Picker.Item label="Prefer not to say" value="prefer_not_to_say" />
+          </Picker>
+        </View>
+
+        <Text style={styles.fieldLabel}>Living Type</Text>
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={livingType}
+            style={styles.picker}
+            onValueChange={setLivingType}
+          >
+            <Picker.Item label="Select living type" value="" />
+            <Picker.Item label="On-campus dorm" value="on_campus_dorm" />
+            <Picker.Item label="Apartment" value="apartment" />
+            <Picker.Item label="House" value="house" />
+            <Picker.Item label="With family" value="with_family" />
+            <Picker.Item label="Greek housing" value="greek_housing" />
+            <Picker.Item label="Other" value="other" />
+          </Picker>
+        </View>
+
+        {/* Legacy fields for backward compatibility */}
+        <Text style={styles.sectionLabel}>Legacy Information</Text>
+
+        <Text style={styles.fieldLabel}>Primary Major (Legacy)</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, styles.formInput]}
           value={major ?? ''}
           onChangeText={setMajor}
-          placeholder="Major"
+          placeholder="Primary major for legacy compatibility"
         />
+
+        <Text style={styles.fieldLabel}>Graduation Year (Legacy)</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, styles.formInput]}
           value={graduationYear ?? ''}
           onChangeText={setGraduationYear}
-          placeholder="Graduation Year"
+          placeholder="2025"
           keyboardType="numeric"
         />
-        <TouchableOpacity style={styles.button} onPress={saveProfile}>
-          <Text style={styles.buttonText}>Save</Text>
+
+        <TouchableOpacity style={[styles.button, styles.saveButton]} onPress={saveProfile}>
+          <Text style={styles.buttonText}>Save Profile</Text>
         </TouchableOpacity>
-      </>
+
+        <TouchableOpacity 
+          style={[styles.button, styles.profileCancelButton]} 
+          onPress={() => setEditing(false)}
+        >
+          <Text style={styles.cancelButtonText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
     ) : (
       <>
         <View style={styles.profileInfo}>
           <Text style={styles.meta}>Name: {name ?? '---'}</Text>
+          <Text style={styles.meta}>Phone: {phoneNumber || '---'}</Text>
+          <Text style={styles.meta}>Email: {email || '---'}</Text>
+          <Text style={styles.meta}>Date of Birth: {dateOfBirth ? new Date(dateOfBirth).toLocaleDateString() : '---'}</Text>
+          <Text style={styles.meta}>Pronouns: {pronouns || '---'}</Text>
+          <Text style={styles.meta}>Majors: {majors || major || '---'}</Text>
+          <Text style={styles.meta}>Minors: {minors || '---'}</Text>
+          <Text style={styles.meta}>Expected Graduation: {expectedGraduation || graduationYear || '---'}</Text>
           <Text style={styles.meta}>Pledge Class: {pledgeClass ?? '---'}</Text>
-          <Text style={styles.meta}>Major: {major ?? '---'}</Text>
-          <Text style={styles.meta}>Graduation Year: {graduationYear ?? '---'}</Text>
+          <Text style={styles.meta}>House Membership: {houseMembership || '---'}</Text>
+          <Text style={styles.meta}>Living Type: {livingType || '---'}</Text>
         </View>
         <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
           <Text style={styles.link}>Edit Profile</Text>
         </TouchableOpacity>
       </>
     )
-  ), [editing, name, pledgeClass, major, graduationYear, saveProfile]);
+  ), [editing, firstName, lastName, phoneNumber, email, dateOfBirth, majors, minors, houseMembership, race, pronouns, livingType, gender, sexualOrientation, expectedGraduation, name, pledgeClass, major, graduationYear, saveProfile, showDatePicker]);
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {error && (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>⚠️ {error}</Text>
+            <Text style={styles.errorText}>âš ï¸ {error}</Text>
             <TouchableOpacity 
-              style={[styles.button, { backgroundColor: '#FF6B35' }]} 
+              style={[styles.button, { backgroundColor: Colors.primary }]} 
               onPress={fetchAccountData}
             >
               <Text style={styles.buttonText}>Retry</Text>
@@ -635,7 +1051,7 @@ export default function AccountTab() {
           <View style={styles.profileDetails}>
             <Text style={styles.profileName}>{name || 'Loading...'}</Text>
             <Text style={styles.profileSubtitle}>
-              {pledgeClass ? `${pledgeClass} • ${major || 'No Major'}` : 'Loading...'}
+              {pledgeClass ? `${pledgeClass} â€¢ ${major || 'No Major'}` : 'Loading...'}
             </Text>
             {analytics.rankInPledgeClass > 0 && (
               <Text style={styles.rankBadge}>
@@ -650,29 +1066,29 @@ export default function AccountTab() {
           <StatCard 
             title="Total Points"
             value={analytics.totalPoints}
-            icon="🏆"
-            color="#FF6B35"
+            icon="ðŸ†"
+            color={Colors.secondary}
           />
           <StatCard 
             title="Current Streak"
             value={`${analytics.currentStreak} events`}
             subtitle={`Longest: ${analytics.longestStreak}`}
-            icon="🔥"
-            color="#FF4500"
+            icon="ðŸ”¥"
+            color={Colors.primary}
           />
           <StatCard 
             title="This Month"
             value={analytics.eventsThisMonth}
             subtitle="events attended"
-            icon="📅"
-            color="#4CAF50"
+            icon="ðŸ“…"
+            color={Colors.primary}
           />
           <StatCard 
             title="Attendance Rate"
             value={`${Math.round(analytics.attendanceRate)}%`}
             subtitle="this semester"
-            icon="📊"
-            color="#2196F3"
+            icon="ðŸ“Š"
+            color={Colors.secondary}
           />
         </View>
 
@@ -684,7 +1100,7 @@ export default function AccountTab() {
               progress={analytics.attendanceRate}
               size={120}
               strokeWidth={12}
-              color="#4CAF50"
+              color={Colors.primary}
             />
             <View style={styles.progressDetails}>
               <Text style={styles.progressMainText}>
@@ -697,47 +1113,76 @@ export default function AccountTab() {
           </View>
         </View>
 
-        {/* Achievements - Duolingo Style */}
+        {/* Achievements - Expandable Section */}
         <View style={styles.achievementsSection}>
-          <Text style={styles.sectionTitle}>Achievements</Text>
-          <View style={styles.achievementsGrid}>
-            <AchievementBadge 
-              title="First Steps"
-              icon="🎯"
-              earned={analytics.eventsThisSemester >= 1}
-              description="Attend your first event"
-            />
-            <AchievementBadge 
-              title="On Fire"
-              icon="🔥"
-              earned={analytics.achievements.includes('streak_3')}
-              description="3 event streak"
-            />
-            <AchievementBadge 
-              title="Scholar"
-              icon="📚"
-              earned={analytics.achievements.includes('points_50')}
-              description="50 total points"
-            />
-            <AchievementBadge 
-              title="Master"
-              icon="🏆"
-              earned={analytics.achievements.includes('points_100')}
-              description="100 total points"
-            />
-            <AchievementBadge 
-              title="Consistent"
-              icon="💪"
-              earned={analytics.achievements.includes('semester_10')}
-              description="10 events this semester"
-            />
-            <AchievementBadge 
-              title="Top Performer"
-              icon="⭐"
-              earned={analytics.achievements.includes('top_3')}
-              description="Top 3 in pledge class"
-            />
+          <TouchableOpacity 
+            style={styles.achievementsHeader}
+            onPress={() => setAchievementsExpanded(!achievementsExpanded)}
+          >
+            <View>
+              <Text style={styles.sectionTitle}>Achievements</Text>
+              <Text style={styles.achievementsSubtitle}>
+                {analytics.achievements.length} of {Object.keys(ACHIEVEMENTS).length} earned
+              </Text>
+            </View>
+            <Text style={styles.expandIcon}>{achievementsExpanded ? 'â–¼' : 'â–¶'}</Text>
+          </TouchableOpacity>
+          
+          {/* Achievement Progress Bar */}
+          <View style={styles.achievementProgress}>
+            <View style={styles.progressBarBackground}>
+              <View 
+                style={[
+                  styles.progressBarFill, 
+                  { width: `${(analytics.achievements.length / Object.keys(ACHIEVEMENTS).length) * 100}%` }
+                ]} 
+              />
+            </View>
+            <Text style={styles.achievementProgressText}>
+              {Math.round((analytics.achievements.length / Object.keys(ACHIEVEMENTS).length) * 100)}% Complete
+            </Text>
           </View>
+          
+          {/* Preview Grid - Always visible */}
+          <View style={styles.achievementsPreview}>
+            {Object.entries(ACHIEVEMENTS).slice(0, 6).map(([key, achievement]) => (
+              <AchievementBadge 
+                key={key}
+                title={achievement.title}
+                icon={achievement.icon}
+                earned={analytics.achievements.includes(key)}
+                description={achievement.description}
+              />
+            ))}
+          </View>
+
+          {/* Full Grid - Expanded view */}
+          {achievementsExpanded && (
+            <View style={styles.achievementsExpanded}>
+              {['Consistency', 'Milestones', 'Performance', 'Leadership'].map(category => {
+                const categoryAchievements = Object.entries(ACHIEVEMENTS).filter(
+                  ([_, achievement]) => achievement.category === category
+                );
+                
+                return (
+                  <View key={category} style={styles.achievementCategory}>
+                    <Text style={styles.categoryTitle}>{category}</Text>
+                    <View style={styles.achievementsGrid}>
+                      {categoryAchievements.map(([key, achievement]) => (
+                        <AchievementBadge 
+                          key={key}
+                          title={achievement.title}
+                          icon={achievement.icon}
+                          earned={analytics.achievements.includes(key)}
+                          description={achievement.description}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* Quick Stats */}
@@ -760,12 +1205,12 @@ export default function AccountTab() {
           onPress={() => setEditing(!editing)}
         >
           <Text style={styles.sectionHeaderText}>Account Details</Text>
-          <Text style={styles.sectionHeaderIcon}>{editing ? '📝' : '👤'}</Text>
+          <Text style={styles.sectionHeaderIcon}>{editing ? 'ðŸ“' : 'ðŸ‘¤'}</Text>
         </TouchableOpacity>
         
         {loading && !name ? (
           <View style={styles.loadingSection}>
-            <ActivityIndicator size="large" color="#4CAF50" />
+            <ActivityIndicator size="large" color={Colors.primary} />
             <Text style={styles.loadingText}>Loading account data...</Text>
           </View>
         ) : (
@@ -779,7 +1224,7 @@ export default function AccountTab() {
         <Text style={styles.sectionHeader}>Event Attendance Log</Text>
         <TouchableOpacity onPress={toggleExpanded}>
           <Text style={styles.toggleText}>
-            {expanded ? 'Hide Event Log ▲' : 'Show Event Log ▼'}
+            {expanded ? 'Hide Event Log â–²' : 'Show Event Log â–¼'}
           </Text>
         </TouchableOpacity>
 
@@ -806,35 +1251,38 @@ export default function AccountTab() {
         <Text style={styles.sectionHeader}>Submit Feedback</Text>
         <View style={styles.formContainer}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, styles.feedbackInput]}
             placeholder="Subject"
+            placeholderTextColor="#999"
             value={feedbackSubject}
             onChangeText={setFeedbackSubject}
           />
           <TextInput
-            style={[styles.input, { height: 100 }]}
+            style={[styles.input, styles.feedbackTextArea]}
             placeholder="Your suggestion, concern, or feedback..."
+            placeholderTextColor="#999"
             value={feedbackMessage}
             onChangeText={setFeedbackMessage}
             multiline
+            textAlignVertical="top"
           />
           
           {/* File Attachment Section */}
           <View style={styles.attachmentSection}>
             <Text style={styles.attachmentLabel}>Optional: Attach a file</Text>
             <TouchableOpacity
-              style={[styles.button, { backgroundColor: '#6B7280', marginBottom: 8 }]}
+              style={[styles.button, { backgroundColor: Colors.primary, marginBottom: 8 }]}
               onPress={handlePickFeedbackFile}
             >
               <Text style={styles.buttonText}>
-                {feedbackFile ? 'Change Attachment' : '📎 Add Attachment'}
+                {feedbackFile ? 'Change Attachment' : 'ðŸ“Ž Add Attachment'}
               </Text>
             </TouchableOpacity>
             
             {feedbackFile && (
               <View style={styles.filePreview}>
                 <View style={styles.fileInfo}>
-                  <Text style={styles.fileName}>📄 {feedbackFile.name}</Text>
+                  <Text style={styles.fileName}>ðŸ“„ {feedbackFile.name}</Text>
                   <Text style={styles.fileSize}>
                     {feedbackFile.size ? `${Math.round(feedbackFile.size / 1024)} KB` : 'Size unknown'}
                   </Text>
@@ -843,15 +1291,25 @@ export default function AccountTab() {
                   style={styles.removeFileButton}
                   onPress={() => setFeedbackFile(null)}
                 >
-                  <Text style={styles.removeFileText}>✕</Text>
+                  <Text style={styles.removeFileText}>âœ•</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
           
-          <TouchableOpacity style={styles.button} onPress={submitFeedback}>
-            <Text style={styles.buttonText}>
-              {feedbackFile ? 'Send Feedback & Attachment' : 'Send Feedback'}
+          <TouchableOpacity 
+            style={[
+              styles.button, 
+              styles.submitButton,
+              submittingFeedback && { opacity: 0.7 }
+            ]} 
+            onPress={submitFeedback}
+            activeOpacity={0.8}
+            disabled={submittingFeedback}
+          >
+            <Text style={[styles.buttonText, styles.submitButtonText]}>
+              {submittingFeedback ? 'â³ Sending...' : 
+               feedbackFile ? 'ðŸ“§ Send Feedback & Attachment' : 'ðŸ“§ Send Feedback'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -859,7 +1317,7 @@ export default function AccountTab() {
         <Text style={styles.sectionHeader}>Test Bank Submission</Text>
         {!showTestBankForm ? (
           <TouchableOpacity
-            style={[styles.button, { backgroundColor: '#4CAF50' }]}
+            style={[styles.button, { backgroundColor: Colors.primary }]}
             onPress={() => setShowTestBankForm(true)}
           >
             <Text style={styles.buttonText}>Add to Test Bank</Text>
@@ -885,7 +1343,7 @@ export default function AccountTab() {
               </Picker>
             </View>
             <TouchableOpacity
-              style={[styles.button, { backgroundColor: '#888', marginBottom: 6 }]}
+              style={[styles.button, { backgroundColor: Colors.primary, marginBottom: 6 }]}
               onPress={handlePickFile}
             >
               <Text style={styles.buttonText}>{selectedFile ? 'Change File' : 'Choose File'}</Text>
@@ -900,7 +1358,7 @@ export default function AccountTab() {
               <Text style={styles.buttonText}>Submit</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.button, { backgroundColor: '#666' }]}
+              style={[styles.button, { backgroundColor: Colors.primary }]}
               onPress={() => { setShowTestBankForm(false); setSelectedFile(null); }}
             >
               <Text style={styles.buttonText}>Cancel</Text>
@@ -935,7 +1393,7 @@ export default function AccountTab() {
                 style={styles.exitButton}
                 onPress={() => setEventFeedbackModalVisible(false)}
               >
-                <Text style={styles.exitButtonText}>✕</Text>
+                <Text style={styles.exitButtonText}>âœ•</Text>
               </TouchableOpacity>
             </View>
             
@@ -1110,7 +1568,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#FF6B35',
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -1137,8 +1595,8 @@ const styles = StyleSheet.create({
   rankBadge: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#FF6B35',
-    backgroundColor: '#FFF3F0',
+    color: Colors.primary,
+    backgroundColor: `${Colors.primary}15`,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1202,6 +1660,62 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  achievementsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  achievementsSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  achievementProgress: {
+    marginBottom: 15,
+  },
+  progressBarBackground: {
+    height: 8,
+    backgroundColor: '#E5E5E5',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: Colors.secondary,
+    borderRadius: 4,
+  },
+  achievementProgressText: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 5,
+  },
+  expandIcon: {
+    fontSize: 18,
+    color: Colors.primary,
+    fontWeight: 'bold',
+  },
+  achievementsPreview: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  achievementsExpanded: {
+    marginTop: 20,
+  },
+  achievementCategory: {
+    marginBottom: 20,
+  },
+  categoryTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.primary,
+    marginBottom: 10,
+    paddingBottom: 5,
+    borderBottomWidth: 2,
+    borderBottomColor: `${Colors.primary}20`,
   },
   achievementsGrid: {
     flexDirection: 'row',
@@ -1310,7 +1824,7 @@ const styles = StyleSheet.create({
   },
   editableValue: {
     fontSize: 16,
-    color: '#4CAF50',
+    color: Colors.primary,
     flex: 1,
     textAlign: 'right',
     marginRight: 10,
@@ -1394,8 +1908,20 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
     backgroundColor: 'white',
   },
+  feedbackInput: {
+    borderColor: Colors.primary,
+    borderWidth: 1.5,
+    fontSize: 16,
+  },
+  feedbackTextArea: {
+    height: 120,
+    borderColor: Colors.primary,
+    borderWidth: 1.5,
+    fontSize: 16,
+    paddingTop: 12,
+  },
   button: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: Colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
@@ -1407,11 +1933,81 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
   },
-  link: { color: '#007AFF', fontSize: 15 },
+  
+  // Additional form styles (unique names)
+  profileFormContainer: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    marginVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  formTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  sectionLabel: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.primary,
+    marginTop: 20,
+    marginBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    paddingBottom: 5,
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  formInput: {
+    borderWidth: 1.5,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    padding: 15,
+    fontSize: 16,
+    color: '#1A1A1A',
+    backgroundColor: '#FAFAFA',
+    minHeight: 50,
+  },
+  dateInput: {
+    justifyContent: 'center',
+  },
+  dateText: {
+    fontSize: 16,
+    color: '#1A1A1A',
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: '#9CA3AF',
+  },
+  saveButton: {
+    backgroundColor: Colors.primary,
+    marginTop: 25,
+    paddingVertical: 15,
+  },
+  profileCancelButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    marginTop: 10,
+    paddingVertical: 15,
+  },
+  link: { color: Colors.primary, fontSize: 15 },
   linkButton: { marginTop: 10 },
   toggleText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: '600',
     marginBottom: 10,
     textAlign: 'center',
@@ -1450,7 +2046,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     fontSize: 14,
-    color: '#4CAF50',
+    color: Colors.primary,
   },
   cell: {
     flex: 1,
@@ -1529,7 +2125,7 @@ const styles = StyleSheet.create({
   badgeEarned: {
     backgroundColor: '#E8F5E8',
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: Colors.primary,
   },
   badgeLocked: {
     backgroundColor: '#F5F5F5',
@@ -1608,7 +2204,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   feedbackButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 6,
     width: 32,
     height: 32,
@@ -1672,7 +2268,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
-    color: '#007AFF',
+    color: Colors.primary,
     marginBottom: 4,
   },
   eventDate: {
@@ -1705,8 +2301,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   ratingButtonActive: {
-    borderColor: '#007AFF',
-    backgroundColor: '#007AFF',
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary,
   },
   ratingButtonText: {
     fontSize: 16,
@@ -1731,8 +2327,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   booleanButtonActive: {
-    borderColor: '#007AFF',
-    backgroundColor: '#007AFF',
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary,
   },
   booleanButtonText: {
     fontSize: 16,
@@ -1775,11 +2371,19 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   submitButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   submitButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: 'bold',
     color: 'white',
   },
 });
+

@@ -1,12 +1,13 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
@@ -17,6 +18,9 @@ type Feedback = {
   message: string;
   user_id: string;
   user_name?: string;
+  status: string;
+  has_attachment?: boolean;
+  file_name?: string;
 };
 
 export default function PresidentHome() {
@@ -60,8 +64,12 @@ export default function PresidentHome() {
           subject,
           message,
           user_id,
+          status,
+          has_attachment,
+          file_name,
           users(first_name, last_name)
         `)
+        .neq('status', 'resolved')
         .order('submitted_at', { ascending: false });
 
       if (joinResult.error) {
@@ -71,7 +79,8 @@ export default function PresidentHome() {
         // Fallback: Get feedback without user join
         const basicResult = await supabase
           .from('admin_feedback')
-          .select('id, submitted_at, subject, message, user_id')
+          .select('id, submitted_at, subject, message, user_id, status, has_attachment, file_name')
+          .neq('status', 'resolved')
           .order('submitted_at', { ascending: false });
 
         if (basicResult.error) {
@@ -112,6 +121,9 @@ export default function PresidentHome() {
         subject: fb.subject,
         message: fb.message,
         user_id: fb.user_id,
+        status: fb.status,
+        has_attachment: fb.has_attachment,
+        file_name: fb.file_name,
         user_name: fb.users?.first_name && fb.users?.last_name 
           ? `${fb.users.first_name} ${fb.users.last_name}` 
           : 'Unknown User'
@@ -124,6 +136,48 @@ export default function PresidentHome() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const resolveFeedback = async (feedbackId: string) => {
+    Alert.alert(
+      'Resolve Feedback',
+      'Are you sure you want to mark this feedback as resolved? This will remove it from the dashboard.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Resolve',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('admin_feedback')
+                .update({ 
+                  status: 'resolved',
+                  responded_at: new Date().toISOString()
+                })
+                .eq('id', feedbackId);
+
+              if (error) {
+                console.error('Error resolving feedback:', error);
+                Alert.alert('Error', 'Failed to resolve feedback. Please try again.');
+                return;
+              }
+
+              // Remove the feedback from the local state
+              setFeedbacks(prev => prev.filter(feedback => feedback.id !== feedbackId));
+              
+              Alert.alert('Success', 'Feedback has been resolved and removed from the dashboard.');
+            } catch (error) {
+              console.error('Unexpected error:', error);
+              Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -146,16 +200,30 @@ export default function PresidentHome() {
 
       {feedbacks.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No feedback submissions yet</Text>
-          <Text style={styles.emptySubtext}>Feedback from members will appear here</Text>
+          <Text style={styles.emptyText}>No pending feedback</Text>
+          <Text style={styles.emptySubtext}>All feedback has been resolved or no submissions yet</Text>
         </View>
       ) : (
         <View style={styles.feedbackContainer}>
           {feedbacks.map((feedback) => (
             <View key={feedback.id} style={styles.feedbackCard}>
               <View style={styles.feedbackHeader}>
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{feedback.user_name}</Text>
+                <View style={styles.headerRow}>
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>{feedback.user_name}</Text>
+                    <View style={styles.statusRow}>
+                      <View style={[styles.statusBadge, 
+                        feedback.status === 'pending' ? styles.statusPending : styles.statusReviewed
+                      ]}>
+                        <Text style={styles.statusText}>{feedback.status.toUpperCase()}</Text>
+                      </View>
+                      {feedback.has_attachment && (
+                        <View style={styles.attachmentBadge}>
+                          <Text style={styles.attachmentText}>📎 {feedback.file_name || 'Attachment'}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
                   <Text style={styles.timestamp}>
                     {new Date(feedback.submitted_at).toLocaleDateString('en-US', {
                       weekday: 'short',
@@ -169,6 +237,16 @@ export default function PresidentHome() {
               </View>
               <Text style={styles.subject}>{feedback.subject}</Text>
               <Text style={styles.message}>{feedback.message}</Text>
+              
+              {/* Action Buttons */}
+              <View style={styles.actionContainer}>
+                <TouchableOpacity 
+                  style={styles.resolveButton}
+                  onPress={() => resolveFeedback(feedback.id)}
+                >
+                  <Text style={styles.resolveButtonText}>✓ Mark as Resolved</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ))}
         </View>
@@ -243,10 +321,20 @@ const styles = StyleSheet.create({
   feedbackHeader: {
     marginBottom: 12,
   },
-  userInfo: {
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  userInfo: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    gap: 8,
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   userName: {
     fontSize: 18,
@@ -270,5 +358,58 @@ const styles = StyleSheet.create({
     color: '#374151',
     lineHeight: 22,
     fontWeight: '400',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  statusPending: {
+    backgroundColor: '#fef3c7',
+  },
+  statusReviewed: {
+    backgroundColor: '#dbeafe',
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  attachmentBadge: {
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  attachmentText: {
+    fontSize: 11,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  actionContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  resolveButton: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  resolveButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

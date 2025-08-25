@@ -106,6 +106,7 @@ export default function AdminRegisterEvent() {
   const [availableToPledges, setAvailableToPledges] = useState(true);
   const [isMultiDay, setIsMultiDay] = useState(false);
   const [isNoPoint, setIsNoPoint] = useState(false);
+  const [isNonEvent, setIsNonEvent] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -168,6 +169,7 @@ export default function AdminRegisterEvent() {
         created_by: user.id, // Using user.id from auth, which maps to user_id in users table
         is_registerable: isRegisterable,
         available_to_pledges: availableToPledges,
+        is_non_event: isNonEvent,
         status: 'pending',
       });
 
@@ -187,6 +189,7 @@ export default function AdminRegisterEvent() {
         setAvailableToPledges(true);
         setIsMultiDay(false);
         setIsNoPoint(false);
+        setIsNonEvent(false);
       }
     } catch (error) {
       console.error('Error creating event:', error);
@@ -285,6 +288,16 @@ export default function AdminRegisterEvent() {
             value={isMultiDay} 
             onValueChange={setIsMultiDay}
             thumbColor={isMultiDay ? '#8b5cf6' : '#f4f3f4'}
+            trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
+          />
+        </View>
+
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>Non-Event (Points only, won't appear in event list)</Text>
+          <Switch 
+            value={isNonEvent} 
+            onValueChange={setIsNonEvent}
+            thumbColor={isNonEvent ? '#8b5cf6' : '#f4f3f4'}
             trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
           />
         </View>

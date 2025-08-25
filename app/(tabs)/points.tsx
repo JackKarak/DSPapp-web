@@ -3,12 +3,13 @@ import { FontAwesome } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import { Colors } from '../../constants/colors';
 
 const POINT_REQUIREMENTS: Record<string, number> = {
-  brotherhood: 10,
-  professional: 5,
-  service: 5,
-  scholarship: 5,
+  brotherhood: 20,
+  professional: 4,
+  service: 4,
+  scholarship: 4,
   health: 3,
   fundraising: 3,
   dei: 3,
@@ -92,9 +93,8 @@ export default function PointsScreen() {
 
         events?.forEach((event) => {
           const wasRegistered = registeredEventIds.includes(event.id);
-          // Use actual point value from database, with bonus for registration
-          const basePoints = event.point_value || 1;
-          const pointsEarned = wasRegistered ? Math.round(basePoints * 1.5) : basePoints;
+          // Fixed point system: 1 point for attendance + 0.5 points for registration
+          const pointsEarned = wasRegistered ? 1.5 : 1;
           const category = event.point_type;
 
           if (category) {
@@ -180,8 +180,8 @@ export default function PointsScreen() {
             const event = allEvents?.find(e => e.id === attendance.event_id);
             if (event) {
               const wasRegistered = userRegistrations.some(r => r.event_id === event.id);
-              const basePoints = event.point_value || 1;
-              const pointsEarned = wasRegistered ? Math.round(basePoints * 1.5) : basePoints;
+              // Fixed point system: 1 point for attendance + 0.5 points for registration
+              const pointsEarned = wasRegistered ? 1.5 : 1;
               totalPoints += pointsEarned;
             }
           });
@@ -237,39 +237,90 @@ export default function PointsScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Your Point Audit</Text>
-      <Text style={styles.subtitle}>
-        {pillarsMet} of {Object.keys(POINT_REQUIREMENTS).length} pillars met
-      </Text>
-
-      {/* Table Header */}
-      <View style={styles.headerRow}>
-        <Text style={styles.headerCell}>Category</Text>
-        <Text style={styles.headerCell}>Earned</Text>
-        <Text style={styles.headerCell}>Required</Text>
-        <Text style={styles.headerCell}>Met</Text>
+      {/* Header Section */}
+      <View style={styles.headerSection}>
+        <Text style={styles.title}>📊 Your Point Audit</Text>
+        <View style={styles.progressContainer}>
+          <Text style={styles.subtitle}>
+            {pillarsMet} of {Object.keys(POINT_REQUIREMENTS).length} pillars completed
+          </Text>
+          <View style={styles.progressBar}>
+            <View 
+              style={[
+                styles.progressFill, 
+                { width: `${(pillarsMet / Object.keys(POINT_REQUIREMENTS).length) * 100}%` }
+              ]} 
+            />
+          </View>
+        </View>
       </View>
 
-      {/* Table Rows */}
-      {Object.entries(POINT_REQUIREMENTS).map(([category, required]) => {
-        const earned = pointsByCategory[category] || 0;
-        const met = earned >= required;
+      {/* Point Audit Table */}
+      <View style={styles.auditSection}>
+        {/* Table Header */}
+        <View style={styles.headerRow}>
+          <Text style={styles.headerCell}>Category</Text>
+          <Text style={styles.headerCell}>Earned</Text>
+          <Text style={styles.headerCell}>Required</Text>
+          <Text style={styles.headerCell}>Status</Text>
+        </View>
 
-        return (
-          <View key={category} style={styles.row}>
-            <Text style={styles.cell}>{category}</Text>
-            <Text style={styles.cell}>{earned.toFixed(1)}</Text>
-            <Text style={styles.cell}>{required}</Text>
-            <View style={styles.iconCell}>
-              {met ? (
-                <FontAwesome name="check-circle" size={16} color="green" />
-              ) : (
-                <FontAwesome name="times-circle" size={16} color="red" />
-              )}
+        {/* Table Rows */}
+        {Object.entries(POINT_REQUIREMENTS).map(([category, required]) => {
+          const earned = pointsByCategory[category] || 0;
+          const met = earned >= required;
+          const progress = Math.min((earned / required) * 100, 100);
+
+          return (
+            <View key={category} style={[styles.row, met && styles.rowCompleted]}>
+              <View style={styles.categoryCell}>
+                <Text style={[styles.categoryText, met && styles.completedText]}>
+                  {category === 'dei' ? 'DEI' : 
+                   category === 'h&w' ? 'H&W' : 
+                   category.charAt(0).toUpperCase() + category.slice(1)}
+                </Text>
+                <View style={styles.miniProgressBar}>
+                  <View 
+                    style={[
+                      styles.miniProgressFill, 
+                      { 
+                        width: `${progress}%`,
+                        backgroundColor: met ? Colors.primary : Colors.secondary
+                      }
+                    ]} 
+                  />
+                </View>
+              </View>
+              <Text style={[styles.pointsCell, met && styles.completedText]}>
+                {earned.toFixed(1)}
+              </Text>
+              <Text style={[styles.requiredCell, met && styles.completedText]}>
+                {required}
+              </Text>
+              <View style={styles.statusCell}>
+                {met ? (
+                  <View style={styles.completedBadge}>
+                    <FontAwesome name="check-circle" size={16} color="white" />
+                    <Text style={styles.badgeText}>Met</Text>
+                  </View>
+                ) : (
+                  <View style={styles.pendingBadge}>
+                    <FontAwesome name="clock-o" size={14} color="white" />
+                    <Text style={styles.badgeText}>{(required - earned).toFixed(1)} left</Text>
+                  </View>
+                )}
+              </View>
             </View>
-          </View>
-        );
-      })}
+          );
+        })}
+
+        {/* Overall Status */}
+        <View style={styles.overallStatus}>
+          <Text style={styles.overallStatusText}>
+            Overall Status: {pillarsMet === Object.keys(POINT_REQUIREMENTS).length ? '🎉 All Complete!' : `${pillarsMet}/${Object.keys(POINT_REQUIREMENTS).length} Complete`}
+          </Text>
+        </View>
+      </View>
 
       {/* Leaderboard Section */}
       <View style={styles.leaderboardSection}>
@@ -319,14 +370,31 @@ export default function PointsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#f5f5f5',
     padding: 16,
   },
+  
+  // Header Section
+  headerSection: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 8,
+    color: '#333',
+  },
+  progressContainer: {
+    alignItems: 'center',
   },
   subtitle: {
     fontSize: 16,
@@ -334,26 +402,128 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 12,
   },
+  progressBar: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: Colors.primary,
+    borderRadius: 4,
+  },
+  
+  // Audit Section
+  auditSection: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    marginBottom: 20,
+  },
   headerRow: {
     flexDirection: 'row',
-    backgroundColor: '#eee',
-    padding: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+    backgroundColor: Colors.primary,
+    padding: 16,
   },
   headerCell: {
     flex: 1,
     fontWeight: 'bold',
     fontSize: 14,
     textAlign: 'center',
+    color: 'white',
   },
   row: {
     flexDirection: 'row',
-    padding: 8,
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: '#f0f0f0',
+    alignItems: 'center',
+    backgroundColor: 'white',
+  },
+  rowCompleted: {
+    backgroundColor: '#f8fff8',
+  },
+  categoryCell: {
+    flex: 1,
+  },
+  categoryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  completedText: {
+    color: Colors.primary,
+  },
+  miniProgressBar: {
+    width: '100%',
+    height: 4,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  miniProgressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  pointsCell: {
+    flex: 1,
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '600',
+    color: '#333',
+  },
+  requiredCell: {
+    flex: 1,
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#666',
+  },
+  statusCell: {
+    flex: 1,
     alignItems: 'center',
   },
+  completedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  pendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.secondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  overallStatus: {
+    backgroundColor: '#f8f9fa',
+    padding: 16,
+    alignItems: 'center',
+  },
+  overallStatusText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  
+  // Legacy styles for other components
   cell: {
     flex: 1,
     fontSize: 14,
@@ -375,10 +545,14 @@ const styles = StyleSheet.create({
   
   // Leaderboard Styles
   leaderboardSection: {
-    marginTop: 32,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'white',
     borderRadius: 12,
     padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   leaderboardTitle: {
     fontSize: 20,
@@ -394,7 +568,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 8,
     marginBottom: 8,
-    backgroundColor: 'white',
+    backgroundColor: '#f8f9fa',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -407,7 +581,7 @@ const styles = StyleSheet.create({
   firstPlace: {
     backgroundColor: '#fff7e6',
     borderLeftWidth: 4,
-    borderLeftColor: '#ffd700',
+    borderLeftColor: Colors.secondary,
   },
   secondPlace: {
     backgroundColor: '#f6f6f6',
@@ -447,7 +621,7 @@ const styles = StyleSheet.create({
   leaderboardPoints: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: Colors.primary,
     minWidth: 60,
     textAlign: 'right',
   },
@@ -477,6 +651,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#e3f2fd',
     borderWidth: 2,
-    borderColor: '#2196F3',
+    borderColor: Colors.primary,
   },
 });
