@@ -219,7 +219,7 @@ export default function OfficerRegisterEvent() {
         <Text style={styles.subtitle}>Create a new event for member participation</Text>
 
         <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Non-Event (Points only, won't add to event list)</Text>
+          <Text style={styles.switchLabel}>Is this a Non-Event? (Points only)</Text>
           <Switch 
             value={isNonEvent} 
             onValueChange={setIsNonEvent}
@@ -354,8 +354,9 @@ export default function OfficerRegisterEvent() {
           </>
         )}
 
-        {!isNonEvent && (
+        {!isNonEvent ? (
           <>
+            {/* Regular Event Date/Time Fields */}
             <Text style={styles.label}>Start Date</Text>
             <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.pickerButton}>
               <Text style={styles.pickerButtonText}>{startDate.toDateString()}</Text>
@@ -424,6 +425,25 @@ export default function OfficerRegisterEvent() {
                 onChange={(_, time) => {
                   setShowEndTimePicker(false);
                   if (time) setEndTime(time);
+                }}
+              />
+            )}
+          </>
+        ) : (
+          <>
+            {/* Non-Event: Only show Deadline */}
+            <Text style={styles.label}>Deadline</Text>
+            <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.pickerButton}>
+              <Text style={styles.pickerButtonText}>{endDate.toDateString()}</Text>
+            </TouchableOpacity>
+            {showEndDatePicker && (
+              <DateTimePicker
+                value={endDate}
+                mode="date"
+                display="default"
+                onChange={(_, date) => {
+                  setShowEndDatePicker(false);
+                  if (date) setEndDate(date);
                 }}
               />
             )}

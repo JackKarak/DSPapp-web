@@ -265,6 +265,23 @@ export default function AdminRegisterEvent() {
                 trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
               />
             </View>
+
+            {/* Non-Event: Show Deadline */}
+            <Text style={styles.label}>Deadline</Text>
+            <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.pickerButton}>
+              <Text style={styles.pickerButtonText}>{endDate.toDateString()}</Text>
+            </TouchableOpacity>
+            {showEndDatePicker && (
+              <DateTimePicker
+                value={endDate}
+                mode="date"
+                display="default"
+                onChange={(_, date) => {
+                  setShowEndDatePicker(false);
+                  if (date) setEndDate(date);
+                }}
+              />
+            )}
           </>
         ) : (
           // Regular Event Form: Show all fields

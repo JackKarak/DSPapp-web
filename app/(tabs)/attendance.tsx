@@ -54,6 +54,29 @@ export default function AttendanceScreen() {
 
     const event = events[0];
 
+    // Check if current time is within the event time window
+    const currentTime = new Date();
+    const eventStartTime = new Date(event.start_time);
+    const eventEndTime = new Date(event.end_time);
+
+    if (currentTime < eventStartTime) {
+      setLoading(false);
+      Alert.alert(
+        '⏰ Event Not Started',
+        `You cannot check in before the event starts.\n\nEvent Start: ${eventStartTime.toLocaleString()}\nCurrent Time: ${currentTime.toLocaleString()}`
+      );
+      return;
+    }
+
+    if (currentTime > eventEndTime) {
+      setLoading(false);
+      Alert.alert(
+        '⏰ Event Has Ended',
+        `You cannot check in after the event has ended.\n\nEvent End: ${eventEndTime.toLocaleString()}\nCurrent Time: ${currentTime.toLocaleString()}`
+      );
+      return;
+    }
+
     // Check if user already recorded attendance
     const { data: existing, error: checkError } = await supabase
       .from('event_attendance')
