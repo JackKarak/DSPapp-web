@@ -259,10 +259,10 @@ export default function PointsScreen() {
       <View style={styles.auditSection}>
         {/* Table Header */}
         <View style={styles.headerRow}>
-          <Text style={styles.headerCell}>Category</Text>
-          <Text style={styles.headerCell}>Earned</Text>
-          <Text style={styles.headerCell}>Required</Text>
-          <Text style={styles.headerCell}>Status</Text>
+          <Text style={[styles.headerCell, {flex: 1.2}]}>Category</Text>
+          <Text style={[styles.headerCell, {flex: 0.8}]}>Earned</Text>
+          <Text style={[styles.headerCell, {flex: 0.8}]}>Required</Text>
+          <Text style={[styles.headerCell, {flex: 1.1}]}>Status</Text>
         </View>
 
         {/* Table Rows */}
@@ -274,9 +274,13 @@ export default function PointsScreen() {
           return (
             <View key={category} style={[styles.row, met && styles.rowCompleted]}>
               <View style={styles.categoryCell}>
-                <Text style={[styles.categoryText, met && styles.completedText]}>
+                <Text style={[styles.categoryText, met && styles.completedText]} numberOfLines={1} ellipsizeMode="tail">
                   {category === 'dei' ? 'DEI' : 
                    category === 'h&w' ? 'H&W' : 
+                   category === 'brotherhood' ? 'Brotherhood' :
+                   category === 'professional' ? 'Professional' :
+                   category === 'fundraising' ? 'Fundraising' :
+                   category === 'scholarship' ? 'Scholarship' :
                    category.charAt(0).toUpperCase() + category.slice(1)}
                 </Text>
                 <View style={styles.miniProgressBar}>
@@ -306,7 +310,9 @@ export default function PointsScreen() {
                 ) : (
                   <View style={styles.pendingBadge}>
                     <FontAwesome name="clock-o" size={14} color="white" />
-                    <Text style={styles.badgeText}>{(required - earned).toFixed(1)} left</Text>
+                    <Text style={styles.badgeText}>
+                      {(required - earned).toFixed(1)} left
+                    </Text>
                   </View>
                 )}
               </View>
@@ -338,7 +344,9 @@ export default function PointsScreen() {
                 {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${user.rank}`}
               </Text>
             </View>
-            <Text style={[styles.leaderboardName, index < 3 && styles.topThreeName]}>
+            <Text style={[styles.leaderboardName, index < 3 && styles.topThreeName]} 
+                  numberOfLines={1} 
+                  ellipsizeMode="tail">
               {user.name}
             </Text>
             <Text style={[styles.leaderboardPoints, index < 3 && styles.topThreePoints]}>
@@ -355,7 +363,11 @@ export default function PointsScreen() {
               <View style={styles.rankContainer}>
                 <Text style={styles.rankText}>#{userRank.rank}</Text>
               </View>
-              <Text style={styles.leaderboardName}>{userRank.name}</Text>
+              <Text style={styles.leaderboardName} 
+                    numberOfLines={1} 
+                    ellipsizeMode="tail">
+                {userRank.name}
+              </Text>
               <Text style={styles.leaderboardPoints}>{userRank.totalPoints} pts</Text>
             </View>
           </View>
@@ -392,6 +404,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
     color: '#333',
+    flexShrink: 1,
   },
   progressContainer: {
     alignItems: 'center',
@@ -401,6 +414,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#666',
     marginBottom: 12,
+    flexShrink: 1,
   },
   progressBar: {
     width: '100%',
@@ -438,26 +452,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     color: 'white',
+    flexShrink: 1,
   },
   row: {
     flexDirection: 'row',
-    padding: 16,
+    padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
     alignItems: 'center',
     backgroundColor: 'white',
+    minHeight: 60,
   },
   rowCompleted: {
     backgroundColor: '#f8fff8',
   },
   categoryCell: {
-    flex: 1,
+    flex: 1.2,
+    minHeight: 50,
+    justifyContent: 'center',
+    paddingRight: 8,
   },
   categoryText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#333',
     marginBottom: 4,
+    flexShrink: 1,
+    lineHeight: 14,
+    textAlign: 'left',
   },
   completedText: {
     color: Colors.primary,
@@ -474,20 +496,22 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   pointsCell: {
-    flex: 1,
+    flex: 0.8,
     fontSize: 14,
     textAlign: 'center',
     fontWeight: '600',
     color: '#333',
+    flexShrink: 1,
   },
   requiredCell: {
-    flex: 1,
+    flex: 0.8,
     fontSize: 14,
     textAlign: 'center',
     color: '#666',
+    flexShrink: 1,
   },
   statusCell: {
-    flex: 1,
+    flex: 1.1,
     alignItems: 'center',
   },
   completedBadge: {
@@ -497,6 +521,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+    maxWidth: '100%',
+    flexShrink: 1,
   },
   pendingBadge: {
     flexDirection: 'row',
@@ -505,12 +531,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+    maxWidth: '100%',
+    flexShrink: 1,
   },
   badgeText: {
     color: 'white',
     fontSize: 10,
     fontWeight: 'bold',
     marginLeft: 4,
+    flexShrink: 1,
   },
   overallStatus: {
     backgroundColor: '#f8f9fa',
@@ -521,6 +550,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
+    textAlign: 'center',
+    flexShrink: 1,
   },
   
   // Legacy styles for other components

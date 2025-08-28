@@ -1,11 +1,10 @@
-﻿import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
-import * as DocumentPicker from 'expo-document-picker';
+﻿import * as DocumentPicker from 'expo-document-picker';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   SafeAreaView,
@@ -17,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { checkAuthentication, handleAuthenticationRedirect } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { Event } from '../../types/account';
 
@@ -25,45 +25,128 @@ const { width: screenWidth } = Dimensions.get('window');
 // Achievement configurations
 const ACHIEVEMENTS = {
   // Consistency & Streaks
-  streak_starter: { title: 'Streak Starter', icon: 'ðŸ”¥', description: 'Attended 3 meetings in a row', category: 'Consistency' },
-  iron_brother: { title: 'Iron Brother', icon: 'ðŸ’ª', description: 'Attended 10 meetings in a row', category: 'Consistency' },
-  unstoppable: { title: 'Unstoppable', icon: 'âš¡', description: 'Attended 20 meetings in a row', category: 'Consistency' },
+  streak_starter: { title: 'Streak Starter', description: 'Attended 3 meetings in a row', category: 'Consistency' },
+  iron_brother: { title: 'Iron Brother', description: 'Attended 10 meetings in a row', category: 'Consistency' },
+  unstoppable: { title: 'Unstoppable', description: 'Attended 20 meetings in a row', category: 'Consistency' },
   
   // Milestone Attendance  
-  first_timer: { title: 'First Timer', icon: 'ðŸŽ¯', description: 'Attended your first meeting', category: 'Milestones' },
-  ten_strong: { title: '10 Strong', icon: 'ðŸƒ', description: 'Attended 10 meetings total', category: 'Milestones' },
-  silver_brother: { title: 'Silver Brother', icon: 'ðŸ¥ˆ', description: 'Attended 25 meetings total', category: 'Milestones' },
-  gold_brother: { title: 'Gold Brother', icon: 'ðŸ¥‡', description: 'Attended 50 meetings total', category: 'Milestones' },
-  diamond_brother: { title: 'Diamond Brother', icon: 'ðŸ’Ž', description: 'Attended 100 meetings total', category: 'Milestones' },
+  first_timer: { title: 'First Timer', description: 'Attended your first meeting', category: 'Milestones' },
+  ten_strong: { title: '10 Strong', description: 'Attended 10 meetings total', category: 'Milestones' },
+  silver_brother: { title: 'Silver Brother', description: 'Attended 25 meetings total', category: 'Milestones' },
+  gold_brother: { title: 'Gold Brother', description: 'Attended 50 meetings total', category: 'Milestones' },
+  diamond_brother: { title: 'Diamond Brother', description: 'Attended 100 meetings total', category: 'Milestones' },
   
   // Points & Performance
-  points_50: { title: 'Scholar', icon: 'ðŸ“š', description: '50 total points', category: 'Performance' },
-  points_100: { title: 'Master', icon: 'ðŸ†', description: '100 total points', category: 'Performance' },
-  points_250: { title: 'Elite', icon: 'ðŸ‘‘', description: '250 total points', category: 'Performance' },
-  punctual_pro: { title: 'Punctual Pro', icon: 'â°', description: '75%+ attendance rate', category: 'Performance' },
-  perfect_semester: { title: 'Perfect Semester', icon: 'ðŸŒŸ', description: '100% attendance this semester', category: 'Performance' },
-  monthly_champion: { title: 'Monthly Champion', icon: 'ðŸ“…', description: 'Attended 5+ events this month', category: 'Performance' },
+  points_50: { title: 'Scholar', description: '50 total points', category: 'Performance' },
+  points_100: { title: 'Master', description: '100 total points', category: 'Performance' },
+  points_250: { title: 'Elite', description: '250 total points', category: 'Performance' },
+  punctual_pro: { title: 'Punctual Pro', description: '75%+ attendance rate', category: 'Performance' },
+  perfect_semester: { title: 'Perfect Semester', description: '100% attendance this semester', category: 'Performance' },
+  monthly_champion: { title: 'Monthly Champion', description: 'Attended 5+ events this month', category: 'Performance' },
   
   // Leadership & Recognition
-  top_3: { title: 'Top Performer', icon: 'â­', description: 'Top 3 in pledge class', category: 'Leadership' },
-  community_leader: { title: 'Community Leader', icon: 'ðŸ¤', description: 'Attended 3+ different event types', category: 'Leadership' },
-  dedicated_member: { title: 'Dedicated Member', icon: 'ðŸŽ–ï¸', description: 'Active for full semester', category: 'Leadership' }
+  top_3: { title: 'Top Performer', description: 'Top 3 in pledge class', category: 'Leadership' },
+  community_leader: { title: 'Community Leader', description: 'Attended 3+ different event types', category: 'Leadership' },
+  dedicated_member: { title: 'Dedicated Member', description: 'Active for full semester', category: 'Leadership' }
 };
 
-const EventRow: React.FC<{ event: Event; onFeedbackPress: (event: Event) => void }> = React.memo(({ event, onFeedbackPress }) => (
+// Available majors for multi-select
+const AVAILABLE_MAJORS = [
+  'Finance',
+  'Accounting',
+  'Information Systems',
+  'Marketing',
+  'International Business',
+  'Management',
+  'OMBA',
+  'Supply Chain',
+  'Info Science',
+  'Computer Science',
+  'Engineering'
+];
+
+// Multi-Select Component for Majors
+const MajorMultiSelect: React.FC<{
+  selectedMajors: string[];
+  onSelectionChange: (majors: string[]) => void;
+}> = ({ selectedMajors, onSelectionChange }) => {
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const toggleMajor = (major: string) => {
+    if (selectedMajors.includes(major)) {
+      onSelectionChange(selectedMajors.filter(m => m !== major));
+    } else {
+      onSelectionChange([...selectedMajors, major]);
+    }
+  };
+
+  return (
+    <View style={styles.multiSelectContainer}>
+      <TouchableOpacity
+        style={[styles.input, styles.formInput, styles.multiSelectButton]}
+        onPress={() => setShowDropdown(!showDropdown)}
+      >
+        <Text style={selectedMajors.length > 0 ? styles.multiSelectText : styles.placeholderText}>
+          {selectedMajors.length > 0 
+            ? selectedMajors.join(', ')
+            : 'Select majors'
+          }
+        </Text>
+        <Text style={styles.dropdownArrow}>{showDropdown ? '▲' : '▼'}</Text>
+      </TouchableOpacity>
+      
+      {showDropdown && (
+        <View style={styles.multiSelectDropdown}>
+          {AVAILABLE_MAJORS.map((major) => (
+            <TouchableOpacity
+              key={major}
+              style={[
+                styles.multiSelectOption,
+                selectedMajors.includes(major) && styles.multiSelectOptionSelected
+              ]}
+              onPress={() => toggleMajor(major)}
+            >
+              <Text style={[
+                styles.multiSelectOptionText,
+                selectedMajors.includes(major) && styles.multiSelectOptionTextSelected
+              ]}>
+                {major}
+              </Text>
+              {selectedMajors.includes(major) && (
+                <Text style={styles.multiSelectCheckmark}>✓</Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+};
+
+const EventRow: React.FC<{ 
+  event: Event; 
+  onFeedbackPress: (event: Event) => void; 
+  hasFeedbackSubmitted: boolean;
+}> = React.memo(({ event, onFeedbackPress, hasFeedbackSubmitted }) => (
   <View style={styles.tableRow}>
     <Text style={styles.cell}>{event.title}</Text>
     <Text style={styles.cell}>
       {new Date(event.date).toLocaleDateString()}
     </Text>
     <Text style={styles.cell}>{event.host_name}</Text>
-    <TouchableOpacity 
-      style={styles.feedbackButton}
-      onPress={() => onFeedbackPress(event)}
-      activeOpacity={0.7}
-    >
-      <Text style={styles.feedbackButtonText}>ðŸ“</Text>
-    </TouchableOpacity>
+    {hasFeedbackSubmitted ? (
+      <View style={[styles.feedbackButton, { backgroundColor: '#28a745' }]}>
+        <Text style={[styles.feedbackButtonText, { color: 'white' }]}>✅ Done</Text>
+      </View>
+    ) : (
+      <TouchableOpacity 
+        style={styles.feedbackButton}
+        onPress={() => onFeedbackPress(event)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.feedbackButtonText}>📝 Rate</Text>
+      </TouchableOpacity>
+    )}
   </View>
 ));
 
@@ -95,11 +178,22 @@ const ProgressRing: React.FC<{ progress: number; size: number; strokeWidth: numb
   );
 };
 
-const AchievementBadge: React.FC<{ title: string; icon: string; earned: boolean; description?: string }> = ({ title, icon, earned, description }) => (
+const AchievementBadge: React.FC<{ title: string; icon?: string; earned: boolean; description?: string }> = ({ title, icon, earned, description }) => (
   <View style={[styles.badge, earned ? styles.badgeEarned : styles.badgeLocked]}>
-    <Text style={[styles.badgeIcon, { opacity: earned ? 1 : 0.3 }]}>{icon}</Text>
-    <Text style={[styles.badgeTitle, { opacity: earned ? 1 : 0.5 }]}>{title}</Text>
-    {description && <Text style={styles.badgeDescription}>{description}</Text>}
+    <Text style={[styles.badgeIcon, { opacity: earned ? 1 : 0.3 }]}>
+      {icon || '🏆'}
+    </Text>
+    <Text style={[styles.badgeTitle, { 
+      opacity: earned ? 1 : 0.5,
+      color: earned ? Colors.primary : '#888'
+    }]}>
+      {title}
+    </Text>
+    {description && (
+      <Text style={[styles.badgeDescription, { opacity: earned ? 1 : 0.6 }]}>
+        {description}
+      </Text>
+    )}
   </View>
 );
 
@@ -110,8 +204,10 @@ export default function AccountTab() {
   const [lastName, setLastName] = useState<string>('');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [email, setEmail] = useState<string>('');
+  const [uid, setUid] = useState<string>('');
   const [dateOfBirth, setDateOfBirth] = useState<string>('');
   const [majors, setMajors] = useState<string>('');
+  const [selectedMajors, setSelectedMajors] = useState<string[]>([]);
   const [minors, setMinors] = useState<string>('');
   const [houseMembership, setHouseMembership] = useState<string>('');
   const [race, setRace] = useState<string>('');
@@ -122,7 +218,8 @@ export default function AccountTab() {
   const [expectedGraduation, setExpectedGraduation] = useState<string>('');
   const [pledgeClass, setPledgeClass] = useState<string | null>(null);
   const [major, setMajor] = useState<string | null>(null);
-  const [graduationYear, setGraduationYear] = useState<string | null>(null);
+  // Profile editing restriction: Users can only edit their profile once per week
+  const [lastProfileUpdate, setLastProfileUpdate] = useState<string | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -132,8 +229,17 @@ export default function AccountTab() {
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  
+  // Dropdown states for better picker alternatives
+  const [showGraduationDropdown, setShowGraduationDropdown] = useState(false);
+  const [showPronounsDropdown, setShowPronounsDropdown] = useState(false);
+  const [showHouseDropdown, setShowHouseDropdown] = useState(false);
+  const [showPledgeClassDropdown, setShowPledgeClassDropdown] = useState(false);
+  const [showGenderDropdown, setShowGenderDropdown] = useState(false);
+  const [showSexualOrientationDropdown, setShowSexualOrientationDropdown] = useState(false);
+  const [showRaceDropdown, setShowRaceDropdown] = useState(false);
+  const [showLivingTypeDropdown, setShowLivingTypeDropdown] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showTestBankForm, setShowTestBankForm] = useState(false);
   
   // Event feedback modal state
   const [showEventFeedback, setShowEventFeedback] = useState(false);
@@ -150,6 +256,11 @@ export default function AccountTab() {
   const [fileType, setFileType] = useState<'test' | 'notes' | 'materials'>('test');
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [achievementsExpanded, setAchievementsExpanded] = useState(false);
+  const [submittedFeedbackEvents, setSubmittedFeedbackEvents] = useState<Set<string>>(new Set());
+  
+  // Modal states
+  const [testBankModalVisible, setTestBankModalVisible] = useState(false);
+  const [accountDetailsModalVisible, setAccountDetailsModalVisible] = useState(false);
 
   // Analytics state
   const [analytics, setAnalytics] = useState({
@@ -158,15 +269,38 @@ export default function AccountTab() {
     longestStreak: 0,
     eventsThisMonth: 0,
     eventsThisSemester: 0,
-    favoriteEventType: '',
     attendanceRate: 0,
     rankInPledgeClass: 0,
     totalInPledgeClass: 0,
+    rankInFraternity: 0,
+    totalInFraternity: 0,
     achievements: [] as string[],
     monthlyProgress: [] as Array<{ month: string; count: number }>,
   });
 
   const toggleExpanded = useCallback(() => setExpanded((prev) => !prev), []);
+
+  // Helper function to check if user can edit profile (once per week)
+  const canEditProfile = useCallback(() => {
+    if (!lastProfileUpdate) return true; // First time editing
+    
+    const lastUpdate = new Date(lastProfileUpdate);
+    const now = new Date();
+    const daysSinceUpdate = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    return daysSinceUpdate >= 7;
+  }, [lastProfileUpdate]);
+
+  // Helper function to get when user can edit again
+  const getNextEditDate = useCallback(() => {
+    if (!lastProfileUpdate) return null;
+    
+    const lastUpdate = new Date(lastProfileUpdate);
+    const nextEditDate = new Date(lastUpdate);
+    nextEditDate.setDate(nextEditDate.getDate() + 7);
+    
+    return nextEditDate;
+  }, [lastProfileUpdate]);
 
   const calculateAnalytics = useCallback(async (userEvents: Event[], profile: any, userId: string) => {
     try {
@@ -205,17 +339,6 @@ export default function AccountTab() {
       longestStreak = Math.max(longestStreak, tempStreak);
       currentStreak = tempStreak;
       
-      // Find favorite event type
-      const eventTypes = userEvents.reduce((acc, event) => {
-        const pointType = event.point_type || 'general';
-        acc[pointType] = (acc[pointType] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      const favoriteEventType = Object.keys(eventTypes).length > 0 
-        ? Object.keys(eventTypes).reduce((a, b) => 
-            eventTypes[a] > eventTypes[b] ? a : b, 'general')
-        : 'None';
-      
       // Calculate attendance rate (compared to total available events)
       const { data: allEvents } = await supabase
         .from('events')
@@ -250,6 +373,31 @@ export default function AccountTab() {
       
       const sortedMembers = Object.entries(memberPoints).sort(([,a], [,b]) => b - a);
       const rankInPledgeClass = sortedMembers.findIndex(([id]) => id === userId) + 1;
+      
+      // Get fraternity ranking (all approved members)
+      const { data: allMembers } = await supabase
+        .from('users')
+        .select('user_id')
+        .eq('approved', true);
+      
+      const totalInFraternity = allMembers?.length || 1;
+      
+      // Get points for all fraternity members to calculate ranking
+      const { data: allAttendance } = await supabase
+        .from('event_attendance')
+        .select('user_id, events(point_value)')
+        .in('user_id', allMembers?.map(m => m.user_id) || []);
+      
+      const allMemberPoints = allAttendance?.reduce((acc, record) => {
+        const userId = record.user_id;
+        const eventData = record.events as any;
+        const points = Array.isArray(eventData) ? eventData[0]?.point_value || 0 : eventData?.point_value || 0;
+        acc[userId] = (acc[userId] || 0) + points;
+        return acc;
+      }, {} as Record<string, number>) || {};
+      
+      const sortedAllMembers = Object.entries(allMemberPoints).sort(([,a], [,b]) => b - a);
+      const rankInFraternity = sortedAllMembers.findIndex(([id]) => id === userId) + 1;
       
       // Monthly progress for last 6 months
       const monthlyProgress = [];
@@ -311,10 +459,11 @@ export default function AccountTab() {
         longestStreak,
         eventsThisMonth,
         eventsThisSemester,
-        favoriteEventType,
         attendanceRate,
         rankInPledgeClass,
         totalInPledgeClass,
+        rankInFraternity,
+        totalInFraternity,
         achievements,
         monthlyProgress,
       });
@@ -328,21 +477,16 @@ export default function AccountTab() {
       setLoading(true);
       setError(null);
       
-      // Step 1: Check authentication
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError) {
-        console.error('Auth error:', authError);
-        throw new Error(`Authentication failed: ${authError.message}`);
+      // Step 1: Check authentication with improved error handling
+      const authResult = await checkAuthentication();
+      
+      if (!authResult.isAuthenticated) {
+        console.error('Authentication failed:', authResult.error);
+        handleAuthenticationRedirect();
+        return;
       }
       
-      if (!user) {
-        throw new Error('No authenticated user found. Please log in again.');
-      }
-
+      const user = authResult.user;
       console.log('User authenticated:', user.id);
 
       // Step 2: Fetch user profile
@@ -353,11 +497,10 @@ export default function AccountTab() {
           last_name, 
           pledge_class, 
           approved, 
-          major, 
-          graduation_year,
+          expected_graduation,
           phone_number,
           email,
-          date_of_birth,
+          uid,
           majors,
           minors,
           house_membership,
@@ -366,7 +509,8 @@ export default function AccountTab() {
           living_type,
           gender,
           sexual_orientation,
-          expected_graduation
+          expected_graduation,
+          last_profile_update
         `)
         .eq('user_id', user.id)
         .single();
@@ -397,8 +541,13 @@ export default function AccountTab() {
       setLastName(profile.last_name || '');
       setPhoneNumber(profile.phone_number || '');
       setEmail(profile.email || '');
-      setDateOfBirth(profile.date_of_birth || '');
+      setUid(profile.uid || '');
+      // setDateOfBirth(profile.date_of_birth || ''); // Column doesn't exist yet
       setMajors(profile.majors || '');
+      // Parse majors into array for multi-select
+      if (profile.majors) {
+        setSelectedMajors(profile.majors.split(', '));
+      }
       setMinors(profile.minors || '');
       setHouseMembership(profile.house_membership || '');
       setRace(profile.race || '');
@@ -408,13 +557,13 @@ export default function AccountTab() {
       setSexualOrientation(profile.sexual_orientation || '');
       setExpectedGraduation(profile.expected_graduation || '');
       setPledgeClass(profile.pledge_class);
-      setMajor(profile.major);
-      setGraduationYear(profile.graduation_year);
+      setMajor(profile.majors || ''); // Use majors field for backward compatibility
+      setLastProfileUpdate(profile.last_profile_update);
 
       // Step 3: Fetch attended events with better error handling
       const { data: attendedEvents, error: eventError } = await supabase
         .from('event_attendance')
-        .select('id, events(title, start_time, point_value, point_type, creator:created_by(first_name, last_name))')
+        .select('id, events(id, title, start_time, point_value, point_type, creator:created_by(first_name, last_name))')
         .eq('user_id', user.id);
 
       if (eventError) {
@@ -425,7 +574,7 @@ export default function AccountTab() {
         Alert.alert('Warning', 'Could not load event history, but profile loaded successfully.');
       } else {
         const formatted: Event[] = (attendedEvents || []).map((record: any) => ({
-          id: record.id,
+          id: record.events?.id || record.id, // Use the actual event ID from the nested events object
           title: record.events?.title || 'Unknown Event',
           date: record.events?.start_time || new Date().toISOString(),
           host_name: record.events?.creator 
@@ -437,6 +586,21 @@ export default function AccountTab() {
 
         formatted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setEvents(formatted);
+        
+        // Step 4: Fetch existing event feedback submissions
+        const eventIds = formatted.map(event => event.id).filter(id => id);
+        if (eventIds.length > 0) {
+          const { data: existingFeedback, error: feedbackError } = await supabase
+            .from('event_feedback')
+            .select('event_id')
+            .eq('user_id', user.id)
+            .in('event_id', eventIds);
+          
+          if (!feedbackError && existingFeedback) {
+            const submittedEventIds = new Set(existingFeedback.map(feedback => feedback.event_id));
+            setSubmittedFeedbackEvents(submittedEventIds);
+          }
+        }
         
         // Calculate analytics
         await calculateAnalytics(formatted, profile, user.id);
@@ -457,71 +621,90 @@ export default function AccountTab() {
   }, [fetchAccountData]);
 
   const saveProfile = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // Check if user can edit profile (once per week restriction)
+    if (!canEditProfile()) {
+      const nextEditDate = getNextEditDate();
+      const daysRemaining = Math.ceil((nextEditDate!.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+      Alert.alert(
+        'Profile Edit Limit',
+        `You can only edit your profile once per week. You can edit again in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} (${nextEditDate!.toLocaleDateString()}).`,
+        [{ text: 'OK', style: 'default' }]
+      );
+      return;
+    }
 
-    // Combine first and last name for the name field
-    const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+    try {
+      // Check authentication
+      const authResult = await checkAuthentication();
+      if (!authResult.isAuthenticated) {
+        handleAuthenticationRedirect();
+        return;
+      }
 
-    const { error } = await supabase
-      .from('users')
-      .update({
-        name: fullName || name, // fallback to existing name if first/last names aren't provided
-        first_name: firstName,
-        last_name: lastName,
-        phone_number: phoneNumber,
-        email: email,
-        date_of_birth: dateOfBirth,
-        majors: majors,
-        minors: minors,
-        house_membership: houseMembership,
-        race: race,
-        pronouns: pronouns,
-        living_type: livingType,
-        gender: gender,
-        sexual_orientation: sexualOrientation,
-        expected_graduation: expectedGraduation,
-        pledge_class: pledgeClass,
-        major,
-        graduation_year: graduationYear
-      })
-      .eq('user_id', user?.id);
+      const user = authResult.user;
 
-    if (error) {
-      console.error('Profile update error:', error);
-      Alert.alert('Error', 'Could not update profile. Please try again.');
-    } else {
-      setEditing(false);
-      Alert.alert('Saved', 'Your profile has been updated successfully!');
-      // Refresh account data to show updated information
-      fetchAccountData();
+      // Combine selected majors into a comma-separated string
+      const majorsString = selectedMajors.length > 0 ? selectedMajors.join(', ') : majors;
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          first_name: firstName,
+          last_name: lastName,
+          phone_number: phoneNumber,
+          email: email,
+          uid: uid,
+          // date_of_birth: dateOfBirth, // Column doesn't exist yet
+          majors: majorsString,
+          minors: minors,
+          house_membership: houseMembership,
+          race: race,
+          pronouns: pronouns,
+          living_type: livingType,
+          gender: gender,
+          sexual_orientation: sexualOrientation,
+          expected_graduation: expectedGraduation,
+          pledge_class: pledgeClass,
+          last_profile_update: new Date().toISOString()
+        })
+        .eq('user_id', user?.id);
+
+      if (error) {
+        console.error('Profile update error:', error);
+        Alert.alert('Error', 'Could not update profile. Please try again.');
+      } else {
+        setEditing(false);
+        setLastProfileUpdate(new Date().toISOString());
+        Alert.alert('Saved', 'Your profile has been updated successfully! You can edit your profile again in 7 days.');
+        // Refresh account data to show updated information
+        fetchAccountData();
+      }
+    } catch (error) {
+      console.error('Unexpected error in saveProfile:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     }
   };
 
   const submitFeedback = async () => {
     if (submittingFeedback) return; // Prevent double submission
     
-    console.log('ðŸ”„ Starting feedback submission...');
+    console.log('Starting feedback submission...');
     setSubmittingFeedback(true);
     
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      console.log('ðŸ‘¤ Current user:', user ? 'authenticated' : 'not authenticated');
-      console.log('ðŸ†” User ID:', user?.id);
-
-      // Check if user is authenticated
-      if (!user) {
-        console.log('âŒ User not authenticated');
-        Alert.alert('Error', 'You must be logged in to submit feedback.');
+      // Check authentication
+      const authResult = await checkAuthentication();
+      if (!authResult.isAuthenticated) {
+        console.log('User not authenticated');
+        handleAuthenticationRedirect('You must be logged in to submit feedback.');
         return;
       }
 
+      const user = authResult.user;
+      console.log('User authenticated, ID:', user.id);
+
       if (!feedbackSubject.trim() || !feedbackMessage.trim()) {
-        console.log('âŒ Missing subject or message');
+        console.log('Missing subject or message');
         Alert.alert('Error', 'Please fill in both subject and message.');
         return;
       }
@@ -543,7 +726,7 @@ export default function AccountTab() {
         }) : null
       };
 
-      console.log('ðŸ“ Submitting feedback data:', {
+      console.log('Submitting feedback data:', {
         user_id: feedbackData.user_id,
         subject: feedbackData.subject,
         message: feedbackData.message.substring(0, 50) + '...',
@@ -556,7 +739,7 @@ export default function AccountTab() {
         .select();
 
       if (submitError) {
-        console.error('ðŸ’¥ Submit failed:', {
+        console.error('Submit failed:', {
           code: submitError.code,
           message: submitError.message,
           details: submitError.details,
@@ -565,14 +748,14 @@ export default function AccountTab() {
         throw submitError;
       }
 
-      console.log('âœ… Feedback submitted successfully:', result);
+      console.log('Feedback submitted successfully:', result);
 
       Alert.alert('Thanks!', `Your feedback${feedbackFile ? ' and attachment' : ''} was submitted successfully.`);
       setFeedbackSubject('');
       setFeedbackMessage('');
       setFeedbackFile(null);
     } catch (error) {
-            console.error('ðŸ’¥ Feedback submission error:', error);
+            console.error('Feedback submission error:', error);
       
       // More specific error messages
       if (error && typeof error === 'object' && 'code' in error) {
@@ -620,7 +803,12 @@ export default function AccountTab() {
     } = await supabase.auth.getUser();
 
     try {
-      console.log('ðŸ“ Submitting feedback data:', {
+      console.log('=== FEEDBACK SUBMISSION DEBUG ===');
+      console.log('Selected event:', selectedEvent);
+      console.log('Event ID being used:', selectedEvent.id);
+      console.log('User ID:', user?.id);
+      
+      console.log('Submitting feedback data:', {
         user_id: user?.id,
         event_id: selectedEvent.id,
         rating: eventFeedbackData.rating,
@@ -640,12 +828,16 @@ export default function AccountTab() {
       });
 
       if (error) {
-        console.error('âŒ Event feedback submission error:', error);
+        console.error('Event feedback submission error:', error);
         throw error;
       }
 
-      console.log('âœ… Event feedback submitted successfully!');
+      console.log('Event feedback submitted successfully!');
       Alert.alert('Thanks!', 'Your event feedback was submitted successfully.');
+      
+      // Add event to submitted feedback list
+      setSubmittedFeedbackEvents(prev => new Set([...prev, selectedEvent.id]));
+      
       setEventFeedbackModalVisible(false);
       setSelectedEvent(null);
       setEventFeedbackData({
@@ -736,7 +928,7 @@ export default function AccountTab() {
       if (error) throw error;
 
       Alert.alert('Success', 'Your submission has been received and is pending review');
-      setShowTestBankForm(false);
+      setTestBankModalVisible(false);
       setClassCode('');
       setFileType('test');
       setSelectedFile(null);
@@ -755,7 +947,7 @@ export default function AccountTab() {
         
         <Text style={styles.fieldLabel}>First Name *</Text>
         <TextInput
-          style={[styles.input, styles.formInput]}
+          style={styles.profileFormInput}
           value={firstName}
           onChangeText={setFirstName}
           placeholder="Enter your first name"
@@ -764,7 +956,7 @@ export default function AccountTab() {
 
         <Text style={styles.fieldLabel}>Last Name *</Text>
         <TextInput
-          style={[styles.input, styles.formInput]}
+          style={styles.profileFormInput}
           value={lastName}
           onChangeText={setLastName}
           placeholder="Enter your last name"
@@ -773,7 +965,7 @@ export default function AccountTab() {
 
         <Text style={styles.fieldLabel}>Phone Number</Text>
         <TextInput
-          style={[styles.input, styles.formInput]}
+          style={styles.profileFormInput}
           value={phoneNumber}
           onChangeText={setPhoneNumber}
           placeholder="(123) 456-7890"
@@ -782,7 +974,7 @@ export default function AccountTab() {
 
         <Text style={styles.fieldLabel}>Email (Non-Terpmail)</Text>
         <TextInput
-          style={[styles.input, styles.formInput]}
+          style={styles.profileFormInput}
           value={email}
           onChangeText={setEmail}
           placeholder="your.email@gmail.com"
@@ -790,6 +982,15 @@ export default function AccountTab() {
           autoCapitalize="none"
         />
 
+        <Text style={styles.fieldLabel}>UID</Text>
+        <TextInput
+          style={styles.profileFormInput}
+          value={uid}
+          onChangeText={setUid}
+          placeholder="Enter your UID"
+        />
+
+        {/* Date of Birth field - temporarily commented out until DB column is added
         <Text style={styles.fieldLabel}>Date of Birth</Text>
         <TouchableOpacity
           style={[styles.input, styles.formInput, styles.dateInput]}
@@ -814,41 +1015,70 @@ export default function AccountTab() {
             maximumDate={new Date()}
           />
         )}
+        */}
 
         <Text style={styles.fieldLabel}>Pronouns</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={pronouns}
-            style={styles.picker}
-            onValueChange={setPronouns}
-          >
-            <Picker.Item label="Select pronouns" value="" />
-            <Picker.Item label="He/Him" value="he/him" />
-            <Picker.Item label="She/Her" value="she/her" />
-            <Picker.Item label="They/Them" value="they/them" />
-            <Picker.Item label="He/They" value="he/they" />
-            <Picker.Item label="She/They" value="she/they" />
-            <Picker.Item label="Other" value="other" />
-            <Picker.Item label="Prefer not to say" value="prefer_not_to_say" />
-          </Picker>
-        </View>
+        <TouchableOpacity
+          style={styles.dropdownButton}
+          onPress={() => setShowPronounsDropdown(!showPronounsDropdown)}
+        >
+          <Text style={[styles.dropdownButtonText, !pronouns && styles.placeholderText]}>
+            {pronouns ? pronouns.charAt(0).toUpperCase() + pronouns.slice(1).replace('_', ' ') : 'Select pronouns'}
+          </Text>
+          <Text style={styles.dropdownArrow}>{showPronounsDropdown ? '▲' : '▼'}</Text>
+        </TouchableOpacity>
+        
+        {showPronounsDropdown && (
+          <View style={styles.dropdownContainer}>
+            <ScrollView 
+              style={{ maxHeight: 150 }}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+            >
+              {[
+                { label: 'He/Him', value: 'he/him' },
+                { label: 'She/Her', value: 'she/her' },
+                { label: 'They/Them', value: 'they/them' },
+                { label: 'He/They', value: 'he/they' },
+                { label: 'She/They', value: 'she/they' },
+                { label: 'Other', value: 'other' },
+                { label: 'Prefer not to say', value: 'prefer_not_to_say' }
+              ].map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.dropdownOption,
+                    pronouns === option.value && styles.dropdownOptionSelected
+                  ]}
+                  onPress={() => {
+                    setPronouns(option.value);
+                    setShowPronounsDropdown(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownOptionText,
+                    pronouns === option.value && styles.dropdownOptionSelectedText
+                  ]}>
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Academic Information Section */}
         <Text style={styles.sectionLabel}>Academic Information</Text>
 
         <Text style={styles.fieldLabel}>Majors / Intended Majors</Text>
-        <TextInput
-          style={[styles.input, styles.formInput]}
-          value={majors}
-          onChangeText={setMajors}
-          placeholder="Computer Science, Mathematics"
-          multiline={true}
-          numberOfLines={2}
+        <MajorMultiSelect
+          selectedMajors={selectedMajors}
+          onSelectionChange={setSelectedMajors}
         />
 
         <Text style={styles.fieldLabel}>Minors / Intended Minors</Text>
         <TextInput
-          style={[styles.input, styles.formInput]}
+          style={styles.profileFormInput}
           value={minors}
           onChangeText={setMinors}
           placeholder="Statistics, Business"
@@ -857,140 +1087,347 @@ export default function AccountTab() {
         />
 
         <Text style={styles.fieldLabel}>Expected Graduation</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={expectedGraduation}
-            style={styles.picker}
-            onValueChange={setExpectedGraduation}
-          >
-            <Picker.Item label="Select graduation date" value="" />
-            <Picker.Item label="Spring 2025" value="Spring 2025" />
-            <Picker.Item label="Fall 2025" value="Fall 2025" />
-            <Picker.Item label="Spring 2026" value="Spring 2026" />
-            <Picker.Item label="Fall 2026" value="Fall 2026" />
-            <Picker.Item label="Spring 2027" value="Spring 2027" />
-            <Picker.Item label="Fall 2027" value="Fall 2027" />
-            <Picker.Item label="Spring 2028" value="Spring 2028" />
-            <Picker.Item label="Fall 2028" value="Fall 2028" />
-          </Picker>
-        </View>
+        <TouchableOpacity
+          style={styles.dropdownButton}
+          onPress={() => setShowGraduationDropdown(!showGraduationDropdown)}
+        >
+          <Text style={[styles.dropdownButtonText, !expectedGraduation && styles.placeholderText]}>
+            {expectedGraduation || 'Select graduation date'}
+          </Text>
+          <Text style={styles.dropdownArrow}>{showGraduationDropdown ? '▲' : '▼'}</Text>
+        </TouchableOpacity>
+        
+        {showGraduationDropdown && (
+          <View style={styles.dropdownContainer}>
+            <ScrollView 
+              style={{ maxHeight: 150 }}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+            >
+              {[
+                'Winter 2025', 'Spring 2026', 'Winter 2026', 'Spring 2027',
+                'Winter 2027', 'Spring 2028', 'Winter 2028', 'Spring 2029'
+              ].map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  style={[
+                    styles.dropdownOption,
+                    expectedGraduation === option && styles.dropdownOptionSelected
+                  ]}
+                  onPress={() => {
+                    setExpectedGraduation(option);
+                    setShowGraduationDropdown(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownOptionText,
+                    expectedGraduation === option && styles.dropdownOptionSelectedText
+                  ]}>
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Fraternity Information Section */}
         <Text style={styles.sectionLabel}>Fraternity Information</Text>
 
         <Text style={styles.fieldLabel}>House Membership</Text>
-        <TextInput
-          style={[styles.input, styles.formInput]}
-          value={houseMembership}
-          onChangeText={setHouseMembership}
-          placeholder="Internal family/buddy system (not address)"
-          multiline={true}
-          numberOfLines={2}
-        />
+        <TouchableOpacity
+          style={styles.dropdownButton}
+          onPress={() => setShowHouseDropdown(!showHouseDropdown)}
+        >
+          <Text style={[styles.dropdownButtonText, !houseMembership && styles.placeholderText]}>
+            {houseMembership || 'Select house'}
+          </Text>
+          <Text style={styles.dropdownArrow}>{showHouseDropdown ? '▲' : '▼'}</Text>
+        </TouchableOpacity>
+        
+        {showHouseDropdown && (
+          <View style={styles.dropdownContainer}>
+            <ScrollView 
+              style={{ maxHeight: 150 }}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+            >
+              {['Moysello', 'Tienken', 'Makay', 'Valentine'].map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  style={[
+                    styles.dropdownOption,
+                    houseMembership === option && styles.dropdownOptionSelected
+                  ]}
+                  onPress={() => {
+                    setHouseMembership(option);
+                    setShowHouseDropdown(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownOptionText,
+                    houseMembership === option && styles.dropdownOptionSelectedText
+                  ]}>
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         <Text style={styles.fieldLabel}>Pledge Class</Text>
-        <TextInput
-          style={[styles.input, styles.formInput]}
-          value={pledgeClass ?? ''}
-          onChangeText={setPledgeClass}
-          placeholder="Fall 2023, Spring 2024, etc."
-        />
+        <TouchableOpacity
+          style={styles.dropdownButton}
+          onPress={() => setShowPledgeClassDropdown(!showPledgeClassDropdown)}
+        >
+          <Text style={[styles.dropdownButtonText, !pledgeClass && styles.placeholderText]}>
+            {pledgeClass || 'Select pledge class'}
+          </Text>
+          <Text style={styles.dropdownArrow}>{showPledgeClassDropdown ? '▲' : '▼'}</Text>
+        </TouchableOpacity>
+        
+        {showPledgeClassDropdown && (
+          <View style={styles.dropdownContainer}>
+            <ScrollView 
+              style={{ maxHeight: 150 }}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+            >
+              {['Rho', 'Sigma', 'Tau', 'Upsilon', 'Phi', 'Chi'].map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  style={[
+                    styles.dropdownOption,
+                    pledgeClass === option && styles.dropdownOptionSelected
+                  ]}
+                  onPress={() => {
+                    setPledgeClass(option);
+                    setShowPledgeClassDropdown(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownOptionText,
+                    pledgeClass === option && styles.dropdownOptionSelectedText
+                  ]}>
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Personal Details Section */}
         <Text style={styles.sectionLabel}>Personal Details (Optional)</Text>
 
         <Text style={styles.fieldLabel}>Gender</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={gender}
-            style={styles.picker}
-            onValueChange={setGender}
-          >
-            <Picker.Item label="Select gender" value="" />
-            <Picker.Item label="Male" value="male" />
-            <Picker.Item label="Female" value="female" />
-            <Picker.Item label="Non-binary" value="non_binary" />
-            <Picker.Item label="Genderfluid" value="genderfluid" />
-            <Picker.Item label="Other" value="other" />
-            <Picker.Item label="Prefer not to say" value="prefer_not_to_say" />
-          </Picker>
-        </View>
+        <TouchableOpacity
+          style={styles.dropdownButton}
+          onPress={() => setShowGenderDropdown(!showGenderDropdown)}
+        >
+          <Text style={[styles.dropdownButtonText, !gender && styles.placeholderText]}>
+            {gender ? gender.charAt(0).toUpperCase() + gender.slice(1).replace('_', ' ') : 'Select gender'}
+          </Text>
+          <Text style={styles.dropdownArrow}>{showGenderDropdown ? '▲' : '▼'}</Text>
+        </TouchableOpacity>
+        
+        {showGenderDropdown && (
+          <View style={styles.dropdownContainer}>
+            <ScrollView 
+              style={{ maxHeight: 150 }}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+            >
+              {[
+                { label: 'Male', value: 'male' },
+                { label: 'Female', value: 'female' },
+                { label: 'Non-binary', value: 'non_binary' },
+                { label: 'Genderfluid', value: 'genderfluid' },
+                { label: 'Other', value: 'other' },
+                { label: 'Prefer not to say', value: 'prefer_not_to_say' }
+              ].map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.dropdownOption,
+                    gender === option.value && styles.dropdownOptionSelected
+                  ]}
+                  onPress={() => {
+                    setGender(option.value);
+                    setShowGenderDropdown(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownOptionText,
+                    gender === option.value && styles.dropdownOptionSelectedText
+                  ]}>
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         <Text style={styles.fieldLabel}>Sexual Orientation</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={sexualOrientation}
-            style={styles.picker}
-            onValueChange={setSexualOrientation}
-          >
-            <Picker.Item label="Select sexual orientation" value="" />
-            <Picker.Item label="Heterosexual" value="heterosexual" />
-            <Picker.Item label="Gay" value="gay" />
-            <Picker.Item label="Lesbian" value="lesbian" />
-            <Picker.Item label="Bisexual" value="bisexual" />
-            <Picker.Item label="Pansexual" value="pansexual" />
-            <Picker.Item label="Asexual" value="asexual" />
-            <Picker.Item label="Questioning" value="questioning" />
-            <Picker.Item label="Other" value="other" />
-            <Picker.Item label="Prefer not to say" value="prefer_not_to_say" />
-          </Picker>
-        </View>
+        <TouchableOpacity
+          style={styles.dropdownButton}
+          onPress={() => setShowSexualOrientationDropdown(!showSexualOrientationDropdown)}
+        >
+          <Text style={[styles.dropdownButtonText, !sexualOrientation && styles.placeholderText]}>
+            {sexualOrientation ? sexualOrientation.charAt(0).toUpperCase() + sexualOrientation.slice(1).replace('_', ' ') : 'Select sexual orientation'}
+          </Text>
+          <Text style={styles.dropdownArrow}>{showSexualOrientationDropdown ? '▲' : '▼'}</Text>
+        </TouchableOpacity>
+        
+        {showSexualOrientationDropdown && (
+          <View style={styles.dropdownContainer}>
+            <ScrollView 
+              style={{ maxHeight: 150 }}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+            >
+              {[
+                { label: 'Heterosexual', value: 'heterosexual' },
+                { label: 'Gay', value: 'gay' },
+                { label: 'Lesbian', value: 'lesbian' },
+                { label: 'Bisexual', value: 'bisexual' },
+                { label: 'Pansexual', value: 'pansexual' },
+                { label: 'Asexual', value: 'asexual' },
+                { label: 'Questioning', value: 'questioning' },
+                { label: 'Other', value: 'other' },
+                { label: 'Prefer not to say', value: 'prefer_not_to_say' }
+              ].map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.dropdownOption,
+                    sexualOrientation === option.value && styles.dropdownOptionSelected
+                  ]}
+                  onPress={() => {
+                    setSexualOrientation(option.value);
+                    setShowSexualOrientationDropdown(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownOptionText,
+                    sexualOrientation === option.value && styles.dropdownOptionSelectedText
+                  ]}>
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         <Text style={styles.fieldLabel}>Race/Ethnicity</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={race}
-            style={styles.picker}
-            onValueChange={setRace}
-          >
-            <Picker.Item label="Select race/ethnicity" value="" />
-            <Picker.Item label="American Indian or Alaska Native" value="american_indian_alaska_native" />
-            <Picker.Item label="Asian" value="asian" />
-            <Picker.Item label="Black or African American" value="black_african_american" />
-            <Picker.Item label="Hispanic or Latino" value="hispanic_latino" />
-            <Picker.Item label="Native Hawaiian or Other Pacific Islander" value="native_hawaiian_pacific_islander" />
-            <Picker.Item label="White" value="white" />
-            <Picker.Item label="Two or more races" value="two_or_more_races" />
-            <Picker.Item label="Other" value="other" />
-            <Picker.Item label="Prefer not to say" value="prefer_not_to_say" />
-          </Picker>
-        </View>
+        <TouchableOpacity
+          style={styles.dropdownButton}
+          onPress={() => setShowRaceDropdown(!showRaceDropdown)}
+        >
+          <Text style={[styles.dropdownButtonText, !race && styles.placeholderText]}>
+            {race ? race.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : 'Select race/ethnicity'}
+          </Text>
+          <Text style={styles.dropdownArrow}>{showRaceDropdown ? '▲' : '▼'}</Text>
+        </TouchableOpacity>
+        
+        {showRaceDropdown && (
+          <View style={styles.dropdownContainer}>
+            <ScrollView 
+              style={{ maxHeight: 150 }}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+            >
+              {[
+                { label: 'American Indian or Alaska Native', value: 'american_indian_alaska_native' },
+                { label: 'Asian', value: 'asian' },
+                { label: 'Black or African American', value: 'black_african_american' },
+                { label: 'Hispanic or Latino', value: 'hispanic_latino' },
+                { label: 'Native Hawaiian or Other Pacific Islander', value: 'native_hawaiian_pacific_islander' },
+                { label: 'White', value: 'white' },
+                { label: 'Two or more races', value: 'two_or_more_races' },
+                { label: 'Other', value: 'other' },
+                { label: 'Prefer not to say', value: 'prefer_not_to_say' }
+              ].map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.dropdownOption,
+                    race === option.value && styles.dropdownOptionSelected
+                  ]}
+                  onPress={() => {
+                    setRace(option.value);
+                    setShowRaceDropdown(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownOptionText,
+                    race === option.value && styles.dropdownOptionSelectedText
+                  ]}>
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         <Text style={styles.fieldLabel}>Living Type</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={livingType}
-            style={styles.picker}
-            onValueChange={setLivingType}
-          >
-            <Picker.Item label="Select living type" value="" />
-            <Picker.Item label="On-campus dorm" value="on_campus_dorm" />
-            <Picker.Item label="Apartment" value="apartment" />
-            <Picker.Item label="House" value="house" />
-            <Picker.Item label="With family" value="with_family" />
-            <Picker.Item label="Greek housing" value="greek_housing" />
-            <Picker.Item label="Other" value="other" />
-          </Picker>
-        </View>
+        <TouchableOpacity
+          style={styles.dropdownButton}
+          onPress={() => setShowLivingTypeDropdown(!showLivingTypeDropdown)}
+        >
+          <Text style={[styles.dropdownButtonText, !livingType && styles.placeholderText]}>
+            {livingType || 'Select living type'}
+          </Text>
+          <Text style={styles.dropdownArrow}>{showLivingTypeDropdown ? '▲' : '▼'}</Text>
+        </TouchableOpacity>
+        
+        {showLivingTypeDropdown && (
+          <View style={styles.dropdownContainer}>
+            <ScrollView 
+              style={{ maxHeight: 150 }}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+            >
+              {[
+                'On Campus Dorm', 'On Campus Apartment', 'Off Campus Apartment', 
+                'Off Campus House', 'Commute'
+              ].map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  style={[
+                    styles.dropdownOption,
+                    livingType === option && styles.dropdownOptionSelected
+                  ]}
+                  onPress={() => {
+                    setLivingType(option);
+                    setShowLivingTypeDropdown(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownOptionText,
+                    livingType === option && styles.dropdownOptionSelectedText
+                  ]}>
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Legacy fields for backward compatibility */}
         <Text style={styles.sectionLabel}>Legacy Information</Text>
 
         <Text style={styles.fieldLabel}>Primary Major (Legacy)</Text>
         <TextInput
-          style={[styles.input, styles.formInput]}
+          style={styles.profileFormInput}
           value={major ?? ''}
           onChangeText={setMajor}
           placeholder="Primary major for legacy compatibility"
-        />
-
-        <Text style={styles.fieldLabel}>Graduation Year (Legacy)</Text>
-        <TextInput
-          style={[styles.input, styles.formInput]}
-          value={graduationYear ?? ''}
-          onChangeText={setGraduationYear}
-          placeholder="2025"
-          keyboardType="numeric"
         />
 
         <TouchableOpacity style={[styles.button, styles.saveButton]} onPress={saveProfile}>
@@ -1010,28 +1447,52 @@ export default function AccountTab() {
           <Text style={styles.meta}>Name: {name ?? '---'}</Text>
           <Text style={styles.meta}>Phone: {phoneNumber || '---'}</Text>
           <Text style={styles.meta}>Email: {email || '---'}</Text>
-          <Text style={styles.meta}>Date of Birth: {dateOfBirth ? new Date(dateOfBirth).toLocaleDateString() : '---'}</Text>
+          <Text style={styles.meta}>UID: {uid || '---'}</Text>
+          {/* <Text style={styles.meta}>Date of Birth: {dateOfBirth ? new Date(dateOfBirth).toLocaleDateString() : '---'}</Text> */}
           <Text style={styles.meta}>Pronouns: {pronouns || '---'}</Text>
-          <Text style={styles.meta}>Majors: {majors || major || '---'}</Text>
+          <Text style={styles.meta}>Majors: {selectedMajors.length > 0 ? selectedMajors.join(', ') : majors || major || '---'}</Text>
           <Text style={styles.meta}>Minors: {minors || '---'}</Text>
-          <Text style={styles.meta}>Expected Graduation: {expectedGraduation || graduationYear || '---'}</Text>
+          <Text style={styles.meta}>Expected Graduation: {expectedGraduation || '---'}</Text>
           <Text style={styles.meta}>Pledge Class: {pledgeClass ?? '---'}</Text>
           <Text style={styles.meta}>House Membership: {houseMembership || '---'}</Text>
           <Text style={styles.meta}>Living Type: {livingType || '---'}</Text>
+          <Text style={styles.meta}>Race: {race || '---'}</Text>
+          <Text style={styles.meta}>Gender: {gender || '---'}</Text>
+          <Text style={styles.meta}>Sexual Orientation: {sexualOrientation || '---'}</Text>
         </View>
-        <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
-          <Text style={styles.link}>Edit Profile</Text>
-        </TouchableOpacity>
+        {canEditProfile() ? (
+          <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
+            <Text style={styles.editButtonText}>Edit Profile</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.editRestrictedContainer}>
+            <TouchableOpacity style={[styles.editButton, styles.editButtonDisabled]} disabled>
+              <Text style={[styles.editButtonText, styles.editButtonTextDisabled]}>Edit Profile</Text>
+            </TouchableOpacity>
+            <Text style={styles.editRestrictedText}>
+              Profile can be edited once per week.{'\n'}
+              Next edit available: {getNextEditDate()?.toLocaleDateString() || 'N/A'}
+            </Text>
+          </View>
+        )}
       </>
     )
-  ), [editing, firstName, lastName, phoneNumber, email, dateOfBirth, majors, minors, houseMembership, race, pronouns, livingType, gender, sexualOrientation, expectedGraduation, name, pledgeClass, major, graduationYear, saveProfile, showDatePicker]);
+  ), [editing, firstName, lastName, phoneNumber, email, uid, dateOfBirth, majors, selectedMajors, minors, houseMembership, race, pronouns, livingType, gender, sexualOrientation, expectedGraduation, name, pledgeClass, major, saveProfile, showDatePicker, canEditProfile, getNextEditDate]);
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.content} 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {error && (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>âš ï¸ {error}</Text>
+            <Text style={styles.errorText}>⚠️ {error}</Text>
             <TouchableOpacity 
               style={[styles.button, { backgroundColor: Colors.primary }]} 
               onPress={fetchAccountData}
@@ -1051,11 +1512,11 @@ export default function AccountTab() {
           <View style={styles.profileDetails}>
             <Text style={styles.profileName}>{name || 'Loading...'}</Text>
             <Text style={styles.profileSubtitle}>
-              {pledgeClass ? `${pledgeClass} â€¢ ${major || 'No Major'}` : 'Loading...'}
+              {pledgeClass ? `${pledgeClass.charAt(0).toUpperCase() + pledgeClass.slice(1).toLowerCase()} | ${major || 'No Major'}` : 'Loading...'}
             </Text>
             {analytics.rankInPledgeClass > 0 && (
               <Text style={styles.rankBadge}>
-                #{analytics.rankInPledgeClass} in {pledgeClass}
+                #{analytics.rankInPledgeClass} in {pledgeClass ? pledgeClass.charAt(0).toUpperCase() + pledgeClass.slice(1).toLowerCase() : ''}
               </Text>
             )}
           </View>
@@ -1066,28 +1527,24 @@ export default function AccountTab() {
           <StatCard 
             title="Total Points"
             value={analytics.totalPoints}
-            icon="ðŸ†"
             color={Colors.secondary}
           />
           <StatCard 
             title="Current Streak"
             value={`${analytics.currentStreak} events`}
             subtitle={`Longest: ${analytics.longestStreak}`}
-            icon="ðŸ”¥"
             color={Colors.primary}
           />
           <StatCard 
-            title="This Month"
-            value={analytics.eventsThisMonth}
-            subtitle="events attended"
-            icon="ðŸ“…"
+            title="Points Ranking"
+            value={`#${analytics.rankInFraternity}`}
+            subtitle={`out of ${analytics.totalInFraternity}`}
             color={Colors.primary}
           />
           <StatCard 
             title="Attendance Rate"
             value={`${Math.round(analytics.attendanceRate)}%`}
             subtitle="this semester"
-            icon="ðŸ“Š"
             color={Colors.secondary}
           />
         </View>
@@ -1125,7 +1582,7 @@ export default function AccountTab() {
                 {analytics.achievements.length} of {Object.keys(ACHIEVEMENTS).length} earned
               </Text>
             </View>
-            <Text style={styles.expandIcon}>{achievementsExpanded ? 'â–¼' : 'â–¶'}</Text>
+            <Text style={styles.expandIcon}>{achievementsExpanded ? '' : ''}</Text>
           </TouchableOpacity>
           
           {/* Achievement Progress Bar */}
@@ -1143,17 +1600,24 @@ export default function AccountTab() {
             </Text>
           </View>
           
-          {/* Preview Grid - Always visible */}
+          {/* Preview Grid - Always visible - Show only 3 achievements to save space */}
           <View style={styles.achievementsPreview}>
-            {Object.entries(ACHIEVEMENTS).slice(0, 6).map(([key, achievement]) => (
+            {Object.entries(ACHIEVEMENTS).slice(0, 3).map(([key, achievement]) => (
               <AchievementBadge 
                 key={key}
                 title={achievement.title}
-                icon={achievement.icon}
                 earned={analytics.achievements.includes(key)}
                 description={achievement.description}
               />
             ))}
+            {/* Show count of remaining achievements */}
+            {Object.keys(ACHIEVEMENTS).length > 3 && (
+              <View style={styles.moreAchievementsBadge}>
+                <Text style={styles.moreAchievementsText}>
+                  +{Object.keys(ACHIEVEMENTS).length - 3} more
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Full Grid - Expanded view */}
@@ -1172,7 +1636,6 @@ export default function AccountTab() {
                         <AchievementBadge 
                           key={key}
                           title={achievement.title}
-                          icon={achievement.icon}
                           earned={analytics.achievements.includes(key)}
                           description={achievement.description}
                         />
@@ -1185,46 +1648,21 @@ export default function AccountTab() {
           )}
         </View>
 
-        {/* Quick Stats */}
-        <View style={styles.quickStats}>
-          <View style={styles.quickStatItem}>
-            <Text style={styles.quickStatLabel}>Favorite Event Type</Text>
-            <Text style={styles.quickStatValue}>
-              {analytics.favoriteEventType.replace('_', ' ').toUpperCase() || 'None yet'}
-            </Text>
-          </View>
-          <View style={styles.quickStatItem}>
-            <Text style={styles.quickStatLabel}>Events This Semester</Text>
-            <Text style={styles.quickStatValue}>{analytics.eventsThisSemester}</Text>
-          </View>
+        {/* Account Details - Button to open modal */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.standardSectionHeader}>Account Details</Text>
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: Colors.primary, marginBottom: 16 }]}
+            onPress={() => setAccountDetailsModalVisible(true)}
+          >
+            <Text style={styles.buttonText}>View & Edit Profile</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Account Details - Collapsible */}
-        <TouchableOpacity 
-          style={styles.sectionHeader}
-          onPress={() => setEditing(!editing)}
-        >
-          <Text style={styles.sectionHeaderText}>Account Details</Text>
-          <Text style={styles.sectionHeaderIcon}>{editing ? 'ðŸ“' : 'ðŸ‘¤'}</Text>
-        </TouchableOpacity>
-        
-        {loading && !name ? (
-          <View style={styles.loadingSection}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Loading account data...</Text>
-          </View>
-        ) : (
-          renderProfileSection
-        )}
-
-        {!loading && !error && (
-          <Text style={styles.meta}>Total Events Attended: {events.length}</Text>
-        )}
-
-        <Text style={styles.sectionHeader}>Event Attendance Log</Text>
-        <TouchableOpacity onPress={toggleExpanded}>
+        <Text style={styles.standardSectionHeader}>Event Attendance Log</Text>
+        <TouchableOpacity onPress={toggleExpanded} style={{ marginBottom: 16 }}>
           <Text style={styles.toggleText}>
-            {expanded ? 'Hide Event Log â–²' : 'Show Event Log â–¼'}
+            {expanded ? 'Hide Event Log 📊' : 'Show Event Log 📊'}
           </Text>
         </TouchableOpacity>
 
@@ -1242,13 +1680,18 @@ export default function AccountTab() {
                 <Text style={styles.cellHeader}>Feedback</Text>
               </View>
               {events.map((event) => (
-                <EventRow key={event.id} event={event} onFeedbackPress={handleEventFeedbackPress} />
+                <EventRow 
+                  key={event.id} 
+                  event={event} 
+                  onFeedbackPress={handleEventFeedbackPress}
+                  hasFeedbackSubmitted={submittedFeedbackEvents.has(event.id)}
+                />
               ))}
             </View>
           )
         )}
 
-        <Text style={styles.sectionHeader}>Submit Feedback</Text>
+        <Text style={styles.standardSectionHeader}>Submit Feedback</Text>
         <View style={styles.formContainer}>
           <TextInput
             style={[styles.input, styles.feedbackInput]}
@@ -1275,14 +1718,14 @@ export default function AccountTab() {
               onPress={handlePickFeedbackFile}
             >
               <Text style={styles.buttonText}>
-                {feedbackFile ? 'Change Attachment' : 'ðŸ“Ž Add Attachment'}
+                {feedbackFile ? 'Change Attachment' : 'Add Attachment'}
               </Text>
             </TouchableOpacity>
             
             {feedbackFile && (
               <View style={styles.filePreview}>
                 <View style={styles.fileInfo}>
-                  <Text style={styles.fileName}>ðŸ“„ {feedbackFile.name}</Text>
+                  <Text style={styles.fileName}>{feedbackFile.name}</Text>
                   <Text style={styles.fileSize}>
                     {feedbackFile.size ? `${Math.round(feedbackFile.size / 1024)} KB` : 'Size unknown'}
                   </Text>
@@ -1291,8 +1734,7 @@ export default function AccountTab() {
                   style={styles.removeFileButton}
                   onPress={() => setFeedbackFile(null)}
                 >
-                  <Text style={styles.removeFileText}>âœ•</Text>
-                </TouchableOpacity>
+                  <Text style={styles.removeFileText}>Remove</Text></TouchableOpacity>
               </View>
             )}
           </View>
@@ -1308,75 +1750,36 @@ export default function AccountTab() {
             disabled={submittingFeedback}
           >
             <Text style={[styles.buttonText, styles.submitButtonText]}>
-              {submittingFeedback ? 'â³ Sending...' : 
-               feedbackFile ? 'ðŸ“§ Send Feedback & Attachment' : 'ðŸ“§ Send Feedback'}
+              {submittingFeedback ? 'Sending...' : 
+               feedbackFile ? 'Send Feedback & Attachment' : 'Send Feedback'}
             </Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionHeader}>Test Bank Submission</Text>
-        {!showTestBankForm ? (
+        <Text style={styles.standardSectionHeader}>Test Bank Submission</Text>
+        <View style={{ marginTop: 8, marginBottom: 24 }}>
           <TouchableOpacity
-            style={[styles.button, { backgroundColor: Colors.primary }]}
-            onPress={() => setShowTestBankForm(true)}
+            style={[styles.button, { backgroundColor: Colors.primary, marginBottom: 16 }]}
+            onPress={() => setTestBankModalVisible(true)}
           >
             <Text style={styles.buttonText}>Add to Test Bank</Text>
           </TouchableOpacity>
-        ) : (
-          <View style={styles.formContainer}>
-            <TextInput
-              style={styles.input}
-              value={classCode}
-              onChangeText={setClassCode}
-              placeholder="Course Code (e.g., BMGT402)"
-              autoCapitalize="characters"
-            />
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={fileType}
-                onValueChange={(value: 'test' | 'notes' | 'materials') => setFileType(value)}
-                style={styles.picker}
-              >
-                <Picker.Item label="Test/Exam" value="test" />
-                <Picker.Item label="Notes" value="notes" />
-                <Picker.Item label="Course Materials" value="materials" />
-              </Picker>
-            </View>
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: Colors.primary, marginBottom: 6 }]}
-              onPress={handlePickFile}
-            >
-              <Text style={styles.buttonText}>{selectedFile ? 'Change File' : 'Choose File'}</Text>
-            </TouchableOpacity>
-            {selectedFile && (
-              <Text style={{ marginBottom: 8, color: '#333', fontSize: 14 }}>Selected: {selectedFile.name}</Text>
-            )}
-            <TouchableOpacity
-              style={[styles.button, { marginTop: 10 }]}
-              onPress={handleTestBankSubmission}
-            >
-              <Text style={styles.buttonText}>Submit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: Colors.primary }]}
-              onPress={() => { setShowTestBankForm(false); setSelectedFile(null); }}
-            >
-              <Text style={styles.buttonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        </View>
 
-        <Text style={styles.sectionHeader}>Help & Account</Text>
-        <TouchableOpacity
-          style={styles.linkButton}
-          onPress={() => Alert.alert('Contact Tech Chair', 'Email techchair@fraternity.org')}
-        >
-          <Text style={styles.link}>Contact Tech Chair</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.linkButton} onPress={handleLogout}>
-          <Text style={[styles.link, { color: 'red' }]}>Log Out</Text>
-        </TouchableOpacity>
+        <Text style={styles.standardSectionHeader}>Help & Account</Text>
+        <View style={{ marginTop: 8, marginBottom: 32 }}>
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={() => Alert.alert('Contact Tech Chair', 'Email techchair@fraternity.org')}
+          >
+            <Text style={styles.link}>Contact Tech Chair</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.linkButton} onPress={handleLogout}>
+            <Text style={[styles.link, { color: 'red' }]}>Log Out</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Event Feedback Modal */}
       <Modal
@@ -1385,7 +1788,10 @@ export default function AccountTab() {
         animationType="slide"
         onRequestClose={() => setEventFeedbackModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Event Feedback</Text>
@@ -1393,11 +1799,15 @@ export default function AccountTab() {
                 style={styles.exitButton}
                 onPress={() => setEventFeedbackModalVisible(false)}
               >
-                <Text style={styles.exitButtonText}>âœ•</Text>
+                <Text style={styles.exitButtonText}>×</Text>
               </TouchableOpacity>
             </View>
             
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView 
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ flexGrow: 1 }}
+            >
               {selectedEvent && (
                 <>
                   <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
@@ -1407,111 +1817,111 @@ export default function AccountTab() {
                 </>
               )}
 
-            {/* Overall Rating */}
-            <View style={styles.feedbackSection}>
-              <Text style={styles.feedbackLabel}>Overall Rating (1-5)</Text>
-              <View style={styles.ratingContainer}>
-                {[1, 2, 3, 4, 5].map((rating) => (
+              {/* Overall Rating */}
+              <View style={styles.feedbackSection}>
+                <Text style={styles.feedbackLabel}>Overall Rating (1-5)</Text>
+                <View style={styles.ratingContainer}>
+                  {[1, 2, 3, 4, 5].map((rating) => (
+                    <TouchableOpacity
+                      key={rating}
+                      style={[
+                        styles.ratingButton,
+                        eventFeedbackData.rating === rating && styles.ratingButtonActive
+                      ]}
+                      onPress={() => setEventFeedbackData(prev => ({ ...prev, rating: rating }))}
+                    >
+                      <Text style={[
+                        styles.ratingButtonText,
+                        eventFeedbackData.rating === rating && styles.ratingButtonTextActive
+                      ]}>
+                        {rating}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Boolean Questions */}
+              <View style={styles.feedbackSection}>
+                <Text style={styles.feedbackLabel}>Would you attend again?</Text>
+                <View style={styles.booleanContainer}>
                   <TouchableOpacity
-                    key={rating}
                     style={[
-                      styles.ratingButton,
-                      eventFeedbackData.rating === rating && styles.ratingButtonActive
+                      styles.booleanButton,
+                      eventFeedbackData.would_attend_again === true && styles.booleanButtonActive
                     ]}
-                    onPress={() => setEventFeedbackData(prev => ({ ...prev, rating: rating }))}
+                    onPress={() => setEventFeedbackData(prev => ({ ...prev, would_attend_again: true }))}
                   >
                     <Text style={[
-                      styles.ratingButtonText,
-                      eventFeedbackData.rating === rating && styles.ratingButtonTextActive
+                      styles.booleanButtonText,
+                      eventFeedbackData.would_attend_again === true && styles.booleanButtonTextActive
                     ]}>
-                      {rating}
+                      Yes
                     </Text>
                   </TouchableOpacity>
-                ))}
+                  <TouchableOpacity
+                    style={[
+                      styles.booleanButton,
+                      eventFeedbackData.would_attend_again === false && styles.booleanButtonActive
+                    ]}
+                    onPress={() => setEventFeedbackData(prev => ({ ...prev, would_attend_again: false }))}
+                  >
+                    <Text style={[
+                      styles.booleanButtonText,
+                      eventFeedbackData.would_attend_again === false && styles.booleanButtonTextActive
+                    ]}>
+                      No
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
 
-            {/* Boolean Questions */}
-            <View style={styles.feedbackSection}>
-              <Text style={styles.feedbackLabel}>Would you attend again?</Text>
-              <View style={styles.booleanContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.booleanButton,
-                    eventFeedbackData.would_attend_again === true && styles.booleanButtonActive
-                  ]}
-                  onPress={() => setEventFeedbackData(prev => ({ ...prev, would_attend_again: true }))}
-                >
-                  <Text style={[
-                    styles.booleanButtonText,
-                    eventFeedbackData.would_attend_again === true && styles.booleanButtonTextActive
-                  ]}>
-                    Yes
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.booleanButton,
-                    eventFeedbackData.would_attend_again === false && styles.booleanButtonActive
-                  ]}
-                  onPress={() => setEventFeedbackData(prev => ({ ...prev, would_attend_again: false }))}
-                >
-                  <Text style={[
-                    styles.booleanButtonText,
-                    eventFeedbackData.would_attend_again === false && styles.booleanButtonTextActive
-                  ]}>
-                    No
-                  </Text>
-                </TouchableOpacity>
+              <View style={styles.feedbackSection}>
+                <Text style={styles.feedbackLabel}>Was it well organized?</Text>
+                <View style={styles.booleanContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.booleanButton,
+                      eventFeedbackData.well_organized === true && styles.booleanButtonActive
+                    ]}
+                    onPress={() => setEventFeedbackData(prev => ({ ...prev, well_organized: true }))}
+                  >
+                    <Text style={[
+                      styles.booleanButtonText,
+                      eventFeedbackData.well_organized === true && styles.booleanButtonTextActive
+                    ]}>
+                      Yes
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.booleanButton,
+                      eventFeedbackData.well_organized === false && styles.booleanButtonActive
+                    ]}
+                    onPress={() => setEventFeedbackData(prev => ({ ...prev, well_organized: false }))}
+                  >
+                    <Text style={[
+                      styles.booleanButtonText,
+                      eventFeedbackData.well_organized === false && styles.booleanButtonTextActive
+                    ]}>
+                      No
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
 
-            <View style={styles.feedbackSection}>
-              <Text style={styles.feedbackLabel}>Was it well organized?</Text>
-              <View style={styles.booleanContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.booleanButton,
-                    eventFeedbackData.well_organized === true && styles.booleanButtonActive
-                  ]}
-                  onPress={() => setEventFeedbackData(prev => ({ ...prev, well_organized: true }))}
-                >
-                  <Text style={[
-                    styles.booleanButtonText,
-                    eventFeedbackData.well_organized === true && styles.booleanButtonTextActive
-                  ]}>
-                    Yes
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.booleanButton,
-                    eventFeedbackData.well_organized === false && styles.booleanButtonActive
-                  ]}
-                  onPress={() => setEventFeedbackData(prev => ({ ...prev, well_organized: false }))}
-                >
-                  <Text style={[
-                    styles.booleanButtonText,
-                    eventFeedbackData.well_organized === false && styles.booleanButtonTextActive
-                  ]}>
-                    No
-                  </Text>
-                </TouchableOpacity>
+              {/* Comments */}
+              <View style={styles.feedbackSection}>
+                <Text style={styles.feedbackLabel}>Additional Comments (optional)</Text>
+                <TextInput
+                  style={styles.commentsInput}
+                  multiline
+                  numberOfLines={4}
+                  placeholder="Share your thoughts about the event..."
+                  value={eventFeedbackData.comments || ''}
+                  onChangeText={(text) => setEventFeedbackData(prev => ({ ...prev, comments: text }))}
+                />
               </View>
-            </View>
-
-            {/* Comments */}
-            <View style={styles.feedbackSection}>
-              <Text style={styles.feedbackLabel}>Additional Comments (optional)</Text>
-              <TextInput
-                style={styles.commentsInput}
-                multiline
-                numberOfLines={4}
-                placeholder="Share your thoughts about the event..."
-                value={eventFeedbackData.comments || ''}
-                onChangeText={(text) => setEventFeedbackData(prev => ({ ...prev, comments: text }))}
-              />
-            </View>
             </ScrollView>
 
             {/* Action Buttons */}
@@ -1530,7 +1940,196 @@ export default function AccountTab() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Test Bank Submission Modal */}
+      <Modal
+        visible={testBankModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setTestBankModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Test Bank Submission</Text>
+              <TouchableOpacity
+                style={styles.exitButton}
+                onPress={() => {
+                  setTestBankModalVisible(false);
+                  setClassCode('');
+                  setFileType('test');
+                  setSelectedFile(null);
+                }}
+              >
+                <Text style={styles.exitButtonText}>×</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView 
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ flexGrow: 1 }}
+            >
+              <Text style={styles.modalSubtitle}>
+                Help your brothers by sharing your course materials
+              </Text>
+
+              {/* Course Code */}
+              <View style={styles.feedbackSection}>
+                <Text style={styles.feedbackLabel}>Course Code *</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={classCode}
+                  onChangeText={setClassCode}
+                  placeholder="e.g., BMGT402, ENGL101"
+                  autoCapitalize="characters"
+                />
+              </View>
+
+              {/* File Type */}
+              <View style={styles.feedbackSection}>
+                <Text style={styles.feedbackLabel}>File Type *</Text>
+                <View style={styles.fileTypeContainer}>
+                  {[
+                    { value: 'test', label: 'Test/Exam', icon: '📝' },
+                    { value: 'notes', label: 'Notes', icon: '📚' },
+                    { value: 'materials', label: 'Course Materials', icon: '📄' }
+                  ].map((type) => (
+                    <TouchableOpacity
+                      key={type.value}
+                      style={[
+                        styles.fileTypeButton,
+                        fileType === type.value && styles.fileTypeButtonActive
+                      ]}
+                      onPress={() => setFileType(type.value as 'test' | 'notes' | 'materials')}
+                    >
+                      <Text style={styles.fileTypeIcon}>{type.icon}</Text>
+                      <Text style={[
+                        styles.fileTypeText,
+                        fileType === type.value && styles.fileTypeTextActive
+                      ]}>
+                        {type.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* File Upload */}
+              <View style={styles.feedbackSection}>
+                <Text style={styles.feedbackLabel}>Upload File *</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.fileUploadButton,
+                    selectedFile && styles.fileUploadButtonActive
+                  ]}
+                  onPress={handlePickFile}
+                >
+                  <Text style={styles.fileUploadIcon}>
+                    {selectedFile ? '✅' : '📎'}
+                  </Text>
+                  <Text style={[
+                    styles.fileUploadText,
+                    selectedFile && styles.fileUploadTextActive
+                  ]}>
+                    {selectedFile ? 'File Selected' : 'Choose File'}
+                  </Text>
+                </TouchableOpacity>
+                
+                {selectedFile && (
+                  <View style={styles.selectedFileInfo}>
+                    <Text style={styles.selectedFileName}>{selectedFile.name}</Text>
+                    <TouchableOpacity
+                      onPress={() => setSelectedFile(null)}
+                      style={styles.removeFileButton}
+                    >
+                      <Text style={styles.removeFileText}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+
+            {/* Action Buttons */}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => {
+                  setTestBankModalVisible(false);
+                  setClassCode('');
+                  setFileType('test');
+                  setSelectedFile(null);
+                }}
+              >
+                <Text style={styles.modalButtonSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonPrimary,
+                  (!classCode || !selectedFile) && styles.modalButtonDisabled
+                ]}
+                onPress={() => {
+                  handleTestBankSubmission();
+                  setTestBankModalVisible(false);
+                }}
+                disabled={!classCode || !selectedFile}
+              >
+                <Text style={styles.modalButtonPrimaryText}>Submit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Account Details Modal */}
+      <Modal
+        visible={accountDetailsModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setAccountDetailsModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Account Details</Text>
+              <TouchableOpacity
+                style={styles.exitButton}
+                onPress={() => {
+                  setAccountDetailsModalVisible(false);
+                  setEditing(false);
+                }}
+              >
+                <Text style={styles.exitButtonText}>×</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView 
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ flexGrow: 1, paddingBottom: 20 }}
+            >
+              {loading && !name ? (
+                <View style={styles.loadingSection}>
+                  <ActivityIndicator size="large" color={Colors.primary} />
+                  <Text style={styles.loadingText}>Loading account data...</Text>
+                </View>
+              ) : (
+                <View style={styles.centeredProfileSection}>
+                  {renderProfileSection}
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -1722,6 +2321,25 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
+  moreAchievementsBadge: {
+    width: '30%',
+    aspectRatio: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  moreAchievementsText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   
   // Quick Stats
   quickStats: {
@@ -1760,6 +2378,19 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1A1A1A',
     marginBottom: 16,
+  },
+  // Standardized section header for main account sections
+  standardSectionHeader: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.primary,
+    marginTop: 28,
+    marginBottom: 20,
+    borderBottomWidth: 3,
+    borderBottomColor: '#FFD700', // Yellow underline
+    paddingBottom: 8,
+    textTransform: 'none',
+    letterSpacing: 0.3,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1833,9 +2464,10 @@ const styles = StyleSheet.create({
   
   formContainer: {
     backgroundColor: 'white',
-    padding: 16,
+    padding: 20,
     borderRadius: 16,
-    marginBottom: 16,
+    marginBottom: 24,
+    marginTop: 8,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -1846,19 +2478,42 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    marginBottom: 10,
-    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    overflow: 'hidden',
   },
   picker: {
-    height: Platform.OS === 'ios' ? 200 : 50,
+    height: Platform.OS === 'ios' ? 200 : 54,
     width: '100%',
+    paddingHorizontal: 12,
   },
   editButton: {
-    alignSelf: 'flex-start',
-    marginTop: 8,
+    alignSelf: 'center',
+    marginTop: 16,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 32,           // Wider button
+    paddingVertical: 16,             // Taller button
+    borderRadius: 12,
+    borderWidth: 2,                  // Add border
+    borderColor: '#FFFFFF',          // White border for contrast
+    shadowColor: '#000',             // Add shadow
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  editButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   errorContainer: {
     backgroundColor: '#FFF5F5',
@@ -1936,49 +2591,84 @@ const styles = StyleSheet.create({
   
   // Additional form styles (unique names)
   profileFormContainer: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    marginVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: 'transparent',   // Remove white background to prevent layering
+    borderRadius: 16,
+    padding: 24,
+    marginVertical: 12,
+    borderWidth: 2,                   // Add border instead of background
+    borderColor: Colors.primary,
+    borderStyle: 'dashed',            // Dashed border for visual interest
   },
   formTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
-    color: '#1A1A1A',
+    color: Colors.primary,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
+    letterSpacing: 0.5,
   },
   sectionLabel: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: Colors.primary,
-    marginTop: 20,
-    marginBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-    paddingBottom: 5,
+    marginTop: 24,
+    marginBottom: 16,
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.secondary,
+    paddingBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   fieldLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 8,
-    marginTop: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.primary,
+    marginBottom: 10,
+    marginTop: 16,
+    letterSpacing: 0.3,
   },
   formInput: {
-    borderWidth: 1.5,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    padding: 15,
+    // Override ALL input styles explicitly for iOS compatibility
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderRadius: 10,
+    padding: 16,
     fontSize: 16,
-    color: '#1A1A1A',
-    backgroundColor: '#FAFAFA',
+    color: '#000000',
+    backgroundColor: '#FFFFFF',  // Pure white for maximum contrast
+    marginBottom: 12,
+    // iOS-specific properties
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+    // Strong shadow for iOS
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+    // Force override any conflicting styles
     minHeight: 50,
+  },
+  // Dedicated style for profile form inputs (iOS-optimized)
+  profileFormInput: {
+    borderWidth: 3,                  // Even thicker border
+    borderColor: Colors.primary,
+    borderRadius: 10,
+    padding: 16,
+    fontSize: 16,
+    color: '#000000',               // Pure black text
+    backgroundColor: '#E8F4FD',     // Light blue background for contrast against gray modal
+    marginBottom: 12,
+    minHeight: 50,
+    textAlignVertical: 'top',
+    // Very strong visual emphasis for iOS
+    shadowColor: '#000000',         // Black shadow for maximum contrast
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,             // Stronger shadow
+    shadowRadius: 6,
+    elevation: 8,                   // Higher elevation
+    // Add border style for extra visibility
+    borderStyle: 'solid',
   },
   dateInput: {
     justifyContent: 'center',
@@ -1993,24 +2683,51 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: Colors.primary,
-    marginTop: 25,
-    paddingVertical: 15,
+    marginTop: 32,
+    paddingVertical: 18,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   profileCancelButton: {
     backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    marginTop: 10,
-    paddingVertical: 15,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    marginTop: 12,
+    paddingVertical: 18,
   },
-  link: { color: Colors.primary, fontSize: 15 },
-  linkButton: { marginTop: 10 },
+  link: { 
+    color: Colors.primary, 
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  linkButton: { 
+    marginTop: 12,
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
   toggleText: {
     fontSize: 16,
     color: Colors.primary,
     fontWeight: '600',
-    marginBottom: 10,
+    marginBottom: 16,
     textAlign: 'center',
+    backgroundColor: 'white',
+    padding: 12,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   noContent: { 
     fontSize: 14, 
@@ -2024,6 +2741,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: 'white',
+    marginBottom: 24,
   },
   tableRowHeader: {
     flexDirection: 'row',
@@ -2133,20 +2851,25 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
   },
   badgeIcon: {
-    fontSize: 24,
-    marginBottom: 4,
+    fontSize: 28,
+    marginBottom: 6,
+    textAlign: 'center',
+    minHeight: 32,
+    lineHeight: 32,
   },
   badgeTitle: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 2,
+    marginBottom: 4,
+    letterSpacing: 0.2,
   },
   badgeDescription: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#666',
     textAlign: 'center',
-    lineHeight: 14,
+    lineHeight: 16,
+    paddingHorizontal: 4,
   },
   
   // File attachment styles
@@ -2230,7 +2953,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: 'white',
+    backgroundColor: '#F8F9FA',  // Light gray background so white inputs are visible
     margin: 20,
     borderRadius: 12,
     padding: 20,
@@ -2368,7 +3091,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
+    color: Colors.primary,
   },
   submitButton: {
     backgroundColor: Colors.primary,
@@ -2384,6 +3107,268 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: 'bold',
     color: 'white',
+  },
+  
+  // Multi-select styles
+  multiSelectContainer: {
+    position: 'relative',
+    zIndex: 1000,
+  },
+  multiSelectButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingRight: 12,
+  },
+  multiSelectText: {
+    color: '#1A1A1A',
+    flex: 1,
+  },
+  dropdownArrow: {
+    color: Colors.primary,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  multiSelectDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    maxHeight: 200,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    zIndex: 1001,
+  },
+  multiSelectOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    minHeight: 50,
+  },
+  multiSelectOptionSelected: {
+    backgroundColor: `${Colors.secondary}20`,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.secondary,
+  },
+  multiSelectOptionText: {
+    color: '#1A1A1A',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  multiSelectOptionTextSelected: {
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  multiSelectCheckmark: {
+    color: Colors.secondary,
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  
+  // New Modal Styles
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: 'white',
+    marginTop: 5,
+  },
+  fileTypeContainer: {
+    flexDirection: 'row',
+    marginTop: 8,
+    gap: 8,
+  },
+  fileTypeButton: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: '#E9ECEF',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    backgroundColor: 'white',
+  },
+  fileTypeButtonActive: {
+    borderColor: Colors.primary,
+    backgroundColor: `${Colors.primary}10`,
+  },
+  fileTypeIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  fileTypeText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  fileTypeTextActive: {
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  fileUploadButton: {
+    borderWidth: 2,
+    borderColor: '#E9ECEF',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    backgroundColor: 'white',
+    marginTop: 5,
+  },
+  fileUploadButtonActive: {
+    borderColor: Colors.primary,
+    backgroundColor: `${Colors.primary}10`,
+  },
+  fileUploadIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  fileUploadText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+  },
+  fileUploadTextActive: {
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  selectedFileInfo: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectedFileName: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+    flex: 1,
+  },
+  modalButtonSecondary: {
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  modalButtonSecondaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  modalButtonPrimary: {
+    backgroundColor: Colors.primary,
+  },
+  modalButtonPrimaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+  },
+  modalButtonDisabled: {
+    backgroundColor: '#CCC',
+    opacity: 0.6,
+  },
+  modalStatText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  sectionContainer: {
+    marginBottom: 24,
+  },
+  centeredProfileSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  
+  // Dropdown button styles (replacing problematic Picker wheels)
+  dropdownButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: Colors.primary,
+    borderRadius: 10,
+    padding: 16,
+    backgroundColor: '#E8F4FD',
+    marginBottom: 12,
+    minHeight: 50,
+  },
+  dropdownButtonText: {
+    fontSize: 16,
+    color: '#000000',
+    flex: 1,
+  },
+  dropdownContainer: {
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 12,
+    maxHeight: 150,                    // Reduced height to prevent overflow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 1000,                      // Ensure it appears above other elements
+    position: 'relative',              // Proper positioning
+  },
+  dropdownOption: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  dropdownOptionSelected: {
+    backgroundColor: `${Colors.primary}15`,
+  },
+  dropdownOptionText: {
+    fontSize: 16,
+    color: '#000000',
+  },
+  dropdownOptionSelectedText: {
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  
+  // Profile edit restriction styles
+  editRestrictedContainer: {
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  editButtonDisabled: {
+    backgroundColor: '#CCC',
+    opacity: 0.6,
+  },
+  editButtonTextDisabled: {
+    color: '#888',
+  },
+  editRestrictedText: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
+    lineHeight: 16,
   },
 });
 

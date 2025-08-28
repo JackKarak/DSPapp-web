@@ -3,21 +3,28 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
-  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { Button, Text, TextInput, useTheme } from 'react-native-paper';
 import { supabase } from '../../lib/supabase';
+
+const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
-  const theme = useTheme();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -105,7 +112,7 @@ export default function LoginScreen() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'your-app://reset-password', // You can customize this URL
+        redirectTo: 'your-app://reset-password',
       });
 
       if (error) {
@@ -124,163 +131,315 @@ export default function LoginScreen() {
     }
   };
 
-  // Debug function to check user status
-  const checkUserStatus = async () => {
-    if (!email) {
-      Alert.alert('Email Required', 'Please enter an email address first.');
-      return;
-    }
-
-    try {
-      // Check in brother table
-      const { data: brotherData } = await supabase
-        .from('brother')
-        .select('*')
-        .eq('email', email)
-        .single();
-
-      // Check in users table
-      const { data: userData } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single();
-
-      let message = `Email: ${email}\n\n`;
-      
-      if (brotherData) {
-        message += `✅ Found in brother table:\n`;
-        message += `- Name: ${brotherData.first_name} ${brotherData.last_name}\n`;
-        message += `- Status: Needs to complete signup\n\n`;
-      } else {
-        message += `❌ Not found in brother table\n\n`;
-      }
-
-      if (userData) {
-        message += `✅ Found in users table:\n`;
-        message += `- Name: ${userData.first_name} ${userData.last_name}\n`;
-        message += `- Role: ${userData.role}\n`;
-        message += `- Status: Account active\n`;
-      } else {
-        message += `❌ Not found in users table\n`;
-      }
-
-      Alert.alert('User Status Check', message);
-    } catch (error: any) {
-      Alert.alert('Check Error', 'Unable to check user status.');
-    }
-  };
-
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <Text variant="headlineMedium" style={styles.title}>
-        DSP Login
-      </Text>
-
-      <TextInput
-        label="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        autoComplete="email"
-        style={styles.input}
-        disabled={loading}
-      />
-
-      <TextInput
-        label="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoComplete="password"
-        style={styles.input}
-        disabled={loading}
-      />
-
-      <Button
-        mode="contained"
-        onPress={handleLogin}
-        loading={loading}
-        disabled={loading || resetLoading}
-        style={styles.button}
+    <View style={styles.mainContainer}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        Log In
-      </Button>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header Section with Background Image */}
+          <View style={styles.headerContainer}>
+            <ImageBackground 
+              source={require('../../assets/images/COA.png')} 
+              style={styles.backgroundImage}
+              resizeMode="cover"
+              imageStyle={styles.backgroundImageStyle}
+            >
+              <View style={styles.headerOverlay}>
+                <Text style={styles.appTitle}>The DSP App</Text>
+                <View style={styles.logoContainer}>
+                  <Text style={styles.logoText}>ΔΣΠ</Text>
+                </View>
+                <Text style={styles.welcomeText}>Welcome Back</Text>
+                <Text style={styles.subtitleText}>Sign in to your account</Text>
+              </View>
+            </ImageBackground>
+          </View>
 
-      <Button
-        onPress={handleForgotPassword}
-        mode="text"
-        disabled={loading || resetLoading}
-        loading={resetLoading}
-        style={styles.forgotButton}
-      >
-        Forgot Password?
-      </Button>
+          {/* Form Section */}
+          <View style={styles.formContainer}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Email Address</Text>
+              <TextInput
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Enter your email"
+                placeholderTextColor="#9ca3af"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                editable={!loading}
+              />
+            </View>
 
-      <Button
-        onPress={checkUserStatus}
-        mode="outlined"
-        disabled={loading || resetLoading}
-        style={styles.debugButton}
-      >
-        Debug: Check User Status
-      </Button>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Enter your password"
+                  placeholderTextColor="#9ca3af"
+                  secureTextEntry={!showPassword}
+                  autoComplete="password"
+                  editable={!loading}
+                />
+                <TouchableOpacity
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Text style={styles.eyeText}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
-      <View style={styles.signupContainer}>
-        <Text style={styles.signupText}>Don't have an account?</Text>
-        <Button onPress={goToSignUp} mode="text" disabled={loading || resetLoading}>
-          Sign Up
-        </Button>
-      </View>
+            <TouchableOpacity
+              style={[styles.loginButton, (loading || resetLoading) && styles.loginButtonDisabled]}
+              onPress={handleLogin}
+              disabled={loading || resetLoading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.loginButtonText}>Sign In</Text>
+              )}
+            </TouchableOpacity>
 
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#F7B910" />
-        </View>
-      )}
-    </KeyboardAvoidingView>
+            <TouchableOpacity
+              style={styles.forgotPasswordButton}
+              onPress={handleForgotPassword}
+              disabled={loading || resetLoading}
+            >
+              {resetLoading ? (
+                <ActivityIndicator size="small" color="#8b5cf6" />
+              ) : (
+                <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Footer Section */}
+          <View style={styles.footerContainer}>
+            <Text style={styles.footerText}>Don't have an account?</Text>
+            <TouchableOpacity
+              onPress={goToSignUp}
+              disabled={loading || resetLoading}
+              style={styles.signUpButton}
+            >
+              <Text style={styles.signUpText}>Sign Up</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  mainContainer: {
+    flex: 1,
+    backgroundColor: '#f3f4f6', // Light gray background for the main container
+  },
+  backgroundImage: {
+    width: '100%',
+    height: 300, // Smaller height for the background image
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: 'hidden',
+  },
+  backgroundImageStyle: {
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
   container: {
     flex: 1,
-    padding: 24,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
+  headerContainer: {
+    marginBottom: 30,
+  },
+  headerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)', // Dark overlay for better text readability
+    alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 40,
   },
-  title: {
+  appTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#ffffff',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.7)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    letterSpacing: 1,
   },
-  input: {
+  logoContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  button: {
-    marginTop: 8,
+  logoText: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#8b5cf6',
+    textAlign: 'center',
   },
-  forgotButton: {
-    marginTop: 8,
+  welcomeText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#ffffff',
+    textAlign: 'center',
+    marginBottom: 6,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
-  debugButton: {
-    marginTop: 8,
+  subtitleText: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  formContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 30,
+    marginTop: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
     marginBottom: 8,
   },
-  signupContainer: {
-    marginTop: 24,
+  input: {
+    height: 56,
+    borderColor: '#d1d5db',
+    borderWidth: 2,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
+    borderColor: '#d1d5db',
+    borderWidth: 2,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    height: 56,
   },
-  signupText: {
-    marginBottom: 4,
-    color: '#666',
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '500',
+    height: 56,
   },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.6)',
+  eyeButton: {
+    padding: 16,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  eyeText: {
+    fontSize: 18,
+  },
+  loginButton: {
+    backgroundColor: '#8b5cf6',
+    borderRadius: 12,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+    shadowColor: '#8b5cf6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  loginButtonDisabled: {
+    backgroundColor: '#9ca3af',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  loginButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  forgotPasswordButton: {
+    marginTop: 16,
+    alignItems: 'center',
+    padding: 8,
+  },
+  forgotPasswordText: {
+    fontSize: 16,
+    color: '#8b5cf6',
+    fontWeight: '600',
+  },
+  footerContainer: {
+    alignItems: 'center',
+    marginTop: 'auto',
+    paddingTop: 20,
+  },
+  footerText: {
+    fontSize: 16,
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  signUpButton: {
+    backgroundColor: '#8b5cf6',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 25,
+    shadowColor: '#8b5cf6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  signUpText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 });

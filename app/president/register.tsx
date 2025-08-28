@@ -2,15 +2,15 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
@@ -118,7 +118,9 @@ export default function AdminRegisterEvent() {
   }
 
   const handleSubmit = async () => {
-    if (!title || !location || (!pointType && !isNoPoint)) {
+    // For non-events: only need title and point type
+    // For regular events: need title, location, and either point type or no-point flag
+    if (!title || (!isNonEvent && !location) || (!isNonEvent && !pointType && !isNoPoint) || (isNonEvent && !pointType)) {
       Alert.alert('Validation Error', 'Please fill out all required fields');
       return;
     }
@@ -161,20 +163,21 @@ export default function AdminRegisterEvent() {
       const { error } = await supabase.from('events').insert({
         title,
         description,
-        location,
-        point_type: isNoPoint ? 'No Point' : pointType,
-        point_value: isNoPoint ? 0 : 1,
+        location: isNonEvent ? '' : location,
+        point_type: isNonEvent ? pointType : (isNoPoint ? 'No Point' : pointType),
+        point_value: isNonEvent ? 1 : (isNoPoint ? 0 : 1),
         start_time: roundedStart.toISOString(),
         end_time: roundedEnd.toISOString(),
         created_by: user.id, // Using user.id from auth, which maps to user_id in users table
-        is_registerable: isRegisterable,
+        is_registerable: isNonEvent ? false : isRegisterable,
         available_to_pledges: availableToPledges,
         is_non_event: isNonEvent,
         status: 'pending',
       });
 
       if (error) {
-        Alert.alert('Submission Error', error.message);
+        console.error('Event creation error:', error);
+        Alert.alert('Submission Error', `Failed to create event: ${error.message}\n\nDetails: ${error.details || 'None'}\nHint: ${error.hint || 'None'}`);
       } else {
         Alert.alert('Success', 'Event created successfully and is pending approval');
         setTitle('');
@@ -204,6 +207,16 @@ export default function AdminRegisterEvent() {
         <Text style={styles.header}>Register New Event</Text>
         <Text style={styles.subtitle}>Create a new event for member participation</Text>
 
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>Is this a Non-Event? (Points only)</Text>
+          <Switch 
+            value={isNonEvent} 
+            onValueChange={setIsNonEvent}
+            thumbColor={isNonEvent ? '#8b5cf6' : '#f4f3f4'}
+            trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
+          />
+        </View>
+
         <Text style={styles.label}>Event Title *</Text>
         <TextInput
           style={styles.input}
@@ -211,15 +224,6 @@ export default function AdminRegisterEvent() {
           placeholderTextColor="#9ca3af"
           value={title}
           onChangeText={setTitle}
-        />
-
-        <Text style={styles.label}>Location *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter event location"
-          placeholderTextColor="#9ca3af"
-          value={location}
-          onChangeText={setLocation}
         />
 
         <Text style={styles.label}>Description</Text>
@@ -233,145 +237,178 @@ export default function AdminRegisterEvent() {
           onChangeText={setDescription}
         />
 
-        <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>No Point Event?</Text>
-          <Switch 
-            value={isNoPoint} 
-            onValueChange={setIsNoPoint}
-            thumbColor={isNoPoint ? '#8b5cf6' : '#f4f3f4'}
-            trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
-          />
-        </View>
-
-        {!isNoPoint && (
-          <CustomDropdown
-            label="Point Type *"
-            value={pointType}
-            options={[
-              { label: 'Select point type', value: 'none' },
-              { label: 'Brotherhood', value: 'brotherhood' },
-              { label: 'Professional', value: 'professional' },
-              { label: 'Service', value: 'service' },
-              { label: 'Scholarship', value: 'scholarship' },
-              { label: 'Health & Wellness', value: 'h&w' },
-              { label: 'Fundraising', value: 'fundraising' },
-              { label: 'DEI', value: 'dei' }
-            ]}
-            onValueChange={(value) => setPointType(value)}
-            disabled={isNoPoint}
-          />
-        )}
-
-        <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Registerable Event?</Text>
-          <Switch 
-            value={isRegisterable} 
-            onValueChange={setIsRegisterable}
-            thumbColor={isRegisterable ? '#8b5cf6' : '#f4f3f4'}
-            trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
-          />
-        </View>
-
-        <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Available to Pledges?</Text>
-          <Switch 
-            value={availableToPledges} 
-            onValueChange={setAvailableToPledges}
-            thumbColor={availableToPledges ? '#8b5cf6' : '#f4f3f4'}
-            trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
-          />
-        </View>
-
-        <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Is this a multi-day event?</Text>
-          <Switch 
-            value={isMultiDay} 
-            onValueChange={setIsMultiDay}
-            thumbColor={isMultiDay ? '#8b5cf6' : '#f4f3f4'}
-            trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
-          />
-        </View>
-
-        <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Non-Event (Points only, won't appear in event list)</Text>
-          <Switch 
-            value={isNonEvent} 
-            onValueChange={setIsNonEvent}
-            thumbColor={isNonEvent ? '#8b5cf6' : '#f4f3f4'}
-            trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
-          />
-        </View>
-
-        <Text style={styles.label}>Start Date</Text>
-        <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.pickerButton}>
-          <Text style={styles.pickerButtonText}>{startDate.toDateString()}</Text>
-        </TouchableOpacity>
-        {showStartDatePicker && (
-          <DateTimePicker
-            value={startDate}
-            mode="date"
-            display="default"
-            onChange={(_, date) => {
-              setShowStartDatePicker(false);
-              if (date) setStartDate(date);
-            }}
-          />
-        )}
-
-        {isMultiDay && (
+        {isNonEvent ? (
+          // Non-Event Form: Only show essential fields
           <>
-            <Text style={styles.label}>End Date</Text>
-            <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.pickerButton}>
-              <Text style={styles.pickerButtonText}>{endDate.toDateString()}</Text>
+            <CustomDropdown
+              label="Point Type *"
+              value={pointType}
+              options={[
+                { label: 'Select point type', value: 'none' },
+                { label: 'Brotherhood', value: 'brotherhood' },
+                { label: 'Professional', value: 'professional' },
+                { label: 'Service', value: 'service' },
+                { label: 'Scholarship', value: 'scholarship' },
+                { label: 'Health & Wellness', value: 'h&w' },
+                { label: 'Fundraising', value: 'fundraising' },
+                { label: 'DEI', value: 'dei' }
+              ]}
+              onValueChange={(value) => setPointType(value)}
+            />
+
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>Available to Pledges?</Text>
+              <Switch 
+                value={availableToPledges} 
+                onValueChange={setAvailableToPledges}
+                thumbColor={availableToPledges ? '#8b5cf6' : '#f4f3f4'}
+                trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
+              />
+            </View>
+          </>
+        ) : (
+          // Regular Event Form: Show all fields
+          <>
+            <Text style={styles.label}>Location *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter event location"
+              placeholderTextColor="#9ca3af"
+              value={location}
+              onChangeText={setLocation}
+            />
+
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>No Point Event?</Text>
+              <Switch 
+                value={isNoPoint} 
+                onValueChange={setIsNoPoint}
+                thumbColor={isNoPoint ? '#8b5cf6' : '#f4f3f4'}
+                trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
+              />
+            </View>
+
+            {!isNoPoint && (
+              <CustomDropdown
+                label="Point Type *"
+                value={pointType}
+                options={[
+                  { label: 'Select point type', value: 'none' },
+                  { label: 'Brotherhood', value: 'brotherhood' },
+                  { label: 'Professional', value: 'professional' },
+                  { label: 'Service', value: 'service' },
+                  { label: 'Scholarship', value: 'scholarship' },
+                  { label: 'Health & Wellness', value: 'h&w' },
+                  { label: 'Fundraising', value: 'fundraising' },
+                  { label: 'DEI', value: 'dei' }
+                ]}
+                onValueChange={(value) => setPointType(value)}
+                disabled={isNoPoint}
+              />
+            )}
+
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>Registerable Event?</Text>
+              <Switch 
+                value={isRegisterable} 
+                onValueChange={setIsRegisterable}
+                thumbColor={isRegisterable ? '#8b5cf6' : '#f4f3f4'}
+                trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
+              />
+            </View>
+
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>Available to Pledges?</Text>
+              <Switch 
+                value={availableToPledges} 
+                onValueChange={setAvailableToPledges}
+                thumbColor={availableToPledges ? '#8b5cf6' : '#f4f3f4'}
+                trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
+              />
+            </View>
+
+            <View style={styles.switchRow}>
+              <Text style={styles.switchLabel}>Is this a multi-day event?</Text>
+              <Switch 
+                value={isMultiDay} 
+                onValueChange={setIsMultiDay}
+                thumbColor={isMultiDay ? '#8b5cf6' : '#f4f3f4'}
+                trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
+              />
+            </View>
+
+            <Text style={styles.label}>Start Date</Text>
+            <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.pickerButton}>
+              <Text style={styles.pickerButtonText}>{startDate.toDateString()}</Text>
             </TouchableOpacity>
-            {showEndDatePicker && (
+            {showStartDatePicker && (
               <DateTimePicker
-                value={endDate}
+                value={startDate}
                 mode="date"
                 display="default"
                 onChange={(_, date) => {
-                  setShowEndDatePicker(false);
-                  if (date) setEndDate(date);
+                  setShowStartDatePicker(false);
+                  if (date) setStartDate(date);
+                }}
+              />
+            )}
+
+            {isMultiDay && (
+              <>
+                <Text style={styles.label}>End Date</Text>
+                <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.pickerButton}>
+                  <Text style={styles.pickerButtonText}>{endDate.toDateString()}</Text>
+                </TouchableOpacity>
+                {showEndDatePicker && (
+                  <DateTimePicker
+                    value={endDate}
+                    mode="date"
+                    display="default"
+                    onChange={(_, date) => {
+                      setShowEndDatePicker(false);
+                      if (date) setEndDate(date);
+                    }}
+                  />
+                )}
+              </>
+            )}
+
+            <Text style={styles.label}>Start Time</Text>
+            <TouchableOpacity onPress={() => setShowStartTimePicker(true)} style={styles.pickerButton}>
+              <Text style={styles.pickerButtonText}>{startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+            </TouchableOpacity>
+            {showStartTimePicker && (
+              <DateTimePicker
+                value={startTime}
+                mode="time"
+                minuteInterval={15}
+                is24Hour={false}
+                display="default"
+                onChange={(_, time) => {
+                  setShowStartTimePicker(false);
+                  if (time) setStartTime(time);
+                }}
+              />
+            )}
+
+            <Text style={styles.label}>End Time</Text>
+            <TouchableOpacity onPress={() => setShowEndTimePicker(true)} style={styles.pickerButton}>
+              <Text style={styles.pickerButtonText}>{endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+            </TouchableOpacity>
+            {showEndTimePicker && (
+              <DateTimePicker
+                value={endTime}
+                mode="time"
+                minuteInterval={15}
+                is24Hour={false}
+                display="default"
+                onChange={(_, time) => {
+                  setShowEndTimePicker(false);
+                  if (time) setEndTime(time);
                 }}
               />
             )}
           </>
-        )}
-
-        <Text style={styles.label}>Start Time</Text>
-        <TouchableOpacity onPress={() => setShowStartTimePicker(true)} style={styles.pickerButton}>
-          <Text style={styles.pickerButtonText}>{startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-        </TouchableOpacity>
-        {showStartTimePicker && (
-          <DateTimePicker
-            value={startTime}
-            mode="time"
-            minuteInterval={15}
-            is24Hour={false}
-            display="default"
-            onChange={(_, time) => {
-              setShowStartTimePicker(false);
-              if (time) setStartTime(time);
-            }}
-          />
-        )}
-
-        <Text style={styles.label}>End Time</Text>
-        <TouchableOpacity onPress={() => setShowEndTimePicker(true)} style={styles.pickerButton}>
-          <Text style={styles.pickerButtonText}>{endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-        </TouchableOpacity>
-        {showEndTimePicker && (
-          <DateTimePicker
-            value={endTime}
-            mode="time"
-            minuteInterval={15}
-            is24Hour={false}
-            display="default"
-            onChange={(_, time) => {
-              setShowEndTimePicker(false);
-              if (time) setEndTime(time);
-            }}
-          />
         )}
 
         <TouchableOpacity 

@@ -152,6 +152,7 @@ export default function CalendarTab() {
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('id, title, start_time, end_time, location, point_value, point_type, created_by, is_registerable')
+        .eq('is_non_event', false)
         .order('start_time', { ascending: true });
 
       if (eventsError) {
@@ -353,7 +354,9 @@ export default function CalendarTab() {
       contentContainerStyle={{ paddingBottom: 80 }}
       showsVerticalScrollIndicator={true}
     >
-      <Text style={styles.header}>Welcome, Brother {brotherName}</Text>
+      <Text style={styles.header} numberOfLines={1} adjustsFontSizeToFit={true}>
+        Welcome, {brotherName || 'Brother'}
+      </Text>
 
       <TouchableOpacity onPress={() => setCalendarView(!calendarView)} style={styles.toggleBtn}>
         <Text style={styles.toggleText}>
@@ -391,7 +394,9 @@ export default function CalendarTab() {
               options={[
                 { label: 'All Types', value: 'All' },
                 ...[...new Set(events.map(e => e.point_type))].map((type) => ({
-                  label: type,
+                  label: type === 'dei' ? 'DEI' : 
+                         type === 'h&w' ? 'H&W' : 
+                         type.charAt(0).toUpperCase() + type.slice(1).toLowerCase(),
                   value: type
                 }))
               ]}

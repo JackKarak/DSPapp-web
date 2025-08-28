@@ -11,12 +11,15 @@ type Event = {
   status: string;
   code: string | null;
   denial_note: string | null;
+  is_registerable?: boolean;
+  registrationCount?: number;
 };
 
 export default function OfficerEventsManagement() {
   const [approvedEvents, setApprovedEvents] = useState<Event[]>([]);
   const [deniedEvents, setDeniedEvents] = useState<Event[]>([]);
   const [pendingEvents, setPendingEvents] = useState<Event[]>([]);
+  const [pastEvents, setPastEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,16 +44,54 @@ export default function OfficerEventsManagement() {
 
     const { data: events, error } = await supabase
       .from('events')
-      .select('id, title, location, start_time, end_time, status, code, denial_note')
+      .select('id, title, location, start_time, end_time, status, code, denial_note, is_registerable')
       .eq('created_by', user.id)
       .order('start_time', { ascending: false });
 
     if (error) {
       Alert.alert('Error Fetching Events', error.message);
     } else if (events) {
-      setApprovedEvents(events.filter((e) => e.status === 'approved'));
-      setDeniedEvents(events.filter((e) => e.status === 'denied'));
-      setPendingEvents(events.filter((e) => e.status === 'pending'));
+      // Fetch registration counts for registerable events
+      const registerableEventIds = events
+        .filter(event => event.is_registerable)
+        .map(event => event.id);
+
+      let registrationCounts: Record<number, number> = {};
+
+      if (registerableEventIds.length > 0) {
+        const { data: registrations, error: regError } = await supabase
+          .from('event_registration')
+          .select('event_id')
+          .in('event_id', registerableEventIds);
+
+        if (!regError && registrations) {
+          // Count registrations per event
+          registrationCounts = registrations.reduce((acc, reg) => {
+            acc[reg.event_id] = (acc[reg.event_id] || 0) + 1;
+            return acc;
+          }, {} as Record<number, number>);
+        }
+      }
+
+      // Add registration counts to events
+      const eventsWithCounts = events.map(event => ({
+        ...event,
+        registrationCount: event.is_registerable ? (registrationCounts[event.id] || 0) : undefined
+      }));
+
+      const now = new Date();
+      
+      // Separate events into current and past based on end_time
+      const currentEvents = eventsWithCounts.filter((e) => new Date(e.end_time) >= now);
+      const pastEventsList = eventsWithCounts.filter((e) => new Date(e.end_time) < now);
+      
+      // Filter current events by status
+      setApprovedEvents(currentEvents.filter((e) => e.status === 'approved'));
+      setDeniedEvents(currentEvents.filter((e) => e.status === 'denied'));
+      setPendingEvents(currentEvents.filter((e) => e.status === 'pending'));
+      
+      // Past events (regardless of status)
+      setPastEvents(pastEventsList);
     }
 
     setLoading(false);
@@ -84,6 +125,11 @@ export default function OfficerEventsManagement() {
       <Text style={styles.eventDetail}>
         End: {new Date(event.end_time).toLocaleString()}
       </Text>
+      {event.is_registerable && typeof event.registrationCount === 'number' && (
+        <Text style={[styles.eventDetail, styles.registrationCount]}>
+          👥 Registered: {event.registrationCount} member{event.registrationCount !== 1 ? 's' : ''}
+        </Text>
+      )}
       {event.status === 'approved' && event.code && (
         <Text style={[styles.eventDetail, styles.eventCode]}>
           Event Code: {event.code}
@@ -97,6 +143,37 @@ export default function OfficerEventsManagement() {
       <View style={styles.buttonWrapper}>
         <Button title="Cancel Event" onPress={() => cancelEvent(event.id)} color="#DC3545" />
       </View>
+    </View>
+  );
+
+  const renderPastEvent = (event: Event) => (
+    <View key={event.id} style={styles.eventCard}>
+      <Text style={styles.eventTitle}>{event.title}</Text>
+      <Text style={styles.eventDetail}>Location: {event.location}</Text>
+      <Text style={styles.eventDetail}>
+        Start: {new Date(event.start_time).toLocaleString()}
+      </Text>
+      <Text style={styles.eventDetail}>
+        End: {new Date(event.end_time).toLocaleString()}
+      </Text>
+      <Text style={[styles.eventDetail, styles.statusText]}>
+        Status: {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+      </Text>
+      {event.is_registerable && typeof event.registrationCount === 'number' && (
+        <Text style={[styles.eventDetail, styles.registrationCount]}>
+          👥 Final Registration: {event.registrationCount} member{event.registrationCount !== 1 ? 's' : ''}
+        </Text>
+      )}
+      {event.status === 'approved' && event.code && (
+        <Text style={[styles.eventDetail, styles.eventCode]}>
+          Event Code: {event.code}
+        </Text>
+      )}
+      {event.status === 'denied' && event.denial_note && (
+        <Text style={[styles.eventDetail, styles.denialNote]}>
+          Denial Reason: {event.denial_note}
+        </Text>
+      )}
     </View>
   );
 
@@ -135,6 +212,13 @@ export default function OfficerEventsManagement() {
         <Text style={styles.noEvents}>No denied events.</Text>
       ) : (
         deniedEvents.map(renderEvent)
+      )}
+
+      <Text style={styles.sectionHeader}>Past Events ({pastEvents.length})</Text>
+      {pastEvents.length === 0 ? (
+        <Text style={styles.noEvents}>No past events.</Text>
+      ) : (
+        pastEvents.map(renderPastEvent)
       )}
     </ScrollView>
   );
@@ -190,9 +274,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#28a745',
   },
+  registrationCount: {
+    fontWeight: '600',
+    color: '#6366f1',
+    backgroundColor: '#f0f9ff',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
   denialNote: {
     color: '#dc3545',
     fontWeight: '500',
+  },
+  statusText: {
+    fontWeight: '600',
+    color: '#0038A8',
   },
   noEvents: {
     fontSize: 14,

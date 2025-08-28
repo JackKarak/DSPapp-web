@@ -26,11 +26,16 @@ type Feedback = {
 export default function PresidentHome() {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showResolved, setShowResolved] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     fetchFeedbacks();
   }, []);
+
+  useEffect(() => {
+    fetchFeedbacks();
+  }, [showResolved]);
 
   const fetchFeedbacks = async () => {
     setLoading(true);
@@ -55,8 +60,8 @@ export default function PresidentHome() {
       let feedbackData: any[] = [];
       let hasError = false;
 
-      // Try the join query first
-      const joinResult = await supabase
+      // Build query based on showResolved filter
+      let joinQuery = supabase
         .from('admin_feedback')
         .select(`
           id,
@@ -68,20 +73,32 @@ export default function PresidentHome() {
           has_attachment,
           file_name,
           users(first_name, last_name)
-        `)
-        .neq('status', 'resolved')
-        .order('submitted_at', { ascending: false });
+        `);
+
+      if (!showResolved) {
+        joinQuery = joinQuery.neq('status', 'resolved');
+      }
+
+      const joinResult = await joinQuery.order('submitted_at', { ascending: false });
+
+      console.log('Join query result:', joinResult);
 
       if (joinResult.error) {
         console.log('Join query failed:', joinResult.error.message);
         console.log('Trying separate queries...');
         
         // Fallback: Get feedback without user join
-        const basicResult = await supabase
+        let basicQuery = supabase
           .from('admin_feedback')
-          .select('id, submitted_at, subject, message, user_id, status, has_attachment, file_name')
-          .neq('status', 'resolved')
-          .order('submitted_at', { ascending: false });
+          .select('id, submitted_at, subject, message, user_id, status, has_attachment, file_name');
+
+        if (!showResolved) {
+          basicQuery = basicQuery.neq('status', 'resolved');
+        }
+
+        const basicResult = await basicQuery.order('submitted_at', { ascending: false });
+
+        console.log('Basic query result:', basicResult);
 
         if (basicResult.error) {
           console.error('Basic query also failed:', basicResult.error);
@@ -90,10 +107,14 @@ export default function PresidentHome() {
         } else {
           // Get unique user IDs and fetch user names separately
           const userIds = [...new Set(basicResult.data.map(fb => fb.user_id))];
+          console.log('User IDs to fetch:', userIds);
+          
           const { data: usersData } = await supabase
             .from('users')
             .select('user_id, first_name, last_name')
             .in('user_id', userIds);
+
+          console.log('Users data:', usersData);
 
           // Combine the data
           feedbackData = basicResult.data.map((fb: any) => ({
@@ -197,11 +218,39 @@ export default function PresidentHome() {
     >
       <Text style={styles.header}>👑 Admin Dashboard</Text>
       <Text style={styles.subtitle}>Member Feedback Management</Text>
+      
+      {/* Filter Toggle */}
+      <View style={styles.filterContainer}>
+        <TouchableOpacity 
+          style={[styles.filterButton, !showResolved && styles.filterButtonActive]}
+          onPress={() => setShowResolved(false)}
+        >
+          <Text style={[styles.filterButtonText, !showResolved && styles.filterButtonTextActive]}>
+            Pending Only
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.filterButton, showResolved && styles.filterButtonActive]}
+          onPress={() => setShowResolved(true)}
+        >
+          <Text style={[styles.filterButtonText, showResolved && styles.filterButtonTextActive]}>
+            Show All
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {feedbacks.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No pending feedback</Text>
-          <Text style={styles.emptySubtext}>All feedback has been resolved or no submissions yet</Text>
+          <Text style={styles.emptyText}>No feedback found</Text>
+          <Text style={styles.emptySubtext}>
+            {loading ? 'Loading...' : 'No feedback submissions in the database yet'}
+          </Text>
+          <TouchableOpacity 
+            style={styles.refreshButton}
+            onPress={() => fetchFeedbacks()}
+          >
+            <Text style={styles.refreshButtonText}>🔄 Refresh</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.feedbackContainer}>
@@ -213,7 +262,8 @@ export default function PresidentHome() {
                     <Text style={styles.userName}>{feedback.user_name}</Text>
                     <View style={styles.statusRow}>
                       <View style={[styles.statusBadge, 
-                        feedback.status === 'pending' ? styles.statusPending : styles.statusReviewed
+                        feedback.status === 'pending' ? styles.statusPending : 
+                        feedback.status === 'resolved' ? styles.statusResolved : styles.statusReviewed
                       ]}>
                         <Text style={styles.statusText}>{feedback.status.toUpperCase()}</Text>
                       </View>
@@ -239,14 +289,16 @@ export default function PresidentHome() {
               <Text style={styles.message}>{feedback.message}</Text>
               
               {/* Action Buttons */}
-              <View style={styles.actionContainer}>
-                <TouchableOpacity 
-                  style={styles.resolveButton}
-                  onPress={() => resolveFeedback(feedback.id)}
-                >
-                  <Text style={styles.resolveButtonText}>✓ Mark as Resolved</Text>
-                </TouchableOpacity>
-              </View>
+              {feedback.status !== 'resolved' && (
+                <View style={styles.actionContainer}>
+                  <TouchableOpacity 
+                    style={styles.resolveButton}
+                    onPress={() => resolveFeedback(feedback.id)}
+                  >
+                    <Text style={styles.resolveButtonText}>✓ Mark as Resolved</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           ))}
         </View>
@@ -372,6 +424,9 @@ const styles = StyleSheet.create({
   statusReviewed: {
     backgroundColor: '#dbeafe',
   },
+  statusResolved: {
+    backgroundColor: '#dcfce7',
+  },
   statusText: {
     fontSize: 10,
     fontWeight: '600',
@@ -410,6 +465,55 @@ const styles = StyleSheet.create({
   resolveButtonText: {
     color: '#ffffff',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  refreshButton: {
+    backgroundColor: '#8b5cf6',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  refreshButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    padding: 4,
+  },
+  filterButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  filterButtonActive: {
+    backgroundColor: '#8b5cf6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  filterButtonTextActive: {
+    color: '#ffffff',
     fontWeight: '600',
   },
 });

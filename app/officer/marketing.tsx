@@ -1,14 +1,14 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
@@ -18,10 +18,13 @@ export default function Marketing() {
   const [campaignTitle, setCampaignTitle] = useState('');
   const [campaignDescription, setCampaignDescription] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
+  const [newsletterUrl, setNewsletterUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [updatingNewsletter, setUpdatingNewsletter] = useState(false);
 
   useEffect(() => {
     checkAuthentication();
+    fetchCurrentNewsletterUrl();
   }, []);
 
   const checkAuthentication = async () => {
@@ -48,6 +51,7 @@ export default function Marketing() {
       }
 
       setLoading(false);
+      await fetchCurrentNewsletterUrl();
     } catch (error) {
       console.error('Authentication error:', error);
       Alert.alert('Error', 'Something went wrong. Please try again.');
@@ -95,6 +99,109 @@ export default function Marketing() {
       Alert.alert('Unexpected Error', 'Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const fetchCurrentNewsletterUrl = async () => {
+    try {
+      // First, try to get from app_settings table
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'newsletter_url')
+        .single();
+
+      if (settingsError) {
+        console.log('Settings table error (may not exist yet):', settingsError.message);
+        // If table doesn't exist, use default URL
+        setNewsletterUrl('https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798?e=bbc0848b47');
+        return;
+      }
+
+      setNewsletterUrl(settingsData?.value || 'https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798?e=bbc0848b47');
+    } catch (error) {
+      console.error('Error fetching newsletter URL:', error);
+      // Fallback to default URL
+      setNewsletterUrl('https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798?e=bbc0848b47');
+    }
+  };
+
+  const handleUpdateNewsletterUrl = async () => {
+    if (!newsletterUrl.trim()) {
+      Alert.alert('Missing Information', 'Please enter a newsletter URL.');
+      return;
+    }
+
+    // Basic URL validation
+    const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+    if (!urlPattern.test(newsletterUrl.trim())) {
+      Alert.alert('Invalid URL', 'Please enter a valid URL.');
+      return;
+    }
+
+    setUpdatingNewsletter(true);
+
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        Alert.alert('Authentication Error', 'Please log in again.');
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      // Try to update existing setting
+      const { data: existingSetting, error: fetchError } = await supabase
+        .from('app_settings')
+        .select('id')
+        .eq('key', 'newsletter_url')
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        // Error other than "not found"
+        console.error('Error fetching setting:', fetchError);
+      }
+
+      let updateError;
+
+      if (existingSetting) {
+        // Update existing setting
+        const { error } = await supabase
+          .from('app_settings')
+          .update({ 
+            value: newsletterUrl.trim(),
+            updated_at: new Date().toISOString(),
+            updated_by: user.id
+          })
+          .eq('key', 'newsletter_url');
+        updateError = error;
+      } else {
+        // Create new setting
+        const { error } = await supabase
+          .from('app_settings')
+          .insert({
+            key: 'newsletter_url',
+            value: newsletterUrl.trim(),
+            created_by: user.id,
+            updated_by: user.id,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        updateError = error;
+      }
+
+      if (updateError) {
+        console.error('Update error:', updateError);
+        Alert.alert('Update Error', 'Could not update newsletter URL. The app_settings table may not exist yet. Please contact your administrator.');
+        return;
+      }
+
+      Alert.alert('Success! 🎉', 'Newsletter URL updated successfully. The new URL will be used in the newsletter tab.');
+    } catch (error) {
+      console.error('Newsletter URL update error:', error);
+      Alert.alert('Unexpected Error', 'Something went wrong. Please try again.');
+    } finally {
+      setUpdatingNewsletter(false);
     }
   };
 
@@ -152,6 +259,31 @@ export default function Marketing() {
         >
           <Text style={styles.submitButtonText}>
             {submitting ? 'Creating Campaign...' : 'Create Campaign'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Newsletter URL Management</Text>
+        <Text style={styles.subtitle}>Update the newsletter link that appears in the newsletter tab</Text>
+        
+        <Text style={styles.label}>Current Newsletter URL *</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter new newsletter URL"
+          placeholderTextColor="#9ca3af"
+          value={newsletterUrl}
+          onChangeText={setNewsletterUrl}
+        />
+
+        <TouchableOpacity
+          style={[styles.submitButton, updatingNewsletter && styles.submitButtonDisabled]}
+          onPress={handleUpdateNewsletterUrl}
+          disabled={updatingNewsletter}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.submitButtonText}>
+            {updatingNewsletter ? 'Updating URL...' : 'Update Newsletter URL'}
           </Text>
         </TouchableOpacity>
       </View>

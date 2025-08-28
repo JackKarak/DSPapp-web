@@ -1,14 +1,14 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { CalendarEvent, googleCalendarService } from '../../lib/googleCalendar';
@@ -39,7 +39,8 @@ const detectRedFlags = (event: any, allEvents: any[]) => {
     });
   }
 
-  if (!event.location || event.location.trim() === '') {
+  // Only check location for regular events, not non-events
+  if (!event.is_non_event && (!event.location || event.location.trim() === '')) {
     flags.push({
       type: 'error',
       icon: '📍',
@@ -48,54 +49,56 @@ const detectRedFlags = (event: any, allEvents: any[]) => {
     });
   }
 
-  // Time-related flags
+  // Time-related flags (only for regular events, not non-events)
   const eventStart = new Date(event.start_time);
   const eventEnd = new Date(event.end_time);
   const now = new Date();
 
-  if (eventStart >= eventEnd) {
-    flags.push({
-      type: 'error',
-      icon: '⏰',
-      message: 'Invalid Time Range',
-      details: 'Event start time must be before end time'
-    });
-  }
-
-  if (eventStart < now) {
-    flags.push({
-      type: 'error',
-      icon: '📅',
-      message: 'Past Event',
-      details: 'Event is scheduled in the past'
-    });
-  }
-
-  // Check for overlapping events
-  const overlappingEvents = allEvents.filter(otherEvent => {
-    if (otherEvent.id === event.id) return false;
-    
-    const otherStart = new Date(otherEvent.start_time);
-    const otherEnd = new Date(otherEvent.end_time);
-    
-    return (eventStart < otherEnd && eventEnd > otherStart);
-  });
-
-  if (overlappingEvents.length > 0) {
-    overlappingEvents.forEach(otherEvent => {
-      const otherStart = new Date(otherEvent.start_time);
+  if (!event.is_non_event) {
+    if (eventStart >= eventEnd) {
       flags.push({
-        type: 'warning',
-        icon: '⚠️',
-        message: 'Time Conflict',
-        details: `Overlaps with "${otherEvent.title}" (${otherStart.toLocaleString([], {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        })})`
+        type: 'error',
+        icon: '⏰',
+        message: 'Invalid Time Range',
+        details: 'Event start time must be before end time'
       });
+    }
+
+    if (eventStart < now) {
+      flags.push({
+        type: 'error',
+        icon: '📅',
+        message: 'Past Event',
+        details: 'Event is scheduled in the past'
+      });
+    }
+
+    // Check for overlapping events (only for regular events)
+    const overlappingEvents = allEvents.filter(otherEvent => {
+      if (otherEvent.id === event.id || otherEvent.is_non_event) return false;
+      
+      const otherStart = new Date(otherEvent.start_time);
+      const otherEnd = new Date(otherEvent.end_time);
+      
+      return (eventStart < otherEnd && eventEnd > otherStart);
     });
+
+    if (overlappingEvents.length > 0) {
+      overlappingEvents.forEach(otherEvent => {
+        const otherStart = new Date(otherEvent.start_time);
+        flags.push({
+          type: 'warning',
+          icon: '⚠️',
+          message: 'Time Conflict',
+          details: `Overlaps with "${otherEvent.title}" (${otherStart.toLocaleString([], {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })})`
+        });
+      });
+    }
   }
 
   // Pledge-related flags
@@ -105,6 +108,16 @@ const detectRedFlags = (event: any, allEvents: any[]) => {
       icon: '👥',
       message: 'Available to Pledges',
       details: 'This event is open to pledge class participation'
+    });
+  }
+
+  // Non-event flag
+  if (event.is_non_event) {
+    flags.push({
+      type: 'info',
+      icon: '📊',
+      message: 'Non-Event',
+      details: 'This is a points-only entry and will not appear in the calendar or event list'
     });
   }
 
@@ -118,8 +131,8 @@ const detectRedFlags = (event: any, allEvents: any[]) => {
     });
   }
 
-  // Registration flags
-  if (event.is_registerable) {
+  // Registration flags (only for regular events)
+  if (!event.is_non_event && event.is_registerable) {
     const registrationDeadline = new Date(eventStart);
     registrationDeadline.setHours(registrationDeadline.getHours() - 24);
     
@@ -370,12 +383,22 @@ export default function ConfirmEventsScreen() {
             </View>
             
             <View style={styles.eventMeta}>
-              <View style={styles.metaRow}>
-                <Text style={styles.metaIcon}>📍</Text>
-                <Text style={styles.metaText} numberOfLines={1}>
-                  {item.location || 'Location TBD'}
-                </Text>
-              </View>
+              {!item.is_non_event && (
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaIcon}>📍</Text>
+                  <Text style={styles.metaText} numberOfLines={1}>
+                    {item.location || 'Location TBD'}
+                  </Text>
+                </View>
+              )}
+              {item.is_non_event && (
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaIcon}>📊</Text>
+                  <Text style={styles.metaText} numberOfLines={1}>
+                    Points-only entry
+                  </Text>
+                </View>
+              )}
               <View style={styles.metaRow}>
                 <Text style={styles.metaIcon}>⏰</Text>
                 <Text style={styles.metaText}>
@@ -406,7 +429,9 @@ export default function ConfirmEventsScreen() {
               <View style={styles.detailGrid}>
                 <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Type</Text>
-                  <Text style={styles.detailValue}>{item.event_type || 'Not specified'}</Text>
+                  <Text style={styles.detailValue}>
+                    {item.is_non_event ? 'Non-Event (Points Only)' : (item.event_type || 'Regular Event')}
+                  </Text>
                 </View>
                 <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Points</Text>
