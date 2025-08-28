@@ -1,18 +1,29 @@
 import React from 'react';
 import {
-    Dimensions,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { Colors } from '../../constants/colors';
-import { emojiText } from '../../constants/emojis';
+import { Colors } from '../constants/colors';
+import { emojiText } from '../constants/emojis';
+
+// Types for component props
+interface CleanErrorDisplayProps {
+  error: string;
+  onRetry: () => void;
+}
+
+interface CleanProfileSubtitleProps {
+  pledgeClass?: string;
+  major?: string;
+}
 
 const { width: screenWidth } = Dimensions.get('window');
 
 // Clean error display component
-export const CleanErrorDisplay = ({ error, onRetry }) => (
+export const CleanErrorDisplay: React.FC<CleanErrorDisplayProps> = ({ error, onRetry }) => (
   <View style={styles.errorContainer}>
     <Text style={styles.errorText}>{emojiText('WARNING', error)}</Text>
     <TouchableOpacity 
@@ -25,7 +36,7 @@ export const CleanErrorDisplay = ({ error, onRetry }) => (
 );
 
 // Clean profile subtitle component
-export const CleanProfileSubtitle = ({ pledgeClass, major }) => (
+export const CleanProfileSubtitle: React.FC<CleanProfileSubtitleProps> = ({ pledgeClass, major }) => (
   <Text style={styles.profileSubtitle}>
     {pledgeClass ? `${pledgeClass} • ${major || 'No Major'}` : 'Loading...'}
   </Text>

@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import {
-    Alert,
-    Button,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Button,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 

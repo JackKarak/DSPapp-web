@@ -1,17 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Dimensions,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import {
-  BarChart,
-  PieChart,
-  ProgressChart
+    BarChart,
+    PieChart,
+    ProgressChart
 } from 'react-native-chart-kit';
 import { supabase } from '../../lib/supabase';
 
