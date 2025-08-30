@@ -22,12 +22,12 @@ function generateRandomCode(length = 5) {
 
 // Red flag detection functions
 const detectRedFlags = (event: any, allEvents: any[]) => {
-  const flags: Array<{
+  const flags: {
     type: 'error' | 'warning' | 'info';
     icon: string;
     message: string;
     details?: string;
-  }> = [];
+  }[] = [];
 
   // Missing information flags
   if (!event.description || event.description.trim() === '') {
@@ -239,7 +239,7 @@ export default function ConfirmEventsScreen() {
       if (!eventData.is_non_event) {
         const calendarEvent: CalendarEvent = {
           title: eventData.title,
-          description: `${eventData.description || ''}\n\nAttendance Code: ${code}\n\nPoints: ${eventData.point_value || 0} ${eventData.point_type || 'points'}\n\nRegistration: ${eventData.is_registerable ? 'Required' : 'Not required'}\n\nOpen to Pledges: ${eventData.available_to_pledges ? 'Yes' : 'No'}`,
+          description: `${eventData.description || ''}\n\nPoint Type: ${eventData.point_type || 'No Points'}`,
           location: eventData.location || '',
           startTime: eventData.start_time,
           endTime: eventData.end_time,
@@ -257,10 +257,7 @@ export default function ConfirmEventsScreen() {
             .eq('id', eventId);
           
           successMessage += '\n\n✅ Event added to public Google Calendar!';
-        } else {
-          console.warn('Failed to add to Google Calendar:', calendarResult.error);
-          
-          // Fallback: Create a Google Calendar link for manual addition
+        } else {          // Fallback: Create a Google Calendar link for manual addition
           const simpleEvent: SimpleCalendarEvent = {
             title: eventData.title,
             description: `${eventData.description || ''}\n\nAttendance Code: ${code}`,

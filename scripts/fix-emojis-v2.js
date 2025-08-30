@@ -28,4 +28,3 @@ content = content.replace(/âš\s*ï¸/g, '');
 content = content.replace(/â[^\s\w]/g, '');
 
 fs.writeFileSync(filePath, content, 'utf8');
-console.log('Emoji corruption fixed!');

@@ -113,9 +113,7 @@ export default function AttendanceScreen() {
     if (insertError) {
       console.error('Attendance insert error:', insertError);
       Alert.alert('❌ Error', `Failed to record attendance: ${insertError.message}\n\nError code: ${insertError.code || 'Unknown'}\nDetails: ${insertError.details || 'None'}`);
-    } else {
-      console.log('Successfully inserted attendance record:', insertData);
-      // Get user profile for personalized message
+    } else {      // Get user profile for personalized message
       const { data: profile } = await supabase
         .from('users')
         .select('first_name, last_name')

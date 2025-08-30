@@ -32,7 +32,7 @@ type EventStats = {
   average_attendance: number;
   by_month: Record<string, number>;
   upcoming: number;
-  attendance_trend: Array<{ month: string; count: number }>;
+  attendance_trend: { month: string; count: number }[];
   engagement_rate: number;
   growth_rate: number;
 };
@@ -101,7 +101,7 @@ export default function OfficerAnalytics() {
     avgRating: number;
     wouldAttendAgainPct: number;
     wellOrganizedPct: number;
-    recentComments: Array<{ rating: number; comments: string; created_at: string; event_id: string }>;
+    recentComments: { rating: number; comments: string; created_at: string; event_id: string }[];
   }>({
     avgRating: 0,
     wouldAttendAgainPct: 0,
@@ -273,7 +273,7 @@ export default function OfficerAnalytics() {
         avgRating: 0,
         wouldAttendAgainPct: 0,
         wellOrganizedPct: 0,
-        recentComments: [] as Array<{ rating: number; comments: string; created_at: string; event_id: string }>,
+        recentComments: [] as { rating: number; comments: string; created_at: string; event_id: string }[],
       };
       
       if (eventIds.length > 0) {
@@ -500,7 +500,7 @@ export default function OfficerAnalytics() {
                     {new Date(feedback.created_at).toLocaleDateString()}
                   </Text>
                 </View>
-                <Text style={styles.feedbackText}>"{feedback.comments}"</Text>
+                <Text style={styles.feedbackText}>&quot;{feedback.comments}&quot;</Text>
               </View>
             ))}
           </View>
@@ -508,7 +508,7 @@ export default function OfficerAnalytics() {
           <View style={styles.noFeedbackContainer}>
             <Text style={styles.noFeedbackTitle}>🎯 No Feedback Yet</Text>
             <Text style={styles.noFeedbackText}>
-              Your events haven't received feedback responses yet. Encourage attendees to share their thoughts to improve future events!
+              Your events haven&apos;t received feedback responses yet. Encourage attendees to share their thoughts to improve future events!
             </Text>
           </View>
         )}

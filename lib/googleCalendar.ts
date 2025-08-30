@@ -37,9 +37,7 @@ class GoogleCalendarService {
       // This would be handled in a secure Edge Function:
       // const { data, error } = await supabase.rpc('get_google_service_account');
       
-      // For demonstration, we'll return null and recommend using Edge Functions
-      console.warn('Service account should be handled via Supabase Edge Functions for security');
-      return null;
+      // For demonstration, we'll return null and recommend using Edge Functions      return null;
     } catch (error) {
       console.error('Failed to get service account:', error);
       return null;
@@ -48,10 +46,7 @@ class GoogleCalendarService {
 
   // Get access token using our secure Edge Function
   private async getAccessToken(): Promise<string | null> {
-    try {
-      console.log('🔐 Getting access token from Edge Function...');
-      
-      const { data, error } = await supabase.functions.invoke('google-calendar-auth', {
+    try {      const { data, error } = await supabase.functions.invoke('google-calendar-auth', {
         body: {}
       });
 
@@ -63,10 +58,7 @@ class GoogleCalendarService {
       if (data.error) {
         console.error('❌ Edge Function error:', data);
         return null;
-      }
-
-      console.log('✅ Access token received successfully');
-      return data.access_token;
+      }      return data.access_token;
       
     } catch (error) {
       console.error('💥 Failed to get access token:', error);
@@ -77,9 +69,7 @@ class GoogleCalendarService {
   async initialize() {
     if (Platform.OS === 'web') {
       // For web, we would need to implement OAuth2 flow
-      // This is not recommended for mobile apps due to security concerns
-      console.warn('Web implementation not available - use Edge Functions instead');
-      this.isInitialized = false;
+      // This is not recommended for mobile apps due to security concerns      this.isInitialized = false;
       return Promise.resolve(false);
     } else {
       // For mobile, we'll use HTTP requests with service account via Edge Functions

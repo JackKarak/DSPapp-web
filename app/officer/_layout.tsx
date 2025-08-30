@@ -36,25 +36,19 @@ export default function OfficerLayout() {
   const getAccessibleTabs = () => {
     const position = role?.position?.toLowerCase() ?? '';
     
-    // Debug: Log the position to see what we're getting
-    console.log('Officer position:', position);
-    
     // Define tabs for each specific role
     switch (position) {
       // Executive Leadership - Full Access
       case 'svp':
       case 'chancellor':
-        console.log('Access: Executive leadership');
         return ['index', 'analytics', 'events', 'register'];
         
       // VP Scholarship - Unique Testbank Access ONLY
       case 'vp_scholarship':
-        console.log('Access: VP Scholarship');
         return ['index', 'analytics', 'events', 'register', 'scholarship'];
         
       // Marketing - Unique Marketing Tools ONLY
       case 'marketing':
-        console.log('Access: Marketing');
         return ['index', 'analytics', 'events', 'register', 'marketing'];
         
       // Event-Creating VPs
@@ -64,18 +58,14 @@ export default function OfficerLayout() {
       case 'vp_pledge_ed':
       case 'brotherhood':
       case 'vp_branding':
-        console.log('Access: Event-creating VP');
         return ['index', 'analytics', 'events', 'register'];
         
       // Event-Creating Chairs (when their files are created)
       case 'social':
-        console.log('Access: Social chair');
         return ['index', 'analytics', 'events', 'register']; // Add 'social' when file exists
       case 'wellness':
-        console.log('Access: Wellness chair');
         return ['index', 'analytics', 'events', 'register']; // Add 'wellness' when file exists
       case 'fundraising':
-        console.log('Access: Fundraising chair');
         return ['index', 'analytics', 'events', 'register']; // Add 'fundraising' when file exists
         
       // Administrative Roles - View Only
@@ -83,21 +73,16 @@ export default function OfficerLayout() {
       case 'vp_finance':
       case 'historian':
       case 'risk':
-        console.log('Access: Administrative role');
         return ['index', 'analytics', 'events'];
         
       // Default fallback for unrecognized roles
       default:
-        console.log('Access: Default fallback for position:', position);
         return ['index'];
     }
   };
 
   const accessibleTabs = getAccessibleTabs();
   
-  // Debug: Log the accessible tabs
-  console.log('Accessible tabs for role:', role?.position, ':', accessibleTabs);
-
   return (
     <Tabs
       screenOptions={{

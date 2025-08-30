@@ -48,16 +48,9 @@ export default function SignupScreen() {
     }
 
     setLoading(true);
-    try {
-      console.log('Searching for brother with phone:', phoneNumber, 'and uid:', uid);
-      
-      // Convert to numbers for the query since they're NUMERIC columns
+    try {      // Convert to numbers for the query since they're NUMERIC columns
       const phoneNum = parseInt(phoneNumber);
-      const uidNum = parseInt(uid);
-      
-      console.log('Converted values - phoneNum:', phoneNum, 'uidNum:', uidNum);
-      
-      // Check if conversion was successful
+      const uidNum = parseInt(uid);      // Check if conversion was successful
       if (isNaN(phoneNum) || isNaN(uidNum)) {
         throw new Error('Please enter valid numbers for phone number and UID.');
       }
@@ -68,11 +61,7 @@ export default function SignupScreen() {
         .select('*')
         .eq('phone_number', phoneNum)
         .eq('uid', uidNum)
-        .single();
-
-      console.log('Brother query result:', { brotherData, error });
-
-      if (error && error.code !== 'PGRST116') {
+        .single();      if (error && error.code !== 'PGRST116') {
         console.error('Brother query error:', error);
         throw error;
       }
@@ -175,9 +164,7 @@ export default function SignupScreen() {
             { email: email }
           );
 
-          if (updateError) {
-            console.warn('Could not update email, using temporary email');
-          }
+          if (updateError) {          }
         } else {
           throw new Error(signUpError.message);
         }
@@ -216,9 +203,7 @@ export default function SignupScreen() {
         .delete()
         .eq('id', existingUser.id);
 
-      if (deleteError) {
-        console.warn('Could not delete brother record:', deleteError);
-        // Don't throw error here as the main operation succeeded
+      if (deleteError) {        // Don't throw error here as the main operation succeeded
       }
 
       // Sign out after successful operations
@@ -522,7 +507,7 @@ export default function SignupScreen() {
                 }}
                 style={styles.button}
               >
-                <Text style={styles.buttonText}>Yes, That's Me</Text>
+                <Text style={styles.buttonText}>Yes, That&apos;s Me</Text>
               </TouchableOpacity>
             </View>
           </>

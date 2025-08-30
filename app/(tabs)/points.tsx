@@ -20,11 +20,11 @@ export default function PointsScreen() {
   const [pillarsMet, setPillarsMet] = useState(0);
   const [triggerConfetti, setTriggerConfetti] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [leaderboard, setLeaderboard] = useState<Array<{
+  const [leaderboard, setLeaderboard] = useState<{
     name: string;
     totalPoints: number;
     rank: number;
-  }>>([]);
+  }[]>([]);
   const [userRank, setUserRank] = useState<{
     name: string;
     totalPoints: number;

@@ -15,13 +15,22 @@ import {
 } from 'react-native-chart-kit';
 import { supabase } from '../../lib/supabase';
 
-// Enhanced analytics types
+// Enhanced analytics types with more detailed member analytics
 type FraternityHealthMetrics = {
   membershipGrowth: {
     total: number;
     activeMembers: number;
     retentionRate: number;
     pledgeClassSizes: Record<string, number>;
+    graduationYears: Record<string, number>;
+    officerCount: number;
+  };
+  memberDemographics: {
+    majorDistribution: Record<string, number>;
+    genderDistribution: Record<string, number>;
+    pronounDistribution: Record<string, number>;
+    housingDistribution: Record<string, number>;
+    livingTypeDistribution: Record<string, number>;
   };
   eventEngagement: {
     totalEvents: number;
@@ -30,21 +39,22 @@ type FraternityHealthMetrics = {
     pointDistribution: Record<string, number>;
   };
   memberPerformance: {
-    topPerformers: Array<{ name: string; points: number }>;
+    topPerformers: { name: string; points: number; pledgeClass: string }[];
     engagementTiers: { high: number; medium: number; low: number };
     atRiskMembers: number;
+    averagePoints: number;
   };
   organizationalHealth: {
     diversityIndex: number;
     leadershipPipeline: number;
-    riskFactors: Array<string>;
+    riskFactors: string[];
   };
 };
 
 type AnalysisInsights = {
-  strengths: Array<string>;
-  concerns: Array<string>;
-  recommendations: Array<{ priority: 'high' | 'medium' | 'low'; action: string; impact: string }>;
+  strengths: string[];
+  concerns: string[];
+  recommendations: { priority: 'high' | 'medium' | 'low'; action: string; impact: string }[];
 };
 
 const screenWidth = Dimensions.get('window').width;
@@ -65,7 +75,7 @@ const pieColors = ['#4285F4', '#34A853', '#FBBC04', '#EA4335', '#9C27B0', '#FF98
 
 export default function PresidentAnalytics() {
   const [loading, setLoading] = useState(true);
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'members' | 'events' | 'analysis'>('overview');
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'members' | 'demographics' | 'events' | 'analysis'>('overview');
   const [fraternityHealth, setFraternityHealth] = useState<FraternityHealthMetrics | null>(null);
   const [analysisInsights, setAnalysisInsights] = useState<AnalysisInsights | null>(null);
 
@@ -81,28 +91,91 @@ export default function PresidentAnalytics() {
       const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
       // Fetch data
-      const [usersResponse, eventsResponse, attendanceResponse, pointsResponse] = await Promise.all([
+      const [usersResponse, eventsResponse, attendanceResponse] = await Promise.all([
         supabase.from('users').select('*').eq('approved', true),
         supabase.from('events').select('*').eq('status', 'approved').gte('start_time', sixMonthsAgo.toISOString()),
-        supabase.from('event_attendance').select('*, events!inner(start_time, point_type)').gte('events.start_time', sixMonthsAgo.toISOString()),
-        supabase.from('user_points').select('*, users!inner(first_name, last_name, pledge_class)').order('total_points', { ascending: false })
+        supabase.from('event_attendance').select('*, events!inner(start_time, point_type, point_value)').gte('events.start_time', sixMonthsAgo.toISOString())
       ]);
 
       if (usersResponse.error) throw usersResponse.error;
       if (eventsResponse.error) throw eventsResponse.error;
       if (attendanceResponse.error) throw attendanceResponse.error;
-      if (pointsResponse.error) throw pointsResponse.error;
 
       const users = usersResponse.data || [];
       const events = eventsResponse.data || [];
       const attendance = attendanceResponse.data || [];
-      const userPoints = pointsResponse.data || [];
+
+      // Calculate user points from attendance records
+      const userPointsCalculated: Record<string, number> = {};
+      attendance.forEach(att => {
+        const event = att.events as any;
+        const pointValue = event?.point_value || 1; // Default to 1 point if not specified
+        userPointsCalculated[att.user_id] = (userPointsCalculated[att.user_id] || 0) + pointValue;
+      });
+
+      // Create sorted array of user points for analytics
+      const userPointsArray = Object.entries(userPointsCalculated).map(([user_id, total_points]) => ({
+        user_id,
+        total_points
+      })).sort((a, b) => b.total_points - a.total_points);
+
+      // Create users map for easy lookup
+      const usersMap = users.reduce((acc, user) => {
+        acc[user.user_id] = user;
+        return acc;
+      }, {} as Record<string, any>);
 
       // Calculate metrics
       const pledgeClassSizes = users.reduce((acc, user) => {
         if (user.pledge_class) {
           acc[user.pledge_class] = (acc[user.pledge_class] || 0) + 1;
         }
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Calculate graduation years distribution
+      const graduationYears = users.reduce((acc, user) => {
+        if (user.expected_graduation) {
+          acc[user.expected_graduation] = (acc[user.expected_graduation] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Calculate officer count
+      const officerCount = users.filter(user => user.officer_position).length;
+
+      // Calculate demographic distributions
+      const majorDistribution = users.reduce((acc, user) => {
+        if (user.majors) {
+          const majors = user.majors.split(', ');
+          majors.forEach((major: string) => {
+            acc[major.trim()] = (acc[major.trim()] || 0) + 1;
+          });
+        }
+        return acc;
+      }, {} as Record<string, number>);
+
+      const genderDistribution = users.reduce((acc, user) => {
+        const gender = user.gender || 'Not Specified';
+        acc[gender] = (acc[gender] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const pronounDistribution = users.reduce((acc, user) => {
+        const pronouns = user.pronouns || 'Not Specified';
+        acc[pronouns] = (acc[pronouns] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const housingDistribution = users.reduce((acc, user) => {
+        const housing = user.house_membership || 'Not Specified';
+        acc[housing] = (acc[housing] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const livingTypeDistribution = users.reduce((acc, user) => {
+        const livingType = user.living_type || 'Not Specified';
+        acc[livingType] = (acc[livingType] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
@@ -118,9 +191,13 @@ export default function PresidentAnalytics() {
         return acc;
       }, {} as Record<string, number>);
 
-      const sortedPoints = userPoints.map(up => up.total_points).sort((a, b) => b - a);
+      const sortedPoints = userPointsArray.map(up => up.total_points).sort((a, b) => b - a);
       const topThird = Math.ceil(sortedPoints.length / 3);
       const middleThird = Math.ceil(sortedPoints.length * 2 / 3);
+
+      const averagePoints = userPointsArray.length > 0 
+        ? userPointsArray.reduce((sum, up) => sum + up.total_points, 0) / userPointsArray.length 
+        : 0;
 
       const healthMetrics: FraternityHealthMetrics = {
         membershipGrowth: {
@@ -128,6 +205,15 @@ export default function PresidentAnalytics() {
           activeMembers: recentlyActive.length,
           retentionRate: users.length > 0 ? (recentlyActive.length / users.length) * 100 : 0,
           pledgeClassSizes,
+          graduationYears,
+          officerCount,
+        },
+        memberDemographics: {
+          majorDistribution,
+          genderDistribution,
+          pronounDistribution,
+          housingDistribution,
+          livingTypeDistribution,
         },
         eventEngagement: {
           totalEvents: events.length,
@@ -136,16 +222,21 @@ export default function PresidentAnalytics() {
           pointDistribution,
         },
         memberPerformance: {
-          topPerformers: userPoints.slice(0, 5).map(up => ({
-            name: `${(up as any).users.first_name} ${(up as any).users.last_name}`,
-            points: up.total_points,
-          })),
+          topPerformers: userPointsArray.slice(0, 5).map(up => {
+            const user = usersMap[up.user_id];
+            return {
+              name: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown User' : 'Unknown User',
+              points: up.total_points,
+              pledgeClass: user?.pledge_class || 'Unknown',
+            };
+          }),
           engagementTiers: {
             high: topThird,
             medium: middleThird - topThird,
             low: sortedPoints.length - middleThird
           },
           atRiskMembers: sortedPoints.length - middleThird,
+          averagePoints,
         },
         organizationalHealth: {
           diversityIndex: Object.keys(pledgeClassSizes).length,
@@ -168,7 +259,7 @@ export default function PresidentAnalytics() {
   const generateInsights = (metrics: FraternityHealthMetrics): AnalysisInsights => {
     const strengths: string[] = [];
     const concerns: string[] = [];
-    const recommendations: Array<{ priority: 'high' | 'medium' | 'low'; action: string; impact: string }> = [];
+    const recommendations: { priority: 'high' | 'medium' | 'low'; action: string; impact: string }[] = [];
 
     if (metrics.membershipGrowth.retentionRate > 80) {
       strengths.push(`Strong member retention at ${metrics.membershipGrowth.retentionRate.toFixed(1)}%`);
@@ -197,14 +288,14 @@ export default function PresidentAnalytics() {
 
   const renderTabBar = () => (
     <View style={styles.tabBar}>
-      {(['overview', 'members', 'events', 'analysis'] as const).map((tab) => (
+      {(['overview', 'members', 'demographics', 'events', 'analysis'] as const).map((tab) => (
         <TouchableOpacity
           key={tab}
           style={[styles.tab, selectedTab === tab && styles.activeTab]}
           onPress={() => setSelectedTab(tab)}
         >
           <Text style={[styles.tabText, selectedTab === tab && styles.activeTabText]}>
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {tab === 'demographics' ? 'Demo' : tab.charAt(0).toUpperCase() + tab.slice(1)}
           </Text>
         </TouchableOpacity>
       ))}
@@ -216,27 +307,27 @@ export default function PresidentAnalytics() {
       <View style={styles.kpiGrid}>
         <View style={styles.kpiCard}>
           <Text style={styles.kpiValue}>{fraternityHealth?.membershipGrowth.total || 0}</Text>
-          <Text style={styles.kpiLabel}>Total Members</Text>
+          <Text style={styles.kpiLabel}>Members</Text>
           <Text style={[styles.kpiChange, { color: '#10b981' }]}>
-            {fraternityHealth?.membershipGrowth.activeMembers || 0} active
+            {fraternityHealth?.membershipGrowth.officerCount || 0} officers
           </Text>
         </View>
         <View style={styles.kpiCard}>
           <Text style={styles.kpiValue}>
-            {fraternityHealth?.membershipGrowth.retentionRate.toFixed(1) || '0'}%
+            {fraternityHealth?.membershipGrowth.retentionRate.toFixed(0) || '0'}%
           </Text>
-          <Text style={styles.kpiLabel}>Retention Rate</Text>
+          <Text style={styles.kpiLabel}>Retention</Text>
           <Text style={[styles.kpiChange, { 
             color: (fraternityHealth?.membershipGrowth.retentionRate || 0) > 70 ? '#10b981' : '#ef4444' 
           }]}>
-            {(fraternityHealth?.membershipGrowth.retentionRate || 0) > 70 ? 'Healthy' : 'Needs attention'}
+            {(fraternityHealth?.membershipGrowth.retentionRate || 0) > 70 ? 'Healthy' : 'At Risk'}
           </Text>
         </View>
         <View style={styles.kpiCard}>
           <Text style={styles.kpiValue}>
-            {fraternityHealth?.eventEngagement.avgAttendanceRate.toFixed(1) || '0'}%
+            {fraternityHealth?.eventEngagement.avgAttendanceRate.toFixed(0) || '0'}%
           </Text>
-          <Text style={styles.kpiLabel}>Avg Attendance</Text>
+          <Text style={styles.kpiLabel}>Attendance</Text>
           <Text style={[styles.kpiChange, { 
             color: (fraternityHealth?.eventEngagement.avgAttendanceRate || 0) > 60 ? '#10b981' : '#f59e0b' 
           }]}>
@@ -244,30 +335,30 @@ export default function PresidentAnalytics() {
           </Text>
         </View>
         <View style={styles.kpiCard}>
-          <Text style={styles.kpiValue}>{fraternityHealth?.organizationalHealth.diversityIndex || 0}</Text>
-          <Text style={styles.kpiLabel}>Pledge Classes</Text>
+          <Text style={styles.kpiValue}>{fraternityHealth?.memberPerformance.averagePoints.toFixed(0) || 0}</Text>
+          <Text style={styles.kpiLabel}>Avg Points</Text>
           <Text style={[styles.kpiChange, { color: '#6366f1' }]}>
-            Diversity index
+            Per member
           </Text>
         </View>
       </View>
 
       <View style={styles.chartSection}>
-        <Text style={styles.sectionTitle}>🏥 Fraternity Health Score</Text>
+        <Text style={styles.sectionTitle}>🏥 Health Score</Text>
         <ProgressChart
           data={{
-            labels: ['Retention', 'Attendance', 'Engagement', 'Leadership'],
+            labels: ['Retention', 'Attendance', 'Performance', 'Leadership'],
             data: [
               (fraternityHealth?.membershipGrowth.retentionRate || 0) / 100,
               (fraternityHealth?.eventEngagement.avgAttendanceRate || 0) / 100,
-              0.75,
-              0.80
+              Math.min((fraternityHealth?.memberPerformance.averagePoints || 0) / 50, 1),
+              Math.min((fraternityHealth?.membershipGrowth.officerCount || 0) / 10, 1)
             ]
           }}
           width={screenWidth - 40}
-          height={220}
-          strokeWidth={16}
-          radius={32}
+          height={180}
+          strokeWidth={12}
+          radius={24}
           chartConfig={{
             backgroundColor: '#ffffff',
             backgroundGradientFrom: '#ffffff',
@@ -372,7 +463,7 @@ export default function PresidentAnalytics() {
       </View>
 
       <View style={styles.chartSection}>
-        <Text style={styles.sectionTitle}>🏆 Top Member Contributors</Text>
+        <Text style={styles.sectionTitle}>🏆 Top Contributors</Text>
         <View style={styles.leaderboardContainer}>
           {fraternityHealth?.memberPerformance.topPerformers.map((performer, index) => (
             <View key={index} style={styles.leaderboardItem}>
@@ -380,11 +471,66 @@ export default function PresidentAnalytics() {
                 <Text style={styles.rankText}>#{index + 1}</Text>
               </View>
               <View style={styles.performerInfo}>
-                <Text style={styles.performerName}>{performer.name}</Text>
-                <Text style={styles.performerPoints}>{performer.points} points</Text>
+                <Text style={styles.performerName} numberOfLines={1}>{performer.name}</Text>
+                <Text style={styles.performerPoints}>{performer.points} pts • {performer.pledgeClass}</Text>
               </View>
             </View>
           ))}
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderDemographics = () => (
+    <View>
+      <View style={styles.chartSection}>
+        <Text style={styles.sectionTitle}>🎓 Graduation Years</Text>
+        {fraternityHealth?.membershipGrowth.graduationYears && Object.keys(fraternityHealth.membershipGrowth.graduationYears).length > 0 ? (
+          <BarChart
+            data={{
+              labels: Object.keys(fraternityHealth.membershipGrowth.graduationYears).slice(0, 6),
+              datasets: [{
+                data: Object.values(fraternityHealth.membershipGrowth.graduationYears).slice(0, 6)
+              }]
+            }}
+            width={screenWidth - 40}
+            height={180}
+            chartConfig={chartConfig}
+            yAxisLabel=""
+            yAxisSuffix=""
+            style={styles.chart}
+          />
+        ) : (
+          <Text style={styles.noDataText}>No graduation data available</Text>
+        )}
+      </View>
+
+      <View style={styles.chartSection}>
+        <Text style={styles.sectionTitle}>📚 Top Majors</Text>
+        <View style={styles.demographicsList}>
+          {Object.entries(fraternityHealth?.memberDemographics.majorDistribution || {})
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, 8)
+            .map(([major, count]) => (
+              <View key={major} style={styles.demographicItem}>
+                <Text style={styles.demographicLabel} numberOfLines={1}>{major}</Text>
+                <Text style={styles.demographicValue}>{count}</Text>
+              </View>
+            ))}
+        </View>
+      </View>
+
+      <View style={styles.chartSection}>
+        <Text style={styles.sectionTitle}>🏠 Housing Distribution</Text>
+        <View style={styles.demographicsList}>
+          {Object.entries(fraternityHealth?.memberDemographics.housingDistribution || {})
+            .sort(([,a], [,b]) => b - a)
+            .map(([housing, count]) => (
+              <View key={housing} style={styles.demographicItem}>
+                <Text style={styles.demographicLabel} numberOfLines={1}>{housing}</Text>
+                <Text style={styles.demographicValue}>{count}</Text>
+              </View>
+            ))}
         </View>
       </View>
     </View>
@@ -472,6 +618,7 @@ export default function PresidentAnalytics() {
       >
         {selectedTab === 'overview' && renderOverview()}
         {selectedTab === 'members' && renderMemberAnalysis()}
+        {selectedTab === 'demographics' && renderDemographics()}
         {selectedTab === 'events' && renderEventAnalysis()}
         {selectedTab === 'analysis' && renderAnalysisInsights()}
       </ScrollView>
@@ -518,14 +665,14 @@ const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: '#ffffff',
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingBottom: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: 'center',
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
@@ -534,7 +681,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#6366f1',
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#64748b',
   },
@@ -547,57 +694,57 @@ const styles = StyleSheet.create({
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: 20,
-    gap: 12,
+    padding: 16,
+    gap: 8,
   },
   kpiCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
-    width: (screenWidth - 52) / 2,
+    borderRadius: 12,
+    padding: 16,
+    width: (screenWidth - 48) / 2,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 2,
+    elevation: 1,
   },
   kpiValue: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
     color: '#1e293b',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   kpiLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#64748b',
     fontWeight: '600',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   kpiChange: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
   },
   chartSection: {
     backgroundColor: '#ffffff',
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 16,
-    padding: 20,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 2,
+    elevation: 1,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#1e293b',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   chart: {
     borderRadius: 16,
@@ -749,5 +896,40 @@ const styles = StyleSheet.create({
     color: '#374151',
     lineHeight: 22,
     marginBottom: 12,
+  },
+  // Demographics styles
+  demographicsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    padding: 16,
+  },
+  demographicItem: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 12,
+    minWidth: '45%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  demographicLabel: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '500',
+    flex: 1,
+  },
+  demographicValue: {
+    fontSize: 14,
+    color: '#1e293b',
+    fontWeight: '700',
+    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 30,
+    textAlign: 'center',
   },
 });

@@ -18,7 +18,7 @@ import { supabase } from '../../lib/supabase';
 interface DropdownProps {
   label: string;
   value: string;
-  options: Array<{ label: string; value: string }>;
+  options: { label: string; value: string }[];
   onValueChange: (value: string) => void;
   disabled?: boolean;
 }
@@ -163,14 +163,7 @@ export default function OfficerRegisterEvent() {
       // Ensure proper timestamp format for Supabase/PostgreSQL
       const formatTimestamp = (date: Date) => {
         return date.toISOString().replace('T', ' ').replace('Z', '+00');
-      };
-
-      console.log('Inserting event with timestamps:', {
-        start_time: roundedStart.toISOString(),
-        end_time: roundedEnd.toISOString()
-      });
-
-      const { error } = await supabase.from('events').insert({
+      };      const { error } = await supabase.from('events').insert({
         title,
         description,
         location: isNonEvent ? '' : location,

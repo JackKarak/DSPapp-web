@@ -80,13 +80,9 @@ export const handleAuthenticationRedirect = (errorMessage?: string) => {
             const { router } = require('expo-router');
             if (router) {
               router.replace('/(auth)/login');
-            } else {
-              console.log('Router not available - user needs to manually navigate to login');
-            }
+            } else {            }
           } catch (routerError) {
-            console.error('Router navigation failed:', routerError);
-            console.log('Please navigate to the login screen manually');
-          }
+            console.error('Router navigation failed:', routerError);          }
         }
       }
     ],

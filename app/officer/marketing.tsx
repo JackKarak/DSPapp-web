@@ -111,9 +111,7 @@ export default function Marketing() {
         .eq('key', 'newsletter_url')
         .single();
 
-      if (settingsError) {
-        console.log('Settings table error (may not exist yet):', settingsError.message);
-        // If table doesn't exist, use default URL
+      if (settingsError) {        // If table doesn't exist, use default URL
         setNewsletterUrl('https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798?e=bbc0848b47');
         return;
       }

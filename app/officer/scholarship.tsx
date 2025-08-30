@@ -30,25 +30,15 @@ export default function ScholarshipTab() {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
-      if (userError || !user) {
-        console.log('User authentication failed:', userError);
-        Alert.alert('Authentication Error', 'Please log in again.');
+      if (userError || !user) {        Alert.alert('Authentication Error', 'Please log in again.');
         router.replace('/(auth)/login');
         return;
-      }
-
-      console.log('User authenticated:', user.id);
-
-      // Check if user is VP Scholarship
+      }      // Check if user is VP Scholarship
       const { data: userData, error: roleError } = await supabase
         .from('users')
         .select('officer_position')
         .eq('user_id', user.id)
-        .single();
-
-      console.log('User role data:', userData, 'Error:', roleError);
-
-      if (roleError) {
+        .single();      if (roleError) {
         console.error('Role check error:', roleError);
         Alert.alert('Error', 'Failed to verify your permissions. Please try again.');
         setLoading(false);
@@ -69,15 +59,10 @@ export default function ScholarshipTab() {
 
       // Allow access for VP Scholarship or scholarship officers
       const validPositions = ['scholarship', 'vp_scholarship', 'president'];
-      if (!validPositions.includes(userData.officer_position)) {
-        console.log('Position mismatch:', userData.officer_position, 'Valid positions:', validPositions);
-        Alert.alert('Access Denied', 'You do not have permission to access the scholarship test bank.');
+      if (!validPositions.includes(userData.officer_position)) {        Alert.alert('Access Denied', 'You do not have permission to access the scholarship test bank.');
         router.replace('/officer');
         return;
-      }
-
-      console.log('Access granted for position:', userData.officer_position);
-      fetchTestBankItems();
+      }      fetchTestBankItems();
     } catch (error) {
       console.error('Authentication check failed:', error);
       Alert.alert('Error', 'Authentication check failed. Please try again.');
@@ -86,10 +71,7 @@ export default function ScholarshipTab() {
   };
 
   const fetchTestBankItems = async () => {
-    try {
-      console.log('Fetching test bank items...');
-      
-      const { data, error } = await supabase
+    try {      const { data, error } = await supabase
         .from('test_bank')
         .select(`
           id,
@@ -107,17 +89,13 @@ export default function ScholarshipTab() {
         console.error('Error fetching test bank:', error);
         
         // Check if it's a table not found error
-        if (error.message?.includes('test_bank') && error.message?.includes('does not exist')) {
-          console.log('Test bank table does not exist - this is normal if no migrations have been run');
-          // Set mock data for development/testing
+        if (error.message?.includes('test_bank') && error.message?.includes('does not exist')) {          // Set mock data for development/testing
           setTestBankItems([]);
         } else {
           Alert.alert('Database Error', `Failed to load test bank items: ${error.message}\n\nThis feature requires database setup. Contact your system administrator.`);
           setTestBankItems([]);
         }
-      } else {
-        console.log('Test bank items loaded:', data?.length || 0, 'items');
-        setTestBankItems(data || []);
+      } else {        setTestBankItems(data || []);
       }
     } catch (error: any) {
       console.error('Unexpected error:', error);
@@ -360,7 +338,7 @@ export default function ScholarshipTab() {
           </Text>
           {testBankItems.length === 0 && (
             <Text style={styles.infoText}>
-              💡 Brothers can submit tests, notes, and study materials by going to their Account tab and using the "Submit to Test Bank" feature.
+              💡 Brothers can submit tests, notes, and study materials by going to their Account tab and using the &quot;Submit to Test Bank&quot; feature.
             </Text>
           )}
         </View>

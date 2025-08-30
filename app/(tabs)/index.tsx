@@ -19,7 +19,7 @@ import { supabase } from '../../lib/supabase';
 interface DropdownProps {
   label: string;
   value: string;
-  options: Array<{ label: string; value: string }>;
+  options: { label: string; value: string }[];
   onValueChange: (value: string) => void;
 }
 
@@ -160,11 +160,7 @@ export default function CalendarTab() {
         Alert.alert('Events Error', `Unable to load events: ${eventsError.message}`);
         setLoading(false);
         return;
-      }
-
-      console.log('Loaded events:', eventsData?.length || 0);
-
-      if (!eventsData) {
+      }      if (!eventsData) {
         Alert.alert('Events Error', 'No events data received');
         setLoading(false);
         return;
@@ -177,9 +173,7 @@ export default function CalendarTab() {
         .select('user_id, first_name, last_name')
         .in('user_id', createdByIds);
 
-      if (usersError) {
-        console.warn('Unable to fetch event creators:', usersError);
-      }
+      if (usersError) {      }
 
       const usersMap = usersData?.reduce((acc, user) => {
         const fullName = user.first_name && user.last_name 
@@ -203,9 +197,7 @@ export default function CalendarTab() {
         .select('event_id')
         .eq('user_id', user.id);
 
-      if (registrationError) {
-        console.warn('Unable to fetch registrations:', registrationError);
-      }
+      if (registrationError) {      }
 
       setRegisteredEventIds(registrations?.map((r) => r.event_id) || []);
       
@@ -369,7 +361,7 @@ export default function CalendarTab() {
           <WebView
             style={styles.calendar}
             source={{
-              uri: 'https://calendar.google.com/calendar/embed?src=dspumd%40gmail.com&ctz=America%2FNew_York'
+              uri: 'https://calendar.google.com/calendar/embed?src=2fcabe745ddb6168899f921984a988938842026359b78e7588d129e64e84dde6%40group.calendar.google.com&ctz=America%2FNew_York'
             }}
             javaScriptEnabled={true}
             domStorageEnabled={true}

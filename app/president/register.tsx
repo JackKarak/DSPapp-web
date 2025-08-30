@@ -18,7 +18,7 @@ import { supabase } from '../../lib/supabase';
 interface DropdownProps {
   label: string;
   value: string;
-  options: Array<{ label: string; value: string }>;
+  options: { label: string; value: string }[];
   onValueChange: (value: string) => void;
   disabled?: boolean;
 }

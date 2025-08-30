@@ -26,9 +26,7 @@ export default function NewsletterScreen() {
         setNewsletterUrl(data.value);
       }
       // If there's an error or no data, keep the default URL
-    } catch (error) {
-      console.log('Newsletter URL fetch error (using default):', error);
-      // Keep using default URL
+    } catch (error) {      // Keep using default URL
     } finally {
       setInitializing(false);
     }

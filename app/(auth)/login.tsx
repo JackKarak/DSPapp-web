@@ -34,10 +34,7 @@ export default function LoginScreen() {
 
     setLoading(true);
 
-    try {
-      console.log('Attempting login for email:', email);
-      
-      // Check if user exists in users table
+    try {      // Check if user exists in users table
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
@@ -47,11 +44,7 @@ export default function LoginScreen() {
       if (userError || !userData) {
         console.error('User lookup error:', userError);
         throw new Error('User not found. Please contact an administrator or complete the signup process.');
-      }
-
-      console.log('✅ User found in users table - proceeding with authentication');
-      
-      // Proceed with normal authentication
+      }      // Proceed with normal authentication
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -75,11 +68,7 @@ export default function LoginScreen() {
         }
       }
 
-      const userId = authData.user.id;
-      console.log('Successfully authenticated user:', userId);
-      console.log('User role:', userData.role);
-
-      // Navigate based on role from users table data
+      const userId = authData.user.id;      // Navigate based on role from users table data
       switch (userData.role) {
         case 'officer':
           router.replace('/officer/officerspecs');
@@ -195,7 +184,7 @@ export default function LoginScreen() {
                   style={styles.eyeButton}
                   onPress={() => setShowPassword(!showPassword)}
                 >
-                  <Text style={styles.eyeText}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                  <Text style={styles.eyeText}>{showPassword ? '👁️‍🗨️' : '👁️‍🗨️'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -228,7 +217,7 @@ export default function LoginScreen() {
 
           {/* Footer Section */}
           <View style={styles.footerContainer}>
-            <Text style={styles.footerText}>Don't have an account?</Text>
+            <Text style={styles.footerText}>Don&apos;t have an account?</Text>
             <TouchableOpacity
               onPress={goToSignUp}
               disabled={loading || resetLoading}

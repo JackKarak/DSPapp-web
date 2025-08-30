@@ -28,6 +28,3 @@ emojiReplacements.forEach(({ corrupted, replacement }) => {
 
 // Write the cleaned content back
 fs.writeFileSync(filePath, content, 'utf8');
-
-console.log('✅ Emoji corruption cleaned up successfully!');
-console.log('File has been updated with proper emoji handling.');

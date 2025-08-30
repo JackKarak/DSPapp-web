@@ -1,4 +1,4 @@
-﻿import * as DocumentPicker from 'expo-document-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -150,6 +150,8 @@ const EventRow: React.FC<{
   </View>
 ));
 
+EventRow.displayName = 'EventRow';
+
 // Analytics Components
 const StatCard: React.FC<{ title: string; value: string | number; subtitle?: string; color?: string; icon?: string }> = ({ title, value, subtitle, color = Colors.primary, icon }) => (
   <View style={styles.statCard}>
@@ -275,7 +277,7 @@ export default function AccountTab() {
     rankInFraternity: 0,
     totalInFraternity: 0,
     achievements: [] as string[],
-    monthlyProgress: [] as Array<{ month: string; count: number }>,
+    monthlyProgress: [] as { month: string; count: number }[],
   });
 
   const toggleExpanded = useCallback(() => setExpanded((prev) => !prev), []);
@@ -486,10 +488,7 @@ export default function AccountTab() {
         return;
       }
       
-      const user = authResult.user;
-      console.log('User authenticated:', user.id);
-
-      // Step 2: Fetch user profile
+      const user = authResult.user;      // Step 2: Fetch user profile
       const { data: profile, error: profileError } = await supabase
         .from('users')
         .select(`
@@ -525,11 +524,7 @@ export default function AccountTab() {
       
       if (!profile) {
         throw new Error('User profile is empty. Please contact support.');
-      }
-
-      console.log('Profile fetched:', profile);
-
-      if (!profile.approved) {
+      }      if (!profile.approved) {
         Alert.alert('Pending Approval', 'Your account is awaiting approval.');
         setLoading(false);
         return;
@@ -603,9 +598,7 @@ export default function AccountTab() {
         }
         
         // Calculate analytics
-        await calculateAnalytics(formatted, profile, user.id);
-        console.log('Events loaded:', formatted.length);
-      }
+        await calculateAnalytics(formatted, profile, user.id);      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       console.error('fetchAccountData error:', err);
@@ -686,26 +679,16 @@ export default function AccountTab() {
   };
 
   const submitFeedback = async () => {
-    if (submittingFeedback) return; // Prevent double submission
-    
-    console.log('Starting feedback submission...');
-    setSubmittingFeedback(true);
+    if (submittingFeedback) return; // Prevent double submission    setSubmittingFeedback(true);
     
     try {
       // Check authentication
       const authResult = await checkAuthentication();
-      if (!authResult.isAuthenticated) {
-        console.log('User not authenticated');
-        handleAuthenticationRedirect('You must be logged in to submit feedback.');
+      if (!authResult.isAuthenticated) {        handleAuthenticationRedirect('You must be logged in to submit feedback.');
         return;
       }
 
-      const user = authResult.user;
-      console.log('User authenticated, ID:', user.id);
-
-      if (!feedbackSubject.trim() || !feedbackMessage.trim()) {
-        console.log('Missing subject or message');
-        Alert.alert('Error', 'Please fill in both subject and message.');
+      const user = authResult.user;      if (!feedbackSubject.trim() || !feedbackMessage.trim()) {        Alert.alert('Error', 'Please fill in both subject and message.');
         return;
       }
 
@@ -724,16 +707,7 @@ export default function AccountTab() {
           type: feedbackFile.mimeType,
           uri: feedbackFile.uri
         }) : null
-      };
-
-      console.log('Submitting feedback data:', {
-        user_id: feedbackData.user_id,
-        subject: feedbackData.subject,
-        message: feedbackData.message.substring(0, 50) + '...',
-        has_attachment: feedbackData.has_attachment
-      });
-
-      const { data: result, error: submitError } = await supabase
+      };      const { data: result, error: submitError } = await supabase
         .from('admin_feedback')
         .insert(feedbackData)
         .select();
@@ -746,11 +720,7 @@ export default function AccountTab() {
           hint: submitError.hint
         });
         throw submitError;
-      }
-
-      console.log('Feedback submitted successfully:', result);
-
-      Alert.alert('Thanks!', `Your feedback${feedbackFile ? ' and attachment' : ''} was submitted successfully.`);
+      }      Alert.alert('Thanks!', `Your feedback${feedbackFile ? ' and attachment' : ''} was submitted successfully.`);
       setFeedbackSubject('');
       setFeedbackMessage('');
       setFeedbackFile(null);
@@ -802,22 +772,7 @@ export default function AccountTab() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    try {
-      console.log('=== FEEDBACK SUBMISSION DEBUG ===');
-      console.log('Selected event:', selectedEvent);
-      console.log('Event ID being used:', selectedEvent.id);
-      console.log('User ID:', user?.id);
-      
-      console.log('Submitting feedback data:', {
-        user_id: user?.id,
-        event_id: selectedEvent.id,
-        rating: eventFeedbackData.rating,
-        would_attend_again: eventFeedbackData.would_attend_again,
-        well_organized: eventFeedbackData.well_organized,
-        comments: eventFeedbackData.comments,
-      });
-
-      const { error } = await supabase.from('event_feedback').insert({
+    try {      const { error } = await supabase.from('event_feedback').insert({
         user_id: user?.id,
         event_id: selectedEvent.id,
         rating: eventFeedbackData.rating,
@@ -830,10 +785,7 @@ export default function AccountTab() {
       if (error) {
         console.error('Event feedback submission error:', error);
         throw error;
-      }
-
-      console.log('Event feedback submitted successfully!');
-      Alert.alert('Thanks!', 'Your event feedback was submitted successfully.');
+      }      Alert.alert('Thanks!', 'Your event feedback was submitted successfully.');
       
       // Add event to submitted feedback list
       setSubmittedFeedbackEvents(prev => new Set([...prev, selectedEvent.id]));
@@ -881,6 +833,9 @@ export default function AccountTab() {
     const { error } = await supabase.auth.signOut();
     if (error) {
       Alert.alert('Logout Failed', error.message);
+    } else {
+      // Redirect to login screen after successful logout
+      handleAuthenticationRedirect();
     }
   };
 
@@ -1564,7 +1519,7 @@ export default function AccountTab() {
                 {analytics.eventsThisSemester} events
               </Text>
               <Text style={styles.progressSubText}>
-                Keep going! You're doing great this semester.
+                Keep going! You&apos;re doing great this semester.
               </Text>
             </View>
           </View>
@@ -1770,7 +1725,7 @@ export default function AccountTab() {
         <View style={{ marginTop: 8, marginBottom: 32 }}>
           <TouchableOpacity
             style={styles.linkButton}
-            onPress={() => Alert.alert('Contact Tech Chair', 'Email techchair@fraternity.org')}
+            onPress={() => Alert.alert('Contact Tech Chair', 'Email jkara@umd.edu')}
           >
             <Text style={styles.link}>Contact Tech Chair</Text>
           </TouchableOpacity>

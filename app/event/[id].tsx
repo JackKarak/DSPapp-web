@@ -166,7 +166,7 @@ export default function EventDetail() {
         {is_registerable === '1' ? (
           alreadyRegistered ? (
             <View style={styles.registeredContainer}>
-              <Text style={styles.registered}>✅ You're registered for this event</Text>
+              <Text style={styles.registered}>✅ You&apos;re registered for this event</Text>
             </View>
           ) : (
             <TouchableOpacity
