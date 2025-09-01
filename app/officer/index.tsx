@@ -166,10 +166,10 @@ export default function OfficerDashboard() {
             </View>
           </TouchableOpacity>
           
-          {role.position === 'marketing' && (
+          {role.position === 'historian' && (
             <TouchableOpacity 
               style={styles.resourceItem}
-              onPress={() => router.push('/officer/marketing')}
+              onPress={() => router.push('/officer/historian')}
             >
               <Text style={styles.resourceIcon}>📢</Text>
               <View style={styles.resourceContent}>

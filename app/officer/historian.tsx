@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
-export default function Marketing() {
+export default function Historian() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [campaignTitle, setCampaignTitle] = useState('');
@@ -37,15 +37,15 @@ export default function Marketing() {
         return;
       }
 
-      // Verify marketing officer role
+      // Verify historian officer role
       const { data: profile, error: profileError } = await supabase
         .from('users')
         .select('officer_position')
         .eq('user_id', user.id)
         .single();
 
-      if (profileError || !profile?.officer_position || profile.officer_position?.toLowerCase() !== 'marketing') {
-        Alert.alert('Access Denied', 'This page is only accessible to Marketing Officers.');
+      if (profileError || !profile?.officer_position || profile.officer_position?.toLowerCase() !== 'historian') {
+        Alert.alert('Access Denied', 'This page is only accessible to Historians.');
         router.replace('/');
         return;
       }
@@ -215,7 +215,7 @@ export default function Marketing() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }}>
       <Text style={styles.header}>📢 Marketing Tools</Text>
-      <Text style={styles.subtitle}>Create and manage marketing campaigns</Text>
+      <Text style={styles.subtitle}>Create and manage marketing campaigns (Historian Access)</Text>
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Create New Campaign</Text>

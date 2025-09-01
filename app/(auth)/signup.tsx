@@ -24,13 +24,45 @@ export default function SignupScreen() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [pledgeClass, setPledgeClass] = useState('');
-  const [graduationYear, setGraduationYear] = useState('');
-  const [major, setMajor] = useState('');
+  const [expectedGraduation, setExpectedGraduation] = useState('');
   const [officerPosition, setOfficerPosition] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
+
+  // Helper function to create role-specific user data
+  const createUserData = (authUserId: string) => {
+    const baseData = {
+      user_id: authUserId,
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      role,
+      activated_at: new Date().toISOString(),
+    };
+
+    // Add role-specific fields
+    if (role === 'brother' || role === 'pledge') {
+      return {
+        ...baseData,
+        brother_id: existingUser?.id || null,
+        phone_number: parseInt(phoneNumber),
+        uid: parseInt(uid),
+        pledge_class: pledgeClass || null,
+        expected_graduation: expectedGraduation ? parseInt(expectedGraduation) : null,
+      };
+    } else if (role === 'officer') {
+      return {
+        ...baseData,
+        officer_position: officerPosition,
+      };
+    } else if (role === 'admin') {
+      return baseData; // Admin only needs basic fields
+    }
+    
+    return baseData;
+  };
 
   const handleRoleSelection = async (selectedRole: string) => {
     setRole(selectedRole);
@@ -91,8 +123,7 @@ export default function SignupScreen() {
         setLastName(brotherData.last_name || '');
         setEmail(brotherData.email || '');
         setPledgeClass(brotherData.pledge_class || '');
-        setGraduationYear(brotherData.graduation_year?.toString() || '');
-        setMajor(brotherData.major || '');
+        setExpectedGraduation(brotherData.expected_graduation?.toString() || '');
         setStep(4); // Brother confirmation step
       } else {
         Alert.alert('Not Found', 'No brother found with this phone number and UID. Please contact an officer if you believe this is an error.');
@@ -106,20 +137,31 @@ export default function SignupScreen() {
   };
 
   const handleSignup = async () => {
+  // Basic validation for all roles
   if (!firstName || !lastName || !email || !password || !role) {
-    Alert.alert('Missing Fields', 'Please fill in all required fields.');
+    const missingFields = [];
+    if (!firstName) missingFields.push('First Name');
+    if (!lastName) missingFields.push('Last Name');
+    if (!email) missingFields.push('Email');
+    if (!password) missingFields.push('Password');
+    
+    Alert.alert('Missing Fields', `Please fill in: ${missingFields.join(', ')}`);
     return;
   }
 
-  if ((role === 'brother' || role === 'pledge') && (!phoneNumber || !uid)) {
-    Alert.alert('Missing Information', 'Phone number and UID are required.');
-    return;
+  // Role-specific validation
+  if (role === 'brother' || role === 'pledge') {
+    if (!phoneNumber || !uid) {
+      Alert.alert('Missing Information', 'Phone number and UID are required for brothers and pledges.');
+      return;
+    }
+  } else if (role === 'officer') {
+    if (!officerPosition) {
+      Alert.alert('Missing Officer Role', 'Please select an officer position.');
+      return;
+    }
   }
-
-  if (role === 'officer' && !officerPosition) {
-    Alert.alert('Missing Officer Role', 'Please select an officer position.');
-    return;
-  }
+  // Admin role only needs basic fields (no additional validation needed)
 
   setLoading(true);
 
@@ -177,20 +219,8 @@ export default function SignupScreen() {
 
       // Transfer information from brother table to users table
       // User must stay signed in for RLS policy to work
-      const { error: insertError } = await supabase.from('users').insert({
-        user_id: authUserId, // must equal auth.uid()
-        brother_id: existingUser.id, // Link to the brother record
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        phone_number: parseInt(phoneNumber),
-        uid: parseInt(uid),
-        role,
-        pledge_class: pledgeClass || null,
-        graduation_year: graduationYear ? parseInt(graduationYear) : null,
-        major: major || null,
-        activated_at: new Date().toISOString(),
-      });
+      const userData = createUserData(authUserId);
+      const { error: insertError } = await supabase.from('users').insert(userData);
 
       if (insertError) {
         console.error('Insert Error:', insertError);
@@ -233,20 +263,8 @@ export default function SignupScreen() {
       authUserId = signUpData.user.id;
 
       // Create new user entry while user is still signed in for RLS
-      const { error: insertError } = await supabase.from('users').insert({
-        user_id: authUserId, // must equal auth.uid()
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        phone_number: phoneNumber ? parseInt(phoneNumber) : null,
-        uid: uid ? parseInt(uid) : null,
-        role,
-        pledge_class: pledgeClass || null,
-        graduation_year: graduationYear ? parseInt(graduationYear) : null,
-        major: major || null,
-        officer_position: role === 'officer' ? officerPosition : null,
-        activated_at: new Date().toISOString(),
-      });
+      const userData = createUserData(authUserId);
+      const { error: insertError } = await supabase.from('users').insert(userData);
 
       if (insertError) {
         console.error('Insert Error:', insertError);
@@ -257,9 +275,26 @@ export default function SignupScreen() {
       await supabase.auth.signOut();
     }
 
-    const successMessage = existingUser
-      ? 'Welcome! Your information has been transferred and your account is ready. You can now login with your new password.'
-      : 'Your account was created successfully.';
+    // Role-specific success messages
+    let successMessage = '';
+    if (existingUser) {
+      successMessage = 'Welcome! Your information has been transferred and your account is ready. You can now login with your new password.';
+    } else {
+      switch (role) {
+        case 'officer':
+          successMessage = 'Officer account created successfully! You can now login and access officer features.';
+          break;
+        case 'admin':
+          successMessage = 'Admin account created successfully! You now have full access to all features.';
+          break;
+        case 'brother':
+        case 'pledge':
+          successMessage = 'Your account was created successfully! Welcome to the brotherhood.';
+          break;
+        default:
+          successMessage = 'Your account was created successfully.';
+      }
+    }
 
     Alert.alert('Success!', successMessage);
     router.replace('/(auth)/login');
@@ -349,7 +384,11 @@ export default function SignupScreen() {
 
         {step === 3 && (
           <>
-            <Text style={styles.stepTitle}>Complete Your Profile</Text>
+            <Text style={styles.stepTitle}>
+              {role === 'officer' ? 'Officer Registration' : 
+               role === 'admin' ? 'Admin Registration' : 
+               'Complete Your Profile'}
+            </Text>
             <TextInput
               placeholder="First Name"
               value={firstName}
@@ -427,21 +466,12 @@ export default function SignupScreen() {
 
             {(role === 'brother' || role === 'pledge') && (
               <>
-                <Text style={styles.label}>Graduation Year</Text>
+                <Text style={styles.label}>Expected Graduation</Text>
                 <TextInput
                   placeholder="e.g. 2026"
-                  value={graduationYear}
-                  onChangeText={setGraduationYear}
+                  value={expectedGraduation}
+                  onChangeText={setExpectedGraduation}
                   keyboardType="numeric"
-                  style={styles.input}
-                  placeholderTextColor="#999"
-                />
-
-                <Text style={styles.label}>Major</Text>
-                <TextInput
-                  placeholder="e.g. Finance"
-                  value={major}
-                  onChangeText={setMajor}
                   style={styles.input}
                   placeholderTextColor="#999"
                 />

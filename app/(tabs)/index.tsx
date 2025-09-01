@@ -104,6 +104,8 @@ export default function CalendarTab() {
   const [events, setEvents] = useState<Event[]>([]);
   const [registeredEventIds, setRegisteredEventIds] = useState<string[]>([]);
   const [brotherName, setBrotherName] = useState<string | null>(null);
+  const [pendingFeedbacks, setPendingFeedbacks] = useState<number>(0);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [calendarView, setCalendarView] = useState(false);
   const [selectedType, setSelectedType] = useState<string>('All');
@@ -133,7 +135,7 @@ export default function CalendarTab() {
       // Fetch user profile
       const { data: profile, error: profileError } = await supabase
         .from('users')
-        .select('first_name, last_name')
+        .select('first_name, last_name, role, officer_position, approved')
         .eq('user_id', user.id)
         .single();
 
@@ -147,8 +149,26 @@ export default function CalendarTab() {
         ? `${profile.first_name} ${profile.last_name}` 
         : 'Brother';
       setBrotherName(fullName);
+      setUserRole(profile.role);
 
-      // Fetch events - simplified query for debugging
+      // If user is admin/president or approved officer, fetch pending feedback count
+      if ((profile.role === 'admin' || profile.officer_position === 'president') || 
+          (profile.approved && profile.officer_position)) {
+        try {
+          const { count, error: feedbackError } = await supabase
+            .from('admin_feedback')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'pending');
+
+          if (!feedbackError && count !== null) {
+            setPendingFeedbacks(count);
+          }
+        } catch (feedbackError) {
+          // Silently handle feedback count errors
+        }
+      }
+
+      // Fetch events
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('id, title, start_time, end_time, location, point_value, point_type, created_by, is_registerable')
@@ -349,6 +369,31 @@ export default function CalendarTab() {
       <Text style={styles.header} numberOfLines={1} adjustsFontSizeToFit={true}>
         Welcome, {brotherName || 'Brother'}
       </Text>
+
+      {/* Feedback Notifications for Presidents/Admins */}
+      {((userRole === 'admin') || (userRole === 'officer')) && (
+        <TouchableOpacity 
+          style={[styles.feedbackNotification, pendingFeedbacks > 0 && styles.feedbackNotificationActive]}
+          onPress={() => router.push('/president/presidentindex')}
+        >
+          <View style={styles.feedbackContent}>
+            <Text style={styles.feedbackIcon}>💬</Text>
+            <View style={styles.feedbackTextContainer}>
+              <Text style={styles.feedbackTitle}>Member Feedback</Text>
+              <Text style={styles.feedbackCount}>
+                {pendingFeedbacks > 0 
+                  ? `${pendingFeedbacks} pending message${pendingFeedbacks > 1 ? 's' : ''}` 
+                  : 'No pending messages'}
+              </Text>
+            </View>
+            {pendingFeedbacks > 0 && (
+              <View style={styles.feedbackBadge}>
+                <Text style={styles.feedbackBadgeText}>{pendingFeedbacks}</Text>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+      )}
 
       <TouchableOpacity onPress={() => setCalendarView(!calendarView)} style={styles.toggleBtn}>
         <Text style={styles.toggleText}>
@@ -887,5 +932,58 @@ const styles = StyleSheet.create({
   },
   unregisterButtonText: {
     color: '#ef4444',
+  },
+  // Feedback notification styles
+  feedbackNotification: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  feedbackNotificationActive: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#f59e0b',
+  },
+  feedbackContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  feedbackIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  feedbackTextContainer: {
+    flex: 1,
+  },
+  feedbackTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 2,
+  },
+  feedbackCount: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  feedbackBadge: {
+    backgroundColor: '#ef4444',
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  feedbackBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

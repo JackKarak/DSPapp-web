@@ -58,6 +58,7 @@ type AnalysisInsights = {
 };
 
 const screenWidth = Dimensions.get('window').width;
+const chartWidth = Math.min(screenWidth - 64, 320); // More conservative width calculation
 const chartConfig = {
   backgroundColor: '#ffffff',
   backgroundGradientFrom: '#ffffff',
@@ -355,8 +356,8 @@ export default function PresidentAnalytics() {
               Math.min((fraternityHealth?.membershipGrowth.officerCount || 0) / 10, 1)
             ]
           }}
-          width={screenWidth - 40}
-          height={180}
+          width={chartWidth}
+          height={160}
           strokeWidth={12}
           radius={24}
           chartConfig={{
@@ -402,8 +403,8 @@ export default function PresidentAnalytics() {
               legendFontSize: 15,
             }
           ]}
-          width={screenWidth - 40}
-          height={220}
+          width={chartWidth}
+          height={200}
           chartConfig={chartConfig}
           accessor="population"
           backgroundColor="transparent"
@@ -422,8 +423,8 @@ export default function PresidentAnalytics() {
                 data: Object.values(fraternityHealth.membershipGrowth.pledgeClassSizes).slice(0, 6)
               }]
             }}
-            width={screenWidth - 40}
-            height={220}
+            width={chartWidth}
+            height={180}
             yAxisLabel=""
             yAxisSuffix=""
             chartConfig={{...chartConfig, color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`}}
@@ -449,8 +450,8 @@ export default function PresidentAnalytics() {
               legendFontColor: '#333',
               legendFontSize: 13,
             }))}
-            width={screenWidth - 40}
-            height={220}
+            width={chartWidth}
+            height={200}
             chartConfig={chartConfig}
             accessor="population"
             backgroundColor="transparent"
@@ -694,14 +695,14 @@ const styles = StyleSheet.create({
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: 16,
-    gap: 8,
+    padding: 12,
+    gap: 6,
   },
   kpiCard: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 16,
-    width: (screenWidth - 48) / 2,
+    padding: 12,
+    width: (screenWidth - 36) / 2, // More conservative calculation
     borderWidth: 1,
     borderColor: '#e2e8f0',
     shadowColor: '#000',
@@ -728,10 +729,10 @@ const styles = StyleSheet.create({
   },
   chartSection: {
     backgroundColor: '#ffffff',
-    marginHorizontal: 16,
-    marginBottom: 16,
+    marginHorizontal: 8,
+    marginBottom: 12,
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     shadowColor: '#000',

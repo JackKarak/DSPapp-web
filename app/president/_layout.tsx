@@ -1,6 +1,6 @@
-import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { TouchableOpacity, Alert } from 'react-native';
+import { Tabs, useRouter } from 'expo-router';
+import { Alert, TouchableOpacity } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
 export default function PresidentLayout() {

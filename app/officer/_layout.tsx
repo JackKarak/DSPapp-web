@@ -49,7 +49,11 @@ export default function OfficerLayout() {
         
       // Marketing - Unique Marketing Tools ONLY
       case 'marketing':
-        return ['index', 'analytics', 'events', 'register', 'marketing'];
+        return ['index', 'analytics', 'events', 'register'];
+        
+      // Historian - Unique Marketing Tools Access
+      case 'historian':
+        return ['index', 'analytics', 'events', 'historian'];
         
       // Event-Creating VPs
       case 'vp_professional':
@@ -71,7 +75,6 @@ export default function OfficerLayout() {
       // Administrative Roles - View Only
       case 'vp_operations':
       case 'vp_finance':
-      case 'historian':
       case 'risk':
         return ['index', 'analytics', 'events'];
         
@@ -150,13 +153,13 @@ export default function OfficerLayout() {
         }}
       />
       <Tabs.Screen
-        name="marketing"
+        name="historian"
         options={{
           title: 'Marketing',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="megaphone-outline" size={size} color={color} />
           ),
-          href: accessibleTabs.includes('marketing') ? '/officer/marketing' : null,
+          href: accessibleTabs.includes('historian') ? '/officer/historian' : null,
         }}
       />
       <Tabs.Screen

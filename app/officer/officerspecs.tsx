@@ -16,9 +16,9 @@ export default function OfficerSpecs() {
         case 'vp_scholarship':
           router.replace('/officer/scholarship');
           break;
-        case 'marketing':
+        case 'historian':
         case 'vp_branding':
-          router.replace('/officer/marketing');
+          router.replace('/officer/historian');
           break;
         default:
           // All other officer positions use the main officer dashboard

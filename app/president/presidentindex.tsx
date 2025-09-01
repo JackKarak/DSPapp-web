@@ -19,8 +19,6 @@ type Feedback = {
   user_id: string;
   user_name?: string;
   status: string;
-  has_attachment?: boolean;
-  file_name?: string;
 };
 
 export default function PresidentHome() {
@@ -41,450 +39,404 @@ export default function PresidentHome() {
     setLoading(true);
 
     try {
-      // Check authentication first
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      // Check authentication
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-      if (userError || !user) {        Alert.alert('Authentication Error', 'Please log in again.');
+      if (userError || !user) {
+        Alert.alert('Authentication Error', 'Please log in again.');
         router.replace('/(auth)/login');
         return;
-      }      // First try with join, then fallback to separate queries
-      let feedbackData: any[] = [];
-      let hasError = false;
-
-      // Build query based on showResolved filter
-      let joinQuery = supabase
-        .from('admin_feedback')
-        .select(`
-          id,
-          submitted_at,
-          subject,
-          message,
-          user_id,
-          status,
-          has_attachment,
-          file_name,
-          users(first_name, last_name)
-        `);
-
-      if (!showResolved) {
-        joinQuery = joinQuery.neq('status', 'resolved');
       }
 
-      const joinResult = await joinQuery.order('submitted_at', { ascending: false });      if (joinResult.error) {        // Fallback: Get feedback without user join
-        let basicQuery = supabase
-          .from('admin_feedback')
-          .select('id, submitted_at, subject, message, user_id, status, has_attachment, file_name');
+      // Verify user role
+      const { data: userData, error: userDbError } = await supabase
+        .from('users')
+        .select('user_id, role, officer_position, first_name, last_name')
+        .eq('user_id', user.id)
+        .single();
 
-        if (!showResolved) {
-          basicQuery = basicQuery.neq('status', 'resolved');
-        }
-
-        const basicResult = await basicQuery.order('submitted_at', { ascending: false });        if (basicResult.error) {
-          console.error('Basic query also failed:', basicResult.error);
-          Alert.alert('Database Error', `Unable to access feedback table: ${basicResult.error.message}`);
-          hasError = true;
-        } else {
-          // Get unique user IDs and fetch user names separately
-          const userIds = [...new Set(basicResult.data.map(fb => fb.user_id))];          const { data: usersData } = await supabase
-            .from('users')
-            .select('user_id, first_name, last_name')
-            .in('user_id', userIds);          // Combine the data
-          feedbackData = basicResult.data.map((fb: any) => ({
-            ...fb,
-            users: {
-              first_name: usersData?.find(u => u.user_id === fb.user_id)?.first_name,
-              last_name: usersData?.find(u => u.user_id === fb.user_id)?.last_name,
-            }
-          }));
-        }
-      } else {
-        feedbackData = joinResult.data || [];
-      }
-
-      if (hasError) {
+      if (userDbError || !userData) {
+        Alert.alert('Access Error', 'Could not verify user permissions.');
         setLoading(false);
         return;
-      }      const formattedFeedbacks: Feedback[] = feedbackData.map((fb: any) => ({
+      }
+
+      if (userData.role !== 'admin') {
+        Alert.alert('Access Denied', 'Admin role required.');
+        router.replace('/(tabs)');
+        return;
+      }
+
+      // Query feedback data
+      let query = supabase
+        .from('admin_feedback')
+        .select('id, submitted_at, subject, message, user_id, status');
+
+      if (!showResolved) {
+        query = query.neq('status', 'resolved');
+      }
+
+      const { data: rawFeedbackData, error: feedbackError } = await query.order('submitted_at', { ascending: false });
+
+      if (feedbackError) {
+        Alert.alert('Database Error', 'Unable to load feedback data.');
+        setLoading(false);
+        return;
+      }
+
+      if (!rawFeedbackData || rawFeedbackData.length === 0) {
+        setFeedbacks([]);
+        setLoading(false);
+        return;
+      }
+
+      // Get user names
+      const userIds = [...new Set(rawFeedbackData.map(fb => fb.user_id))];
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('user_id, first_name, last_name')
+        .in('user_id', userIds);
+
+      // Format feedback with user names
+      const formattedFeedbacks: Feedback[] = rawFeedbackData.map((fb: any) => ({
         id: fb.id,
         submitted_at: fb.submitted_at,
         subject: fb.subject,
         message: fb.message,
         user_id: fb.user_id,
         status: fb.status,
-        has_attachment: fb.has_attachment,
-        file_name: fb.file_name,
-        user_name: fb.users?.first_name && fb.users?.last_name 
-          ? `${fb.users.first_name} ${fb.users.last_name}` 
-          : 'Unknown User'
+        user_name: (() => {
+          const userData = usersData?.find(u => u.user_id === fb.user_id);
+          return userData?.first_name && userData?.last_name 
+            ? `${userData.first_name} ${userData.last_name}` 
+            : 'Unknown User';
+        })()
       }));
 
       setFeedbacks(formattedFeedbacks);
-    } catch (error) {
-      console.error('Error fetching feedback:', error);
-      Alert.alert('Unexpected Error', `Something went wrong: ${error}`);
-    } finally {
+      setLoading(false);
+
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to load feedback data.');
       setLoading(false);
     }
   };
 
-  const resolveFeedback = async (feedbackId: string) => {
+  const markAsResolved = async (feedbackId: string) => {
+    try {
+      const { error } = await supabase
+        .from('admin_feedback')
+        .update({ 
+          status: 'resolved',
+          responded_at: new Date().toISOString()
+        })
+        .eq('id', feedbackId);
+
+      if (error) {
+        Alert.alert('Error', 'Failed to update feedback status.');
+        return;
+      }
+
+      Alert.alert('Success', 'Feedback marked as resolved.');
+      fetchFeedbacks();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update feedback status.');
+    }
+  };
+
+  const markAsPending = async (feedbackId: string) => {
+    try {
+      const { error } = await supabase
+        .from('admin_feedback')
+        .update({ 
+          status: 'pending',
+          responded_at: null
+        })
+        .eq('id', feedbackId);
+
+      if (error) {
+        Alert.alert('Error', 'Failed to update feedback status.');
+        return;
+      }
+
+      Alert.alert('Success', 'Feedback marked as pending.');
+      fetchFeedbacks();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update feedback status.');
+    }
+  };
+
+  const deleteFeedback = async (feedbackId: string) => {
     Alert.alert(
-      'Resolve Feedback',
-      'Are you sure you want to mark this feedback as resolved? This will remove it from the dashboard.',
+      'Delete Feedback',
+      'Are you sure you want to permanently delete this feedback?',
       [
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Resolve',
+          text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
               const { error } = await supabase
                 .from('admin_feedback')
-                .update({ 
-                  status: 'resolved',
-                  responded_at: new Date().toISOString()
-                })
+                .delete()
                 .eq('id', feedbackId);
 
               if (error) {
-                console.error('Error resolving feedback:', error);
-                Alert.alert('Error', 'Failed to resolve feedback. Please try again.');
+                Alert.alert('Error', 'Failed to delete feedback.');
                 return;
               }
 
-              // Remove the feedback from the local state
-              setFeedbacks(prev => prev.filter(feedback => feedback.id !== feedbackId));
-              
-              Alert.alert('Success', 'Feedback has been resolved and removed from the dashboard.');
+              Alert.alert('Success', 'Feedback deleted successfully.');
+              fetchFeedbacks();
             } catch (error) {
-              console.error('Unexpected error:', error);
-              Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+              Alert.alert('Error', 'Failed to delete feedback.');
             }
-          },
-        },
+          }
+        }
       ]
     );
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8b5cf6" />
+        <ActivityIndicator size="large" color="#330066" />
         <Text style={styles.loadingText}>Loading feedback...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView 
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 80 }}
-      showsVerticalScrollIndicator={true}
-    >
-      <Text style={styles.header}>👑 Admin Dashboard</Text>
-      <Text style={styles.subtitle}>Member Feedback Management</Text>
-      
-      {/* Filter Toggle */}
-      <View style={styles.filterContainer}>
-        <TouchableOpacity 
-          style={[styles.filterButton, !showResolved && styles.filterButtonActive]}
-          onPress={() => setShowResolved(false)}
-        >
-          <Text style={[styles.filterButtonText, !showResolved && styles.filterButtonTextActive]}>
-            Pending Only
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.filterButton, showResolved && styles.filterButtonActive]}
-          onPress={() => setShowResolved(true)}
-        >
-          <Text style={[styles.filterButtonText, showResolved && styles.filterButtonTextActive]}>
-            Show All
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {feedbacks.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No feedback found</Text>
-          <Text style={styles.emptySubtext}>
-            {loading ? 'Loading...' : 'No feedback submissions in the database yet'}
-          </Text>
-          <TouchableOpacity 
-            style={styles.refreshButton}
-            onPress={() => fetchFeedbacks()}
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Member Feedback</Text>
+        <View style={styles.filterContainer}>
+          <TouchableOpacity
+            style={[styles.filterButton, !showResolved && styles.activeFilter]}
+            onPress={() => setShowResolved(false)}
           >
-            <Text style={styles.refreshButtonText}>🔄 Refresh</Text>
+            <Text style={[styles.filterButtonText, !showResolved && styles.activeFilterText]}>
+              Pending ({feedbacks.filter(f => f.status !== 'resolved').length})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterButton, showResolved && styles.activeFilter]}
+            onPress={() => setShowResolved(true)}
+          >
+            <Text style={[styles.filterButtonText, showResolved && styles.activeFilterText]}>
+              Resolved ({feedbacks.filter(f => f.status === 'resolved').length})
+            </Text>
           </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.feedbackContainer}>
-          {feedbacks.map((feedback) => (
+      </View>
+
+      <ScrollView style={styles.feedbackList}>
+        {feedbacks.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              {showResolved ? 'No resolved feedback found.' : 'No pending feedback found.'}
+            </Text>
+          </View>
+        ) : (
+          feedbacks.map((feedback) => (
             <View key={feedback.id} style={styles.feedbackCard}>
               <View style={styles.feedbackHeader}>
-                <View style={styles.headerRow}>
-                  <View style={styles.userInfo}>
-                    <Text style={styles.userName}>{feedback.user_name}</Text>
-                    <View style={styles.statusRow}>
-                      <View style={[styles.statusBadge, 
-                        feedback.status === 'pending' ? styles.statusPending : 
-                        feedback.status === 'resolved' ? styles.statusResolved : styles.statusReviewed
-                      ]}>
-                        <Text style={styles.statusText}>{feedback.status.toUpperCase()}</Text>
-                      </View>
-                      {feedback.has_attachment && (
-                        <View style={styles.attachmentBadge}>
-                          <Text style={styles.attachmentText}>📎 {feedback.file_name || 'Attachment'}</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                  <Text style={styles.timestamp}>
-                    {new Date(feedback.submitted_at).toLocaleDateString('en-US', {
-                      weekday: 'short',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit'
-                    })}
-                  </Text>
-                </View>
+                <Text style={styles.feedbackSubject}>{feedback.subject}</Text>
+                <Text style={[
+                  styles.statusBadge,
+                  feedback.status === 'resolved' ? styles.resolvedBadge : styles.pendingBadge
+                ]}>
+                  {feedback.status.toUpperCase()}
+                </Text>
               </View>
-              <Text style={styles.subject}>{feedback.subject}</Text>
-              <Text style={styles.message}>{feedback.message}</Text>
               
-              {/* Action Buttons */}
-              {feedback.status !== 'resolved' && (
-                <View style={styles.actionContainer}>
-                  <TouchableOpacity 
-                    style={styles.resolveButton}
-                    onPress={() => resolveFeedback(feedback.id)}
+              <Text style={styles.feedbackMeta}>
+                From: {feedback.user_name} • {formatDate(feedback.submitted_at)}
+              </Text>
+              
+              <Text style={styles.feedbackMessage}>{feedback.message}</Text>
+              
+              <View style={styles.actionButtons}>
+                {feedback.status === 'pending' ? (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.resolveButton]}
+                    onPress={() => markAsResolved(feedback.id)}
                   >
-                    <Text style={styles.resolveButtonText}>✓ Mark as Resolved</Text>
+                    <Text style={styles.actionButtonText}>Mark Resolved</Text>
                   </TouchableOpacity>
-                </View>
-              )}
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.pendingButton]}
+                    onPress={() => markAsPending(feedback.id)}
+                  >
+                    <Text style={styles.actionButtonText}>Mark Pending</Text>
+                  </TouchableOpacity>
+                )}
+                
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.deleteButton]}
+                  onPress={() => deleteFeedback(feedback.id)}
+                >
+                  <Text style={styles.actionButtonText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          ))}
-        </View>
-      )}
-    </ScrollView>
+          ))
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
-    padding: 16,
+    backgroundColor: '#f5f5f5',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f5f5f5',
   },
   loadingText: {
-    marginTop: 12,
+    marginTop: 10,
     fontSize: 16,
-    color: '#6b7280',
-    fontWeight: '500',
+    color: '#666',
   },
   header: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 8,
-    marginTop: 8,
+    backgroundColor: 'white',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 24,
-    fontWeight: '500',
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#330066',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  filterButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    marginHorizontal: 5,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+  },
+  activeFilter: {
+    backgroundColor: '#330066',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '600',
+  },
+  activeFilterText: {
+    color: 'white',
+  },
+  feedbackList: {
+    flex: 1,
+    padding: 15,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingTop: 100,
   },
   emptyText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  emptySubtext: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: '#666',
     textAlign: 'center',
   },
-  feedbackContainer: {
-    gap: 16,
-  },
   feedbackCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   feedbackHeader: {
-    marginBottom: 12,
-  },
-  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  userInfo: {
-    flexDirection: 'column',
-    gap: 8,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    gap: 8,
     alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1f2937',
-  },
-  timestamp: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontWeight: '500',
-  },
-  subject: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#8b5cf6',
     marginBottom: 8,
-    lineHeight: 20,
   },
-  message: {
-    fontSize: 15,
-    color: '#374151',
-    lineHeight: 22,
-    fontWeight: '400',
+  feedbackSubject: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#330066',
+    flex: 1,
+    marginRight: 10,
   },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    minWidth: 60,
-    alignItems: 'center',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
-  statusPending: {
-    backgroundColor: '#fef3c7',
+  pendingBadge: {
+    backgroundColor: '#FFF3CD',
+    color: '#856404',
   },
-  statusReviewed: {
-    backgroundColor: '#dbeafe',
+  resolvedBadge: {
+    backgroundColor: '#D4EDDA',
+    color: '#155724',
   },
-  statusResolved: {
-    backgroundColor: '#dcfce7',
+  feedbackMeta: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 10,
   },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#374151',
+  feedbackMessage: {
+    fontSize: 16,
+    color: '#333',
+    lineHeight: 22,
+    marginBottom: 15,
   },
-  attachmentBadge: {
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  attachmentText: {
-    fontSize: 11,
-    color: '#6b7280',
-    fontWeight: '500',
-  },
-  actionContainer: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+  actionButtons: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    marginHorizontal: 5,
   },
   resolveButton: {
-    backgroundColor: '#10b981',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: '#28a745',
   },
-  resolveButtonText: {
-    color: '#ffffff',
+  pendingButton: {
+    backgroundColor: '#ffc107',
+  },
+  deleteButton: {
+    backgroundColor: '#dc3545',
+  },
+  actionButtonText: {
+    color: 'white',
     fontSize: 14,
-    fontWeight: '600',
-  },
-  refreshButton: {
-    backgroundColor: '#8b5cf6',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginTop: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  refreshButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
+    fontWeight: 'bold',
     textAlign: 'center',
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 8,
-    padding: 4,
-  },
-  filterButton: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  filterButtonActive: {
-    backgroundColor: '#8b5cf6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  filterButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6b7280',
-  },
-  filterButtonTextActive: {
-    color: '#ffffff',
-    fontWeight: '600',
   },
 });

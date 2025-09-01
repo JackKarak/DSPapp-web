@@ -227,7 +227,6 @@ export default function AccountTab() {
   const [loading, setLoading] = useState(true);
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [feedbackSubject, setFeedbackSubject] = useState('');
-  const [feedbackFile, setFeedbackFile] = useState<any>(null);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -694,20 +693,12 @@ export default function AccountTab() {
 
       // Simple direct insert approach with proper user ID handling
       const feedbackData = {
-        user_id: user.id, // Supabase auth.uid() should match this
+        user_id: user.id,
         subject: feedbackSubject.trim(),
         message: feedbackMessage.trim(),
-        file_name: feedbackFile?.name || null,
-        file_size: feedbackFile?.size || null,
-        file_type: feedbackFile?.mimeType || null,
-        has_attachment: !!feedbackFile,
-        attachment_info: feedbackFile ? JSON.stringify({
-          name: feedbackFile.name,
-          size: feedbackFile.size,
-          type: feedbackFile.mimeType,
-          uri: feedbackFile.uri
-        }) : null
-      };      const { data: result, error: submitError } = await supabase
+      };
+
+      const { data: result, error: submitError } = await supabase
         .from('admin_feedback')
         .insert(feedbackData)
         .select();
@@ -720,10 +711,11 @@ export default function AccountTab() {
           hint: submitError.hint
         });
         throw submitError;
-      }      Alert.alert('Thanks!', `Your feedback${feedbackFile ? ' and attachment' : ''} was submitted successfully.`);
+      }
+
+      Alert.alert('Thanks!', 'Your feedback was submitted successfully.');
       setFeedbackSubject('');
       setFeedbackMessage('');
-      setFeedbackFile(null);
     } catch (error) {
             console.error('Feedback submission error:', error);
       
@@ -801,31 +793,6 @@ export default function AccountTab() {
     } catch (error) {
       console.error('Event feedback submission error:', error);
       Alert.alert('Error', 'Could not submit feedback. Please try again.');
-    }
-  };
-
-  const handlePickFeedbackFile = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-        multiple: false,
-      });
-      
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const file = result.assets[0];
-        
-        // Check file size (limit to 10MB)
-        if (file.size && file.size > 10 * 1024 * 1024) {
-          Alert.alert('File Too Large', 'Please select a file smaller than 10MB.');
-          return;
-        }
-        
-        setFeedbackFile(file);
-      }
-    } catch (err) {
-      console.error('File picker error:', err);
-      Alert.alert('Error', 'Failed to pick file. Please try again.');
     }
   };
 
@@ -1665,35 +1632,6 @@ export default function AccountTab() {
             textAlignVertical="top"
           />
           
-          {/* File Attachment Section */}
-          <View style={styles.attachmentSection}>
-            <Text style={styles.attachmentLabel}>Optional: Attach a file</Text>
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: Colors.primary, marginBottom: 8 }]}
-              onPress={handlePickFeedbackFile}
-            >
-              <Text style={styles.buttonText}>
-                {feedbackFile ? 'Change Attachment' : 'Add Attachment'}
-              </Text>
-            </TouchableOpacity>
-            
-            {feedbackFile && (
-              <View style={styles.filePreview}>
-                <View style={styles.fileInfo}>
-                  <Text style={styles.fileName}>{feedbackFile.name}</Text>
-                  <Text style={styles.fileSize}>
-                    {feedbackFile.size ? `${Math.round(feedbackFile.size / 1024)} KB` : 'Size unknown'}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.removeFileButton}
-                  onPress={() => setFeedbackFile(null)}
-                >
-                  <Text style={styles.removeFileText}>Remove</Text></TouchableOpacity>
-              </View>
-            )}
-          </View>
-          
           <TouchableOpacity 
             style={[
               styles.button, 
@@ -1705,8 +1643,7 @@ export default function AccountTab() {
             disabled={submittingFeedback}
           >
             <Text style={[styles.buttonText, styles.submitButtonText]}>
-              {submittingFeedback ? 'Sending...' : 
-               feedbackFile ? 'Send Feedback & Attachment' : 'Send Feedback'}
+              {submittingFeedback ? 'Sending...' : 'Send Feedback'}
             </Text>
           </TouchableOpacity>
         </View>
