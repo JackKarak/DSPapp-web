@@ -1,8 +1,8 @@
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { supabase } from '../../lib/supabase';
 import { useOfficerRole } from '../../hooks/useOfficerRole';
+import { supabase } from '../../lib/supabase';
 
 interface DashboardStats {
   eventsCreated: number;
