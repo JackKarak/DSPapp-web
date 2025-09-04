@@ -8,7 +8,13 @@
 - ✅ Disabled New Architecture to avoid JSI API conflicts
 - ✅ Set iOS deployment target to 13.0+
 
-### 2. iOS Input Visibility Issues
+### 2. Package Version Conflicts
+- ✅ Fixed `@react-native-community/datetimepicker` to version 7.6.2 (Expo 50 compatible)
+- ✅ Removed `expo-symbols` 0.1.7 (non-existent version causing ETARGET errors)
+- ✅ Downgraded `@expo/vector-icons` to 13.0.0 (compatible with Expo 50)
+- ✅ Fixed `react-native-modal-datetime-picker` to version 13.0.0 (stable version)
+
+### 3. iOS Input Visibility Issues
 - ✅ Added dedicated `profileFormInput` style with maximum contrast
 - ✅ Created iOS-optimized `profileMultiSelectButton` style
 - ✅ Created iOS-optimized `profileDateInput` style
