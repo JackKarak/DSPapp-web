@@ -19,10 +19,14 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.deltasigmapi.app",
       "buildNumber": "1",
+      "deploymentTarget": "13.0",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "This app accesses your photo library to allow you to upload profile pictures and event photos.",
         "NSCameraUsageDescription": "This app accesses your camera to allow you to take photos for your profile and events.",
         "NSLocationWhenInUseUsageDescription": "This app uses location services to help find event locations and provide location-based features."
+      },
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
@@ -60,7 +64,7 @@
     "experiments": {
       "typedRoutes": true
     },
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "privacy": "unlisted"
   }
 }

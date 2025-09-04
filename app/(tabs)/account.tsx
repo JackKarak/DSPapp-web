@@ -83,7 +83,7 @@ const MajorMultiSelect: React.FC<{
   return (
     <View style={styles.multiSelectContainer}>
       <TouchableOpacity
-        style={[styles.input, styles.formInput, styles.multiSelectButton]}
+        style={styles.profileMultiSelectButton}
         onPress={() => setShowDropdown(!showDropdown)}
       >
         <Text style={selectedMajors.length > 0 ? styles.multiSelectText : styles.placeholderText}>
@@ -915,7 +915,7 @@ export default function AccountTab() {
         {/* Date of Birth field - temporarily commented out until DB column is added
         <Text style={styles.fieldLabel}>Date of Birth</Text>
         <TouchableOpacity
-          style={[styles.input, styles.formInput, styles.dateInput]}
+          style={styles.profileDateInput}
           onPress={() => setShowDatePicker(true)}
         >
           <Text style={dateOfBirth ? styles.dateText : styles.placeholderText}>
@@ -2560,6 +2560,44 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 8,                   // Higher elevation
     // Add border style for extra visibility
+    borderStyle: 'solid',
+  },
+  // iOS-optimized multi-select button style
+  profileMultiSelectButton: {
+    borderWidth: 3,
+    borderColor: Colors.primary,
+    borderRadius: 10,
+    padding: 16,
+    backgroundColor: '#E8F4FD',     // Light blue background
+    marginBottom: 12,
+    minHeight: 50,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    // Strong shadow for iOS visibility
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 8,
+    borderStyle: 'solid',
+  },
+  // iOS-optimized date input style
+  profileDateInput: {
+    borderWidth: 3,
+    borderColor: Colors.primary,
+    borderRadius: 10,
+    padding: 16,
+    backgroundColor: '#E8F4FD',     // Light blue background
+    marginBottom: 12,
+    minHeight: 50,
+    justifyContent: 'center',
+    // Strong shadow for iOS visibility
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 8,
     borderStyle: 'solid',
   },
   dateInput: {
