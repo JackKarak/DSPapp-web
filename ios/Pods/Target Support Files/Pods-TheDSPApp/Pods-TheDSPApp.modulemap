@@ -1,0 +1,6 @@
+module Pods_TheDSPApp {
+  umbrella header "Pods-TheDSPApp-umbrella.h"
+
+  export *
+  module * { export * }
+}
