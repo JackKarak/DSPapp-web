@@ -53,14 +53,15 @@ export default function ScholarshipTab() {
 
       if (!userData.officer_position) {
         Alert.alert('Access Denied', 'You do not have officer permissions.');
-        router.replace('/officer');
+        router.replace('/officer/' as any);
         return;
       }
 
       // Allow access for VP Scholarship or scholarship officers
       const validPositions = ['scholarship', 'vp_scholarship', 'president'];
-      if (!validPositions.includes(userData.officer_position)) {        Alert.alert('Access Denied', 'You do not have permission to access the scholarship test bank.');
-        router.replace('/officer');
+      if (!validPositions.includes(userData.officer_position)) {
+        Alert.alert('Access Denied', 'You do not have permission to access the scholarship test bank.');
+        router.replace('/officer/' as any);
         return;
       }      fetchTestBankItems();
     } catch (error) {

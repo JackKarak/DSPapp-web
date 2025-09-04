@@ -374,7 +374,7 @@ export default function CalendarTab() {
       {((userRole === 'admin') || (userRole === 'officer')) && (
         <TouchableOpacity 
           style={[styles.feedbackNotification, pendingFeedbacks > 0 && styles.feedbackNotificationActive]}
-          onPress={() => router.push('/president/presidentindex')}
+          onPress={() => router.push('/president/presidentindex' as any)}
         >
           <View style={styles.feedbackContent}>
             <Text style={styles.feedbackIcon}>💬</Text>

@@ -74,7 +74,7 @@ export default function LoginScreen() {
           router.replace('/officer/officerspecs');
           break;
         case 'admin':
-          router.replace('/president/presidentindex');
+          router.replace('/president/presidentindex' as any);
           break;
         default:
           router.replace('/(tabs)');
