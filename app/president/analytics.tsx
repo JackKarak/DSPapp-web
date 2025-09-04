@@ -12,7 +12,7 @@ import {
   BarChart,
   PieChart,
   ProgressChart
-} from 'react-native-chart-kit';
+} from '../../components/IOSCharts';
 import { supabase } from '../../lib/supabase';
 
 // Enhanced analytics types with more detailed member analytics

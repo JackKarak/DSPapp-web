@@ -23,7 +23,8 @@
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "This app accesses your photo library to allow you to upload profile pictures and event photos.",
         "NSCameraUsageDescription": "This app accesses your camera to allow you to take photos for your profile and events.",
-        "NSLocationWhenInUseUsageDescription": "This app uses location services to help find event locations and provide location-based features."
+        "NSLocationWhenInUseUsageDescription": "This app uses location services to help find event locations and provide location-based features.",
+        "NSDocumentPickerUsageDescription": "This app accesses documents to allow you to upload files for your profile and submissions."
       },
       "config": {
         "usesNonExemptEncryption": false

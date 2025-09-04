@@ -8,7 +8,7 @@ import {
   Text,
   View
 } from 'react-native';
-import { BarChart, LineChart, PieChart } from 'react-native-chart-kit';
+import { BarChart, LineChart, PieChart } from '../../components/IOSCharts';
 import { supabase } from '../../lib/supabase';
 
 type KPICardProps = {
