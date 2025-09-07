@@ -139,6 +139,7 @@ export default function AdminRegisterEvent() {
         return;
       }
 
+      // Combine date and time while preserving local timezone
       const combinedStart = new Date(
         startDate.getFullYear(),
         startDate.getMonth(),
@@ -160,14 +161,21 @@ export default function AdminRegisterEvent() {
       const roundedStart = roundToNearestMinute(combinedStart);
       const roundedEnd = roundToNearestMinute(combinedEnd);
 
+      // Convert to ISO string but maintain local time by adjusting for timezone offset
+      const getLocalISOString = (date: Date) => {
+        const offset = date.getTimezoneOffset();
+        const adjustedDate = new Date(date.getTime() - (offset * 60 * 1000));
+        return adjustedDate.toISOString();
+      };
+
       const { error } = await supabase.from('events').insert({
         title,
         description,
         location: isNonEvent ? '' : location,
         point_type: isNonEvent ? pointType : (isNoPoint ? 'No Point' : pointType),
         point_value: isNonEvent ? 1 : (isNoPoint ? 0 : 1),
-        start_time: roundedStart.toISOString(),
-        end_time: roundedEnd.toISOString(),
+        start_time: getLocalISOString(roundedStart),
+        end_time: getLocalISOString(roundedEnd),
         created_by: user.id, // Using user.id from auth, which maps to user_id in users table
         is_registerable: isNonEvent ? false : isRegisterable,
         available_to_pledges: availableToPledges,
