@@ -25,7 +25,6 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [pledgeClass, setPledgeClass] = useState('');
   const [expectedGraduation, setExpectedGraduation] = useState('');
-  const [officerPosition, setOfficerPosition] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -39,26 +38,20 @@ export default function SignupScreen() {
       last_name: lastName,
       email,
       role,
-      activated_at: new Date().toISOString(),
     };
 
     // Add role-specific fields
     if (role === 'brother' || role === 'pledge') {
       return {
         ...baseData,
-        brother_id: existingUser?.id || null,
         phone_number: parseInt(phoneNumber),
         uid: parseInt(uid),
         pledge_class: pledgeClass || null,
         expected_graduation: expectedGraduation ? parseInt(expectedGraduation) : null,
       };
-    } else if (role === 'officer') {
-      return {
-        ...baseData,
-        officer_position: officerPosition,
-      };
-    } else if (role === 'admin') {
-      return baseData; // Admin only needs basic fields
+    } else {
+      // Officer and admin only need basic fields
+      return baseData;
     }
     
     return baseData;
@@ -87,50 +80,28 @@ export default function SignupScreen() {
         throw new Error('Please enter valid numbers for phone number and UID.');
       }
       
-      // Check if brother exists in the brother table
-      const { data: brotherData, error } = await supabase
-        .from('brother')
+      // Check if user already exists in the users table
+      const { data: existingUserData, error } = await supabase
+        .from('users')
         .select('*')
         .eq('phone_number', phoneNum)
         .eq('uid', uidNum)
         .single();      if (error && error.code !== 'PGRST116') {
-        console.error('Brother query error:', error);
+        console.error('User query error:', error);
         throw error;
       }
 
-      if (brotherData) {
-        // Check if this brother already has a user account
-        const { data: existingUser, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('phone_number', phoneNum)
-          .eq('uid', uidNum)
-          .single();
-
-        if (userError && userError.code !== 'PGRST116') {
-          throw userError;
-        }
-
-        if (existingUser) {
-          Alert.alert('Account Exists', 'You already have an account. Please try logging in instead.');
-          router.replace('/(auth)/login');
-          return;
-        }
-
-        // Brother found and no existing user account - proceed with signup
-        setExistingUser(brotherData);
-        setFirstName(brotherData.first_name || '');
-        setLastName(brotherData.last_name || '');
-        setEmail(brotherData.email || '');
-        setPledgeClass(brotherData.pledge_class || '');
-        setExpectedGraduation(brotherData.expected_graduation?.toString() || '');
-        setStep(4); // Brother confirmation step
-      } else {
-        Alert.alert('Not Found', 'No brother found with this phone number and UID. Please contact an officer if you believe this is an error.');
+      if (existingUserData) {
+        Alert.alert('Account Exists', 'You already have an account. Please try logging in instead.');
+        router.replace('/(auth)/login');
+        return;
       }
+
+      // No existing user account - proceed with signup
+      setStep(3);
     } catch (error: any) {
-      console.error('Brother verification error:', error);
-      Alert.alert('Error', `Failed to check brother information: ${error.message || 'Unknown error'}`);
+      console.error('User verification error:', error);
+      Alert.alert('Error', `Failed to check user information: ${error.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -155,13 +126,8 @@ export default function SignupScreen() {
       Alert.alert('Missing Information', 'Phone number and UID are required for brothers and pledges.');
       return;
     }
-  } else if (role === 'officer') {
-    if (!officerPosition) {
-      Alert.alert('Missing Officer Role', 'Please select an officer position.');
-      return;
-    }
   }
-  // Admin role only needs basic fields (no additional validation needed)
+  // Admin and officer roles only need basic fields (no additional validation needed)
 
   setLoading(true);
 
@@ -429,37 +395,6 @@ export default function SignupScreen() {
                   <Picker.Item label="Upsilon" value="upsilon" />
                   <Picker.Item label="Phi" value="phi" />
                   <Picker.Item label="Chi" value="chi" />
-                </Picker>
-              </>
-            )}
-
-            {role === 'officer' && (
-              <>
-                <Text style={styles.label}>Officer Position</Text>
-                <Picker
-                  selectedValue={officerPosition}
-                  onValueChange={setOfficerPosition}
-                  style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
-                  itemStyle={styles.pickerItem}
-                >
-                  <Picker.Item label="Select Position" value="" />
-                  <Picker.Item label="Social" value="social" />
-                  <Picker.Item label="Marketing" value="marketing" />
-                  <Picker.Item label="Wellness" value="wellness" />
-                  <Picker.Item label="Fundraising" value="fundraising" />
-                  <Picker.Item label="Brotherhood" value="brotherhood" />
-                  <Picker.Item label="Risk" value="risk" />
-                  <Picker.Item label="Historian" value="historian" />
-                  <Picker.Item label="Chancellor" value="chancellor" />
-                  <Picker.Item label="SVP" value="svp" />
-                  <Picker.Item label="Operations" value="vp_operations" />
-                  <Picker.Item label="Finance" value="vp_finance" />
-                  <Picker.Item label="Pledge Ed" value="vp_pledge_ed" />
-                  <Picker.Item label="Scholarship" value="vp_scholarship" />
-                  <Picker.Item label="Branding" value="vp_branding" />
-                  <Picker.Item label="Community Service" value="vp_service" />
-                  <Picker.Item label="DEI" value="vp_dei" />
-                  <Picker.Item label="Professional" value="vp_professional" />
                 </Picker>
               </>
             )}
