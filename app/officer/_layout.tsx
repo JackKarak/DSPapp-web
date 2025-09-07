@@ -36,51 +36,22 @@ export default function OfficerLayout() {
   const getAccessibleTabs = () => {
     const position = role?.position?.toLowerCase() ?? '';
     
-    // Define tabs for each specific role
+    // Base tabs that ALL officers get
+    const baseTabs = ['index', 'analytics', 'events', 'register'];
+    
+    // Define additional tabs for specific roles
     switch (position) {
-      // Executive Leadership - Full Access
-      case 'svp':
-      case 'chancellor':
-        return ['index', 'analytics', 'events', 'register'];
-        
-      // VP Scholarship - Unique Testbank Access ONLY
+      // VP Scholarship gets additional scholarship tab
       case 'vp_scholarship':
-        return ['index', 'analytics', 'events', 'register', 'scholarship'];
+        return [...baseTabs, 'scholarship'];
         
-      // Marketing - Unique Marketing Tools ONLY
-      case 'marketing':
-        return ['index', 'analytics', 'events', 'register'];
-        
-      // Historian - Unique Marketing Tools Access
+      // Historian gets additional historian tab
       case 'historian':
-        return ['index', 'analytics', 'events', 'historian'];
+        return [...baseTabs, 'historian'];
         
-      // Event-Creating VPs
-      case 'vp_professional':
-      case 'vp_service':
-      case 'vp_dei':
-      case 'vp_pledge_ed':
-      case 'brotherhood':
-      case 'vp_branding':
-        return ['index', 'analytics', 'events', 'register'];
-        
-      // Event-Creating Chairs (when their files are created)
-      case 'social':
-        return ['index', 'analytics', 'events', 'register']; // Add 'social' when file exists
-      case 'wellness':
-        return ['index', 'analytics', 'events', 'register']; // Add 'wellness' when file exists
-      case 'fundraising':
-        return ['index', 'analytics', 'events', 'register']; // Add 'fundraising' when file exists
-        
-      // Administrative Roles - View Only
-      case 'vp_operations':
-      case 'vp_finance':
-      case 'risk':
-        return ['index', 'analytics', 'events'];
-        
-      // Default fallback for unrecognized roles
+      // All other officers get base tabs
       default:
-        return ['index'];
+        return baseTabs;
     }
   };
 

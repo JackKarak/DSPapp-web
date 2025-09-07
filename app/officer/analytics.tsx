@@ -211,17 +211,28 @@ export default function OfficerAnalytics() {
       eventStatsTemp.average_attendance = 
         Object.values(attendanceByEvent).reduce((sum, count) => sum + count, 0) / (Object.keys(attendanceByEvent).length || 1);
       
-      // Calculate engagement rate (attendees vs total registered users)
+      // Calculate engagement rate (unique attendees vs total registered users)
       const { data: totalUsers } = await supabase
         .from('users')
         .select('user_id', { count: 'exact' });
       
-      eventStatsTemp.engagement_rate = totalUsers ? (attendeeUserIds.size / totalUsers.length) * 100 : 0;
+      eventStatsTemp.engagement_rate = (totalUsers && totalUsers.length > 0) ? 
+        (attendeeUserIds.size / totalUsers.length) * 100 : 0;
       
       // Calculate growth rate (comparing last 3 months vs previous 3 months)
       const currentQuarter = last6Months.slice(3).reduce((sum, month) => sum + month.count, 0);
       const previousQuarter = last6Months.slice(0, 3).reduce((sum, month) => sum + month.count, 0);
-      eventStatsTemp.growth_rate = previousQuarter > 0 ? ((currentQuarter - previousQuarter) / previousQuarter) * 100 : 0;
+      
+      // Fixed growth rate calculation with proper edge case handling
+      if (previousQuarter > 0) {
+        eventStatsTemp.growth_rate = ((currentQuarter - previousQuarter) / previousQuarter) * 100;
+      } else if (currentQuarter > 0) {
+        // If previous quarter was 0 but current has events, that's 100% growth
+        eventStatsTemp.growth_rate = 100;
+      } else {
+        // Both quarters are 0, no growth
+        eventStatsTemp.growth_rate = 0;
+      }
       
       setEventStats(eventStatsTemp);
       
@@ -285,9 +296,17 @@ export default function OfficerAnalytics() {
         if (feedbackError) {
           console.error('Feedback fetch error:', feedbackError);
         } else if (feedbackData && feedbackData.length > 0) {
-          feedbackStatsData.avgRating = feedbackData.reduce((sum, f) => sum + (f.rating || 0), 0) / feedbackData.length;
-          feedbackStatsData.wouldAttendAgainPct = (feedbackData.filter(f => f.would_attend_again).length / feedbackData.length) * 100;
-          feedbackStatsData.wellOrganizedPct = (feedbackData.filter(f => f.well_organized).length / feedbackData.length) * 100;
+          // Calculate average rating with proper validation
+          const validRatings = feedbackData.filter(f => f.rating && f.rating > 0);
+          feedbackStatsData.avgRating = validRatings.length > 0 ? 
+            validRatings.reduce((sum, f) => sum + f.rating, 0) / validRatings.length : 0;
+          
+          // Calculate percentages with proper validation
+          const totalResponses = feedbackData.length;
+          feedbackStatsData.wouldAttendAgainPct = totalResponses > 0 ? 
+            (feedbackData.filter(f => f.would_attend_again === true).length / totalResponses) * 100 : 0;
+          feedbackStatsData.wellOrganizedPct = totalResponses > 0 ? 
+            (feedbackData.filter(f => f.well_organized === true).length / totalResponses) * 100 : 0;
           feedbackStatsData.recentComments = feedbackData
             .filter(f => f.comments)
             .slice(-10)
@@ -446,39 +465,131 @@ export default function OfficerAnalytics() {
         )}
       </View>
 
-      {/* Engagement Metrics */}
+      {/* Enhanced Engagement Metrics */}
       <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>🎪 Member Engagement Metrics</Text>
-        <View style={styles.progressContainer}>
-          <View style={styles.progressRow}>
-            <Text style={styles.progressLabel}>Engagement</Text>
-            <View style={styles.progressBarContainer}>
-              <View style={[styles.progressBar, { 
-                width: `${Math.min(eventStats.engagement_rate, 100)}%`, 
-                backgroundColor: '#4285F4' 
-              }]} />
+        <View style={styles.metricsHeader}>
+          <Text style={styles.chartTitle}>📊 Member Engagement Metrics</Text>
+          <Text style={styles.metricsSubtitle}>Real-time performance indicators</Text>
+        </View>
+        
+        <View style={styles.metricsGrid}>
+          {/* Engagement Rate Card */}
+          <View style={[styles.metricCard, { borderLeftColor: '#4285F4' }]}>
+            <View style={styles.metricIconContainer}>
+              <Text style={styles.metricIcon}>👥</Text>
             </View>
-            <Text style={styles.progressText}>{eventStats.engagement_rate.toFixed(1)}%</Text>
+            <View style={styles.metricContent}>
+              <Text style={styles.metricLabel}>Engagement Rate</Text>
+              <Text style={[styles.metricValue, { color: '#4285F4' }]}>
+                {eventStats.engagement_rate.toFixed(1)}%
+              </Text>
+              <Text style={styles.metricDescription}>
+                {eventStats.engagement_rate >= 30 ? 'Excellent participation' : 
+                 eventStats.engagement_rate >= 15 ? 'Good involvement' : 'Needs improvement'}
+              </Text>
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBar, { 
+                  width: `${Math.min(eventStats.engagement_rate, 100)}%`, 
+                  backgroundColor: '#4285F4' 
+                }]} />
+              </View>
+            </View>
           </View>
-          <View style={styles.progressRow}>
-            <Text style={styles.progressLabel}>Satisfaction</Text>
-            <View style={styles.progressBarContainer}>
-              <View style={[styles.progressBar, { 
-                width: `${Math.min((feedbackStats.avgRating / 5) * 100, 100)}%`, 
-                backgroundColor: '#34A853' 
-              }]} />
+
+          {/* Satisfaction Score Card */}
+          <View style={[styles.metricCard, { borderLeftColor: '#34A853' }]}>
+            <View style={styles.metricIconContainer}>
+              <Text style={styles.metricIcon}>⭐</Text>
             </View>
-            <Text style={styles.progressText}>{((feedbackStats.avgRating / 5) * 100).toFixed(1)}%</Text>
+            <View style={styles.metricContent}>
+              <Text style={styles.metricLabel}>Satisfaction Score</Text>
+              <Text style={[styles.metricValue, { color: '#34A853' }]}>
+                {feedbackStats.avgRating.toFixed(1)}/5.0
+              </Text>
+              <Text style={styles.metricDescription}>
+                {feedbackStats.avgRating >= 4.0 ? 'Outstanding quality' : 
+                 feedbackStats.avgRating >= 3.0 ? 'Good experience' : 'Room for improvement'}
+              </Text>
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBar, { 
+                  width: `${Math.min((feedbackStats.avgRating / 5) * 100, 100)}%`, 
+                  backgroundColor: '#34A853' 
+                }]} />
+              </View>
+            </View>
           </View>
-          <View style={styles.progressRow}>
-            <Text style={styles.progressLabel}>Retention</Text>
-            <View style={styles.progressBarContainer}>
-              <View style={[styles.progressBar, { 
-                width: `${Math.min(feedbackStats.wouldAttendAgainPct, 100)}%`, 
-                backgroundColor: '#FBBC04' 
-              }]} />
+
+          {/* Retention Rate Card */}
+          <View style={[styles.metricCard, { borderLeftColor: '#FBBC04' }]}>
+            <View style={styles.metricIconContainer}>
+              <Text style={styles.metricIcon}>🔄</Text>
             </View>
-            <Text style={styles.progressText}>{feedbackStats.wouldAttendAgainPct.toFixed(1)}%</Text>
+            <View style={styles.metricContent}>
+              <Text style={styles.metricLabel}>Retention Rate</Text>
+              <Text style={[styles.metricValue, { color: '#FBBC04' }]}>
+                {feedbackStats.wouldAttendAgainPct.toFixed(1)}%
+              </Text>
+              <Text style={styles.metricDescription}>
+                {feedbackStats.wouldAttendAgainPct >= 80 ? 'Exceptional loyalty' : 
+                 feedbackStats.wouldAttendAgainPct >= 60 ? 'Strong retention' : 'Engagement opportunity'}
+              </Text>
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBar, { 
+                  width: `${Math.min(feedbackStats.wouldAttendAgainPct, 100)}%`, 
+                  backgroundColor: '#FBBC04' 
+                }]} />
+              </View>
+            </View>
+          </View>
+
+          {/* Organization Quality Card */}
+          <View style={[styles.metricCard, { borderLeftColor: '#EA4335' }]}>
+            <View style={styles.metricIconContainer}>
+              <Text style={styles.metricIcon}>🎯</Text>
+            </View>
+            <View style={styles.metricContent}>
+              <Text style={styles.metricLabel}>Organization Quality</Text>
+              <Text style={[styles.metricValue, { color: '#EA4335' }]}>
+                {feedbackStats.wellOrganizedPct.toFixed(1)}%
+              </Text>
+              <Text style={styles.metricDescription}>
+                {feedbackStats.wellOrganizedPct >= 85 ? 'Excellently organized' : 
+                 feedbackStats.wellOrganizedPct >= 70 ? 'Well structured' : 'Organization needed'}
+              </Text>
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBar, { 
+                  width: `${Math.min(feedbackStats.wellOrganizedPct, 100)}%`, 
+                  backgroundColor: '#EA4335' 
+                }]} />
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Quick Insights */}
+        <View style={styles.insightsContainer}>
+          <Text style={styles.insightsTitle}>💡 Quick Insights</Text>
+          <View style={styles.insightsList}>
+            <View style={styles.insightItem}>
+              <Text style={styles.insightIcon}>
+                {eventStats.engagement_rate >= 25 ? '🚀' : eventStats.engagement_rate >= 15 ? '📈' : '⚠️'}
+              </Text>
+              <Text style={styles.insightText}>
+                {eventStats.engagement_rate >= 25 ? 'Your engagement rate is above average!' : 
+                 eventStats.engagement_rate >= 15 ? 'Solid engagement with room to grow' : 
+                 'Consider strategies to boost participation'}
+              </Text>
+            </View>
+            <View style={styles.insightItem}>
+              <Text style={styles.insightIcon}>
+                {feedbackStats.avgRating >= 4.0 ? '✨' : feedbackStats.avgRating >= 3.0 ? '👍' : '🔧'}
+              </Text>
+              <Text style={styles.insightText}>
+                {feedbackStats.avgRating >= 4.0 ? 'Members love your events!' : 
+                 feedbackStats.avgRating >= 3.0 ? 'Good feedback overall' : 
+                 'Focus on event quality improvements'}
+              </Text>
+            </View>
           </View>
         </View>
       </View>
@@ -605,12 +716,13 @@ export default function OfficerAnalytics() {
           <View style={styles.assessmentContent}>
             <View style={styles.assessmentItem}>
               <View style={[styles.assessmentDot, { 
-                backgroundColor: feedbackStats.avgRating >= 4.0 && eventStats.engagement_rate >= 40 ? '#4CAF50' : '#FF9800' 
+                backgroundColor: feedbackStats.avgRating >= 4.0 ? '#4CAF50' : feedbackStats.avgRating >= 3.0 ? '#FF9800' : '#F44336'
               }]} />
               <Text style={styles.assessmentText}>
                 Your events are performing{' '}
                 <Text style={styles.assessmentHighlight}>
-                  {feedbackStats.avgRating >= 4.0 && eventStats.engagement_rate >= 40 ? 'exceptionally well' : 'adequately'}
+                  {feedbackStats.avgRating >= 4.0 ? 'exceptionally well' : 
+                   feedbackStats.avgRating >= 3.0 ? 'adequately' : 'below expectations'}
                 </Text>
                 {' '}with an average satisfaction rating of {feedbackStats.avgRating.toFixed(1)}/5.0
               </Text>
@@ -618,27 +730,45 @@ export default function OfficerAnalytics() {
             
             <View style={styles.assessmentItem}>
               <View style={[styles.assessmentDot, { 
-                backgroundColor: eventStats.growth_rate >= 0 ? '#4CAF50' : '#F44336' 
+                backgroundColor: eventStats.growth_rate >= 10 ? '#4CAF50' : eventStats.growth_rate >= 0 ? '#FF9800' : '#F44336' 
               }]} />
               <Text style={styles.assessmentText}>
-                Event engagement is showing{' '}
+                Event attendance is showing{' '}
                 <Text style={styles.assessmentHighlight}>
-                  {eventStats.growth_rate >= 10 ? 'strong positive growth' : eventStats.growth_rate >= 0 ? 'stable performance' : 'declining trends'}
+                  {eventStats.growth_rate >= 10 ? 'strong positive growth' : 
+                   eventStats.growth_rate >= 0 ? 'stable performance' : 'declining trends'}
                 </Text>
-                {' '}with a {Math.abs(eventStats.growth_rate).toFixed(1)}% change this quarter
+                {' '}with a {eventStats.growth_rate >= 0 ? '+' : ''}{eventStats.growth_rate.toFixed(1)}% change this quarter
               </Text>
             </View>
 
             <View style={styles.assessmentItem}>
               <View style={[styles.assessmentDot, { 
-                backgroundColor: feedbackStats.wouldAttendAgainPct >= 70 ? '#4CAF50' : '#FF9800' 
+                backgroundColor: feedbackStats.wouldAttendAgainPct >= 80 ? '#4CAF50' : 
+                                feedbackStats.wouldAttendAgainPct >= 60 ? '#FF9800' : '#F44336'
               }]} />
               <Text style={styles.assessmentText}>
                 Member retention indicates{' '}
                 <Text style={styles.assessmentHighlight}>
-                  {feedbackStats.wouldAttendAgainPct >= 80 ? 'excellent loyalty' : feedbackStats.wouldAttendAgainPct >= 60 ? 'good satisfaction' : 'room for improvement'}
+                  {feedbackStats.wouldAttendAgainPct >= 80 ? 'excellent loyalty' : 
+                   feedbackStats.wouldAttendAgainPct >= 60 ? 'good satisfaction' : 'room for improvement'}
                 </Text>
                 {' '}with {feedbackStats.wouldAttendAgainPct.toFixed(1)}% willing to attend similar events
+              </Text>
+            </View>
+
+            <View style={styles.assessmentItem}>
+              <View style={[styles.assessmentDot, { 
+                backgroundColor: eventStats.engagement_rate >= 30 ? '#4CAF50' : 
+                                eventStats.engagement_rate >= 15 ? '#FF9800' : '#F44336'
+              }]} />
+              <Text style={styles.assessmentText}>
+                Overall engagement shows{' '}
+                <Text style={styles.assessmentHighlight}>
+                  {eventStats.engagement_rate >= 30 ? 'high participation' : 
+                   eventStats.engagement_rate >= 15 ? 'moderate involvement' : 'low turnout'}
+                </Text>
+                {' '}with {eventStats.engagement_rate.toFixed(1)}% of members attending events
               </Text>
             </View>
           </View>
@@ -835,42 +965,10 @@ const styles = StyleSheet.create({
     color: '#202124',
   },
   // Professional Performance Summary Styles
-  metricsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  metricCard: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 4,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e8eaed',
-  },
   metricHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
-  },
-  metricIcon: {
-    fontSize: 16,
-    marginRight: 6,
-  },
-  metricLabel: {
-    fontSize: 12,
-    color: '#5f6368',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  metricValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#202124',
-    marginBottom: 8,
-    textAlign: 'center',
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -940,5 +1038,103 @@ const styles = StyleSheet.create({
     color: '#80868b',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  // Enhanced Metrics Styles
+  metricsHeader: {
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  metricsSubtitle: {
+    fontSize: 12,
+    color: '#5f6368',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  metricsGrid: {
+    gap: 12,
+  },
+  metricCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  metricIconContainer: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  metricIcon: {
+    fontSize: 18,
+  },
+  metricContent: {
+    paddingRight: 40,
+  },
+  metricLabel: {
+    fontSize: 12,
+    color: '#5f6368',
+    fontWeight: '500',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  metricValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  metricDescription: {
+    fontSize: 12,
+    color: '#80868b',
+    marginBottom: 12,
+    lineHeight: 16,
+  },
+  insightsContainer: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e8eaed',
+  },
+  insightsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#202124',
+    marginBottom: 12,
+  },
+  insightsList: {
+    gap: 12,
+  },
+  insightItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 12,
+  },
+  insightIcon: {
+    fontSize: 16,
+    marginRight: 12,
+    marginTop: 2,
+  },
+  insightText: {
+    fontSize: 13,
+    color: '#5f6368',
+    lineHeight: 18,
+    flex: 1,
   },
 });

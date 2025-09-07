@@ -50,6 +50,15 @@ export default function PresidentLayout() {
         }}
       />
       <Tabs.Screen
+        name="approve"
+        options={{
+          title: 'Approve',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="checkmark-circle-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="confirm"
         options={{
           title: 'Confirm',
