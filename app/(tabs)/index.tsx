@@ -168,11 +168,12 @@ export default function CalendarTab() {
         }
       }
 
-      // Fetch events
+      // Fetch events (only approved events visible to users)
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('id, title, start_time, end_time, location, point_value, point_type, created_by, is_registerable')
         .eq('is_non_event', false)
+        .eq('status', 'approved')
         .order('start_time', { ascending: true });
 
       if (eventsError) {
