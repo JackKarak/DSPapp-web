@@ -54,7 +54,7 @@
     "react-native-web": "~0.19.6",
     "react-native-webview": "^13.6.4",
     "readable-stream": "^4.7.0",
-    "@react-native-community/datetimepicker": "7.6.2"
+    "@react-native-community/datetimepicker": "7.7.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
