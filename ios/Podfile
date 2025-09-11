@@ -22,9 +22,6 @@ target 'TheDSPApp' do
     :fabric_enabled => false,
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
-
-  # Fix Hermes version compatibility - pin to version compatible with RN 0.73.4
-  pod 'hermes-engine', '~> 0.73.0'
   
   post_install do |installer|
     react_native_post_install(
