@@ -1,9 +1,9 @@
-import { supabase } from '@/lib/supabase';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { Colors } from '../../constants/colors';
+import { supabase } from '../../lib/supabase';
 
 const POINT_REQUIREMENTS: Record<string, number> = {
   brotherhood: 20,
