@@ -160,11 +160,17 @@ export default function OfficerRegisterEvent() {
       const roundedStart = roundToNearestMinute(combinedStart);
       const roundedEnd = roundToNearestMinute(combinedEnd);
 
-      // Convert to ISO string but maintain local time by adjusting for timezone offset
+      // Fixed timezone handling - format as local datetime string for Supabase
       const getLocalISOString = (date: Date) => {
-        const offset = date.getTimezoneOffset();
-        const adjustedDate = new Date(date.getTime() - (offset * 60 * 1000));
-        return adjustedDate.toISOString();
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        
+        // Return in format YYYY-MM-DD HH:MM:SS (local time, no timezone conversion)
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
       };
 
       const { error } = await supabase.from('events').insert({

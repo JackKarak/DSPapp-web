@@ -191,9 +191,22 @@ export default function OfficerAnalytics() {
       }
       eventStatsTemp.attendance_trend = last6Months;
       
-      // Fetch attendance for all events by officers with this position
+      // Initialize attendance tracking variables
       let attendanceByEvent: Record<string, number> = {};
       let attendeeUserIds: Set<string> = new Set();
+      
+      // First, get all non-officer, non-admin users for filtering
+      const { data: regularUsers, error: regularUsersError } = await supabase
+        .from('users')
+        .select('user_id')
+        .is('officer_position', null)
+        .neq('role', 'admin');
+      
+      if (regularUsersError) throw regularUsersError;
+      
+      const regularUserIds = new Set(regularUsers?.map(u => u.user_id) || []);
+      
+      // Fetch attendance for events by officers with this position, excluding officers/admins
       if (eventIds.length > 0) {
         const { data: attendanceData, error: attendanceError } = await supabase
           .from('event_attendance')
@@ -202,7 +215,12 @@ export default function OfficerAnalytics() {
         
         if (attendanceError) throw attendanceError;
         
-        attendanceData.forEach(record => {
+        // Filter attendance data to only include regular members (non-officers/non-admins)
+        const filteredAttendance = attendanceData?.filter(record => 
+          regularUserIds.has(record.user_id)
+        ) || [];
+        
+        filteredAttendance.forEach(record => {
           attendanceByEvent[record.event_id] = (attendanceByEvent[record.event_id] || 0) + 1;
           attendeeUserIds.add(record.user_id);
         });
@@ -211,13 +229,9 @@ export default function OfficerAnalytics() {
       eventStatsTemp.average_attendance = 
         Object.values(attendanceByEvent).reduce((sum, count) => sum + count, 0) / (Object.keys(attendanceByEvent).length || 1);
       
-      // Calculate engagement rate (unique attendees vs total registered users)
-      const { data: totalUsers } = await supabase
-        .from('users')
-        .select('user_id', { count: 'exact' });
-      
-      eventStatsTemp.engagement_rate = (totalUsers && totalUsers.length > 0) ? 
-        (attendeeUserIds.size / totalUsers.length) * 100 : 0;
+      // Calculate engagement rate (unique attendees vs total registered regular members)
+      eventStatsTemp.engagement_rate = (regularUsers && regularUsers.length > 0) ? 
+        (attendeeUserIds.size / regularUsers.length) * 100 : 0;
       
       // Calculate growth rate (comparing last 3 months vs previous 3 months)
       const currentQuarter = last6Months.slice(3).reduce((sum, month) => sum + month.count, 0);
@@ -246,7 +260,7 @@ export default function OfficerAnalytics() {
       }));
       setPointDistribution(formattedData);
 
-      // Fetch user stats for attendees of events by officers with this position
+      // Fetch user stats for regular member attendees only (excluding officers/admins)
       let attendeeStats: UserStats = {
         total: 0,
         by_pledge_class: {},
@@ -257,7 +271,9 @@ export default function OfficerAnalytics() {
         const { data: attendeeProfiles, error: attendeeError } = await supabase
           .from('users')
           .select('pledge_class, majors, expected_graduation')
-          .in('user_id', Array.from(attendeeUserIds));
+          .in('user_id', Array.from(attendeeUserIds))
+          .is('officer_position', null)
+          .neq('role', 'admin');
         
         if (attendeeError) {
           console.error('Attendee profiles error:', attendeeError);
@@ -279,7 +295,7 @@ export default function OfficerAnalytics() {
       }
       setUserStats(attendeeStats);
 
-      // Fetch event feedback for events by officers with this position
+      // Fetch event feedback for events by officers with this position (from regular members only)
       let feedbackStatsData = {
         avgRating: 0,
         wouldAttendAgainPct: 0,
@@ -288,10 +304,12 @@ export default function OfficerAnalytics() {
       };
       
       if (eventIds.length > 0) {
+        // Get feedback from regular members only
         const { data: feedbackData, error: feedbackError } = await supabase
           .from('event_feedback')
           .select('id, user_id, event_id, rating, comments, would_attend_again, well_organized, created_at')
-          .in('event_id', eventIds);
+          .in('event_id', eventIds)
+          .in('user_id', Array.from(regularUserIds));
         
         if (feedbackError) {
           console.error('Feedback fetch error:', feedbackError);
@@ -364,6 +382,9 @@ export default function OfficerAnalytics() {
         <Text style={styles.subtitle}>
           {officerPosition?.replace('_', ' ').toUpperCase() || 'Officer'} Performance & Insights
         </Text>
+        <Text style={styles.noteText}>
+          📝 Note: Analytics exclude officers and admins to focus on regular member engagement
+        </Text>
       </View>
 
       {/* KPI Cards */}
@@ -377,7 +398,7 @@ export default function OfficerAnalytics() {
         <KPICard
           title="Avg Attendance"
           value={eventStats.average_attendance.toFixed(0)}
-          subtitle="per event"
+          subtitle="members per event"
           trend={eventStats.growth_rate}
           color="#34A853"
         />
@@ -385,9 +406,9 @@ export default function OfficerAnalytics() {
 
       <View style={styles.kpiRow}>
         <KPICard
-          title="Engagement"
+          title="Member Engagement"
           value={`${eventStats.engagement_rate.toFixed(1)}%`}
-          subtitle="member participation"
+          subtitle="regular member participation"
           color="#FBBC04"
         />
         <KPICard
@@ -400,7 +421,7 @@ export default function OfficerAnalytics() {
 
       {/* Attendance Trend Chart */}
       <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>📈 Attendance Over Time</Text>
+        <Text style={styles.chartTitle}>📈 Event Creation Over Time</Text>
         {eventStats.attendance_trend.length > 0 && (
           <LineChart
             data={{
@@ -421,7 +442,8 @@ export default function OfficerAnalytics() {
 
       {/* Demographics Breakdown */}
       <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>👥 Attendee Demographics by Pledge Class</Text>
+        <Text style={styles.chartTitle}>👥 Regular Member Demographics by Pledge Class</Text>
+        <Text style={styles.chartSubtitle}>Attendees of your events (excluding officers/admins)</Text>
         {Object.keys(userStats.by_pledge_class).length > 0 ? (
           <BarChart
             data={{
@@ -468,8 +490,8 @@ export default function OfficerAnalytics() {
       {/* Enhanced Engagement Metrics */}
       <View style={styles.chartCard}>
         <View style={styles.metricsHeader}>
-          <Text style={styles.chartTitle}>📊 Member Engagement Metrics</Text>
-          <Text style={styles.metricsSubtitle}>Real-time performance indicators</Text>
+          <Text style={styles.chartTitle}>📊 Regular Member Engagement Metrics</Text>
+          <Text style={styles.metricsSubtitle}>Performance indicators from regular members only</Text>
         </View>
         
         <View style={styles.metricsGrid}>
@@ -479,13 +501,13 @@ export default function OfficerAnalytics() {
               <Text style={styles.metricIcon}>👥</Text>
             </View>
             <View style={styles.metricContent}>
-              <Text style={styles.metricLabel}>Engagement Rate</Text>
+              <Text style={styles.metricLabel}>Member Engagement Rate</Text>
               <Text style={[styles.metricValue, { color: '#4285F4' }]}>
                 {eventStats.engagement_rate.toFixed(1)}%
               </Text>
               <Text style={styles.metricDescription}>
-                {eventStats.engagement_rate >= 30 ? 'Excellent participation' : 
-                 eventStats.engagement_rate >= 15 ? 'Good involvement' : 'Needs improvement'}
+                {eventStats.engagement_rate >= 30 ? 'Excellent member participation' : 
+                 eventStats.engagement_rate >= 15 ? 'Good member involvement' : 'Needs improvement'}
               </Text>
               <View style={styles.progressBarContainer}>
                 <View style={[styles.progressBar, { 
@@ -502,7 +524,7 @@ export default function OfficerAnalytics() {
               <Text style={styles.metricIcon}>⭐</Text>
             </View>
             <View style={styles.metricContent}>
-              <Text style={styles.metricLabel}>Satisfaction Score</Text>
+              <Text style={styles.metricLabel}>Member Satisfaction</Text>
               <Text style={[styles.metricValue, { color: '#34A853' }]}>
                 {feedbackStats.avgRating.toFixed(1)}/5.0
               </Text>
@@ -525,7 +547,7 @@ export default function OfficerAnalytics() {
               <Text style={styles.metricIcon}>🔄</Text>
             </View>
             <View style={styles.metricContent}>
-              <Text style={styles.metricLabel}>Retention Rate</Text>
+              <Text style={styles.metricLabel}>Member Retention Rate</Text>
               <Text style={[styles.metricValue, { color: '#FBBC04' }]}>
                 {feedbackStats.wouldAttendAgainPct.toFixed(1)}%
               </Text>
@@ -575,9 +597,9 @@ export default function OfficerAnalytics() {
                 {eventStats.engagement_rate >= 25 ? '🚀' : eventStats.engagement_rate >= 15 ? '📈' : '⚠️'}
               </Text>
               <Text style={styles.insightText}>
-                {eventStats.engagement_rate >= 25 ? 'Your engagement rate is above average!' : 
-                 eventStats.engagement_rate >= 15 ? 'Solid engagement with room to grow' : 
-                 'Consider strategies to boost participation'}
+                {eventStats.engagement_rate >= 25 ? 'Your member engagement rate is above average!' : 
+                 eventStats.engagement_rate >= 15 ? 'Solid member engagement with room to grow' : 
+                 'Consider strategies to boost regular member participation'}
               </Text>
             </View>
             <View style={styles.insightItem}>
@@ -585,9 +607,9 @@ export default function OfficerAnalytics() {
                 {feedbackStats.avgRating >= 4.0 ? '✨' : feedbackStats.avgRating >= 3.0 ? '👍' : '🔧'}
               </Text>
               <Text style={styles.insightText}>
-                {feedbackStats.avgRating >= 4.0 ? 'Members love your events!' : 
-                 feedbackStats.avgRating >= 3.0 ? 'Good feedback overall' : 
-                 'Focus on event quality improvements'}
+                {feedbackStats.avgRating >= 4.0 ? 'Regular members love your events!' : 
+                 feedbackStats.avgRating >= 3.0 ? 'Good feedback from members overall' : 
+                 'Focus on event quality improvements for members'}
               </Text>
             </View>
           </View>
@@ -596,7 +618,8 @@ export default function OfficerAnalytics() {
 
       {/* Recent Comments */}
       <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>💬 Recent Feedback</Text>
+        <Text style={styles.chartTitle}>💬 Recent Member Feedback</Text>
+        <Text style={styles.chartSubtitle}>Comments from regular members only</Text>
         {feedbackStats.recentComments.length > 0 ? (
           <View style={styles.feedbackList}>
             {feedbackStats.recentComments.slice(0, 5).map((feedback, index) => (
@@ -617,162 +640,12 @@ export default function OfficerAnalytics() {
           </View>
         ) : (
           <View style={styles.noFeedbackContainer}>
-            <Text style={styles.noFeedbackTitle}>🎯 No Feedback Yet</Text>
+            <Text style={styles.noFeedbackTitle}>🎯 No Member Feedback Yet</Text>
             <Text style={styles.noFeedbackText}>
-              Your events haven&apos;t received feedback responses yet. Encourage attendees to share their thoughts to improve future events!
+              Your events haven&apos;t received feedback responses from regular members yet. Encourage attendees to share their thoughts to improve future events!
             </Text>
           </View>
         )}
-      </View>
-
-      {/* Performance Summary */}
-      <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>� Performance Overview</Text>
-        
-        {/* Key Metrics Grid */}
-        <View style={styles.metricsGrid}>
-          <View style={styles.metricCard}>
-            <View style={styles.metricHeader}>
-              <Text style={styles.metricIcon}>⭐</Text>
-              <Text style={styles.metricLabel}>Event Quality</Text>
-            </View>
-            <Text style={styles.metricValue}>
-              {feedbackStats.avgRating.toFixed(1)}/5.0
-            </Text>
-            <View style={[styles.statusBadge, { 
-              backgroundColor: feedbackStats.avgRating >= 4.0 ? '#E8F5E8' : feedbackStats.avgRating >= 3.0 ? '#FFF4E6' : '#FFEAEA' 
-            }]}>
-              <Text style={[styles.statusText, { 
-                color: feedbackStats.avgRating >= 4.0 ? '#2E7D32' : feedbackStats.avgRating >= 3.0 ? '#F57C00' : '#D32F2F' 
-              }]}>
-                {feedbackStats.avgRating >= 4.0 ? 'Excellent' : feedbackStats.avgRating >= 3.0 ? 'Good' : 'Needs Focus'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.metricCard}>
-            <View style={styles.metricHeader}>
-              <Text style={styles.metricIcon}>📈</Text>
-              <Text style={styles.metricLabel}>Growth Trend</Text>
-            </View>
-            <Text style={styles.metricValue}>
-              {eventStats.growth_rate >= 0 ? '+' : ''}{eventStats.growth_rate.toFixed(1)}%
-            </Text>
-            <View style={[styles.statusBadge, { 
-              backgroundColor: eventStats.growth_rate >= 10 ? '#E8F5E8' : eventStats.growth_rate >= 0 ? '#FFF4E6' : '#FFEAEA' 
-            }]}>
-              <Text style={[styles.statusText, { 
-                color: eventStats.growth_rate >= 10 ? '#2E7D32' : eventStats.growth_rate >= 0 ? '#F57C00' : '#D32F2F' 
-              }]}>
-                {eventStats.growth_rate >= 10 ? 'Strong Growth' : eventStats.growth_rate >= 0 ? 'Stable' : 'Declining'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.metricsGrid}>
-          <View style={styles.metricCard}>
-            <View style={styles.metricHeader}>
-              <Text style={styles.metricIcon}>🎯</Text>
-              <Text style={styles.metricLabel}>Member Reach</Text>
-            </View>
-            <Text style={styles.metricValue}>
-              {eventStats.engagement_rate.toFixed(1)}%
-            </Text>
-            <View style={[styles.statusBadge, { 
-              backgroundColor: eventStats.engagement_rate >= 50 ? '#E8F5E8' : eventStats.engagement_rate >= 25 ? '#FFF4E6' : '#FFEAEA' 
-            }]}>
-              <Text style={[styles.statusText, { 
-                color: eventStats.engagement_rate >= 50 ? '#2E7D32' : eventStats.engagement_rate >= 25 ? '#F57C00' : '#D32F2F' 
-              }]}>
-                {eventStats.engagement_rate >= 50 ? 'High Impact' : eventStats.engagement_rate >= 25 ? 'Moderate' : 'Limited'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.metricCard}>
-            <View style={styles.metricHeader}>
-              <Text style={styles.metricIcon}>🔄</Text>
-              <Text style={styles.metricLabel}>Retention Rate</Text>
-            </View>
-            <Text style={styles.metricValue}>
-              {feedbackStats.wouldAttendAgainPct.toFixed(1)}%
-            </Text>
-            <View style={[styles.statusBadge, { 
-              backgroundColor: feedbackStats.wouldAttendAgainPct >= 80 ? '#E8F5E8' : feedbackStats.wouldAttendAgainPct >= 60 ? '#FFF4E6' : '#FFEAEA' 
-            }]}>
-              <Text style={[styles.statusText, { 
-                color: feedbackStats.wouldAttendAgainPct >= 80 ? '#2E7D32' : feedbackStats.wouldAttendAgainPct >= 60 ? '#F57C00' : '#D32F2F' 
-              }]}>
-                {feedbackStats.wouldAttendAgainPct >= 80 ? 'Excellent' : feedbackStats.wouldAttendAgainPct >= 60 ? 'Good' : 'Needs Work'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Overall Assessment */}
-        <View style={styles.assessmentContainer}>
-          <Text style={styles.assessmentTitle}>Overall Performance Assessment</Text>
-          <View style={styles.assessmentContent}>
-            <View style={styles.assessmentItem}>
-              <View style={[styles.assessmentDot, { 
-                backgroundColor: feedbackStats.avgRating >= 4.0 ? '#4CAF50' : feedbackStats.avgRating >= 3.0 ? '#FF9800' : '#F44336'
-              }]} />
-              <Text style={styles.assessmentText}>
-                Your events are performing{' '}
-                <Text style={styles.assessmentHighlight}>
-                  {feedbackStats.avgRating >= 4.0 ? 'exceptionally well' : 
-                   feedbackStats.avgRating >= 3.0 ? 'adequately' : 'below expectations'}
-                </Text>
-                {' '}with an average satisfaction rating of {feedbackStats.avgRating.toFixed(1)}/5.0
-              </Text>
-            </View>
-            
-            <View style={styles.assessmentItem}>
-              <View style={[styles.assessmentDot, { 
-                backgroundColor: eventStats.growth_rate >= 10 ? '#4CAF50' : eventStats.growth_rate >= 0 ? '#FF9800' : '#F44336' 
-              }]} />
-              <Text style={styles.assessmentText}>
-                Event attendance is showing{' '}
-                <Text style={styles.assessmentHighlight}>
-                  {eventStats.growth_rate >= 10 ? 'strong positive growth' : 
-                   eventStats.growth_rate >= 0 ? 'stable performance' : 'declining trends'}
-                </Text>
-                {' '}with a {eventStats.growth_rate >= 0 ? '+' : ''}{eventStats.growth_rate.toFixed(1)}% change this quarter
-              </Text>
-            </View>
-
-            <View style={styles.assessmentItem}>
-              <View style={[styles.assessmentDot, { 
-                backgroundColor: feedbackStats.wouldAttendAgainPct >= 80 ? '#4CAF50' : 
-                                feedbackStats.wouldAttendAgainPct >= 60 ? '#FF9800' : '#F44336'
-              }]} />
-              <Text style={styles.assessmentText}>
-                Member retention indicates{' '}
-                <Text style={styles.assessmentHighlight}>
-                  {feedbackStats.wouldAttendAgainPct >= 80 ? 'excellent loyalty' : 
-                   feedbackStats.wouldAttendAgainPct >= 60 ? 'good satisfaction' : 'room for improvement'}
-                </Text>
-                {' '}with {feedbackStats.wouldAttendAgainPct.toFixed(1)}% willing to attend similar events
-              </Text>
-            </View>
-
-            <View style={styles.assessmentItem}>
-              <View style={[styles.assessmentDot, { 
-                backgroundColor: eventStats.engagement_rate >= 30 ? '#4CAF50' : 
-                                eventStats.engagement_rate >= 15 ? '#FF9800' : '#F44336'
-              }]} />
-              <Text style={styles.assessmentText}>
-                Overall engagement shows{' '}
-                <Text style={styles.assessmentHighlight}>
-                  {eventStats.engagement_rate >= 30 ? 'high participation' : 
-                   eventStats.engagement_rate >= 15 ? 'moderate involvement' : 'low turnout'}
-                </Text>
-                {' '}with {eventStats.engagement_rate.toFixed(1)}% of members attending events
-              </Text>
-            </View>
-          </View>
-        </View>
       </View>
     </ScrollView>
   );
@@ -815,6 +688,13 @@ const styles = StyleSheet.create({
     color: '#5f6368',
     textAlign: 'center',
     marginTop: 4,
+  },
+  noteText: {
+    fontSize: 12,
+    color: '#80868b',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   // KPI Card Styles
   kpiCard: {
@@ -869,7 +749,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#202124',
+    marginBottom: 8,
+  },
+  chartSubtitle: {
+    fontSize: 12,
+    color: '#80868b',
     marginBottom: 16,
+    fontStyle: 'italic',
   },
   chart: {
     borderRadius: 8,
@@ -949,76 +835,6 @@ const styles = StyleSheet.create({
     color: '#202124',
     fontStyle: 'italic',
     lineHeight: 20,
-  },
-  // Summary Styles
-  summaryContainer: {
-    paddingVertical: 8,
-  },
-  summaryText: {
-    fontSize: 14,
-    color: '#5f6368',
-    lineHeight: 22,
-    marginBottom: 8,
-  },
-  summaryBold: {
-    fontWeight: '600',
-    color: '#202124',
-  },
-  // Professional Performance Summary Styles
-  metricHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  assessmentContainer: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e8eaed',
-  },
-  assessmentTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#202124',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  assessmentContent: {
-    paddingHorizontal: 8,
-  },
-  assessmentItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  assessmentDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginTop: 6,
-    marginRight: 12,
-    flexShrink: 0,
-  },
-  assessmentText: {
-    fontSize: 14,
-    color: '#5f6368',
-    lineHeight: 20,
-    flex: 1,
-  },
-  assessmentHighlight: {
-    fontWeight: '600',
-    color: '#202124',
   },
   // No Feedback Styles
   noFeedbackContainer: {

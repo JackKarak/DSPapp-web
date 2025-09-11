@@ -54,7 +54,6 @@ export default function SignupScreen() {
       return baseData;
     }
     
-    return baseData;
   };
 
   const handleRoleSelection = async (selectedRole: string) => {
