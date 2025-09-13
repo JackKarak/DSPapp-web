@@ -9,22 +9,8 @@ import {
   View
 } from 'react-native';
 import { BarChart, LineChart, PieChart } from '../../components/IOSCharts';
+import { formatDateInEST, getDateInEST } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
-
-// Helper functions to format dates in EST timezone consistently
-const formatDateInEST = (dateString: string, options: Intl.DateTimeFormatOptions) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    timeZone: 'America/New_York',
-    ...options
-  });
-};
-
-const getDateInEST = (dateString: string) => {
-  const date = new Date(dateString + (dateString.includes('T') ? '' : 'T00:00:00'));
-  const estDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  return estDate;
-};
 
 type KPICardProps = {
   title: string;

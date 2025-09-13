@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Colors } from '../../constants/colors';
+import { formatDateInEST, getDateInEST } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
 
 // Custom Dropdown Component
@@ -85,21 +86,6 @@ const CustomDropdown: React.FC<DropdownProps> = ({ label, value, options, onValu
       </Modal>
     </View>
   );
-};
-
-// Helper function to format dates in EST timezone consistently
-const formatDateInEST = (dateString: string, options: Intl.DateTimeFormatOptions) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    timeZone: 'America/New_York',
-    ...options
-  });
-};
-
-const getDateInEST = (dateString: string) => {
-  const date = new Date(dateString + (dateString.includes('T') ? '' : 'T00:00:00'));
-  const estDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  return estDate;
 };
 
 type Event = {

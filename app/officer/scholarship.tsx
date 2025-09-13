@@ -11,18 +11,8 @@ import {
     View
 } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { formatDateInEST } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
-
-// EST timezone helper
-const formatDateInEST = (dateString: string) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  });
-};
 
 export default function ScholarshipTab() {
   const [loading, setLoading] = useState(true);
@@ -380,7 +370,7 @@ export default function ScholarshipTab() {
                   Uploaded by: {item.users?.first_name} {item.users?.last_name}
                 </Text>
                 <Text style={styles.uploadDate}>
-                  {formatDateInEST(item.uploaded_at)}
+                  {formatDateInEST(item.uploaded_at, { year: 'numeric', month: 'short', day: 'numeric' })}
                 </Text>
               </View>
               <Text style={styles.tapHint}>Tap to review →</Text>

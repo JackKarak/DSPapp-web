@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { combineDateAndTime, getESTISOString, roundToNearestMinute } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
 
 // Custom Dropdown Component for Point Types
@@ -111,13 +112,6 @@ export default function AdminRegisterEvent() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  function roundToNearestMinute(date: Date) {
-    const rounded = new Date(date);
-    rounded.setSeconds(0);
-    rounded.setMilliseconds(0);
-    return rounded;
-  }
-
   const handleSubmit = async () => {
     // For non-events: only need title and point type
     // For regular events: need title, location, and either point type or no-point flag
@@ -140,43 +134,13 @@ export default function AdminRegisterEvent() {
         return;
       }
 
-      // Combine date and time while preserving local timezone
-      const combinedStart = new Date(
-        startDate.getFullYear(),
-        startDate.getMonth(),
-        startDate.getDate(),
-        startTime.getHours(),
-        startTime.getMinutes()
-      );
-
+      // Combine date and time properly using the utility function
+      const combinedStart = combineDateAndTime(startDate, startTime);
       const finalEndDate = isMultiDay ? endDate : startDate;
-
-      const combinedEnd = new Date(
-        finalEndDate.getFullYear(),
-        finalEndDate.getMonth(),
-        finalEndDate.getDate(),
-        endTime.getHours(),
-        endTime.getMinutes()
-      );
+      const combinedEnd = combineDateAndTime(finalEndDate, endTime);
 
       const roundedStart = roundToNearestMinute(combinedStart);
       const roundedEnd = roundToNearestMinute(combinedEnd);
-
-      // Format datetime in EST timezone consistently
-      const getESTISOString = (date: Date) => {
-        // Convert to EST (UTC-5) or EDT (UTC-4) automatically
-        const estDate = new Date(date.toLocaleString("en-US", {timeZone: "America/New_York"}));
-        
-        const year = estDate.getFullYear();
-        const month = String(estDate.getMonth() + 1).padStart(2, '0');
-        const day = String(estDate.getDate()).padStart(2, '0');
-        const hours = String(estDate.getHours()).padStart(2, '0');
-        const minutes = String(estDate.getMinutes()).padStart(2, '0');
-        const seconds = String(estDate.getSeconds()).padStart(2, '0');
-        
-        // Return in format YYYY-MM-DD HH:MM:SS in EST timezone
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-      };
 
       const { error } = await supabase.from('events').insert({
         title,

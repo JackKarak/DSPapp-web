@@ -11,32 +11,10 @@ import {
   View
 } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { formatDateInEST, formatTimeInEST, getDateInEST } from '../../lib/dateUtils';
 import { CalendarEvent, googleCalendarService } from '../../lib/googleCalendar';
 import { createGoogleCalendarLink, SimpleCalendarEvent } from '../../lib/simpleCalendar';
 import { supabase } from '../../lib/supabase';
-
-// Helper functions to format dates in EST timezone consistently
-const formatDateInEST = (dateString: string, options: Intl.DateTimeFormatOptions) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    timeZone: 'America/New_York',
-    ...options
-  });
-};
-
-const formatTimeInEST = (dateString: string, options: Intl.DateTimeFormatOptions) => {
-  const date = new Date(dateString);
-  return date.toLocaleTimeString('en-US', {
-    timeZone: 'America/New_York',
-    ...options
-  });
-};
-
-const getDateInEST = (dateString: string) => {
-  const date = new Date(dateString + (dateString.includes('T') ? '' : 'T00:00:00'));
-  const estDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  return estDate;
-};
 
 function generateRandomCode(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -320,7 +298,7 @@ export default function ConfirmEventsScreen() {
           {
             text: 'Deny',
             style: 'destructive',
-            onPress: (note) => {
+            onPress: (note?: string) => {
               if (note && note.trim()) {
                 submitDenial(eventId, note);
               } else {

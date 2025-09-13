@@ -17,25 +17,11 @@ import {
 } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { checkAuthentication, handleAuthenticationRedirect } from '../../lib/auth';
+import { formatDateInEST, getDateInEST } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
 import { Event } from '../../types/account';
 
 const { width: screenWidth } = Dimensions.get('window');
-
-// Helper functions to format dates in EST timezone consistently
-const formatDateInEST = (dateString: string, options: Intl.DateTimeFormatOptions) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    timeZone: 'America/New_York',
-    ...options
-  });
-};
-
-const getDateInEST = (dateString: string) => {
-  const date = new Date(dateString + (dateString.includes('T') ? '' : 'T00:00:00'));
-  const estDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  return estDate;
-};
 
 // Achievement configurations
 const ACHIEVEMENTS = {
@@ -634,7 +620,7 @@ export default function AccountTab() {
       const daysRemaining = Math.ceil((nextEditDate!.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
       Alert.alert(
         'Profile Edit Limit',
-        `You can only edit your profile once per week. You can edit again in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} (${formatDateInEST(nextEditDate!)}).`,
+        `You can only edit your profile once per week. You can edit again in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} (${formatDateInEST(nextEditDate!.toISOString())}).`,
         [{ text: 'OK', style: 'default' }]
       );
       return;
@@ -1408,7 +1394,7 @@ export default function AccountTab() {
             </TouchableOpacity>
             <Text style={styles.editRestrictedText}>
               Profile can be edited once per week.{'\n'}
-              Next edit available: {getNextEditDate() ? formatDateInEST(getNextEditDate()!) : 'N/A'}
+              Next edit available: {getNextEditDate() ? formatDateInEST(getNextEditDate()!.toISOString()) : 'N/A'}
             </Text>
           </View>
         )}
@@ -1719,7 +1705,7 @@ export default function AccountTab() {
                 <>
                   <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
                   <Text style={styles.eventDate}>
-                    {formatDateInEST(selectedEvent.start_time)}
+                    {formatDateInEST(selectedEvent.date)}
                   </Text>
                 </>
               )}
