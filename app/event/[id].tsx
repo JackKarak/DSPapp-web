@@ -13,6 +13,20 @@ import {
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
+// EST timezone helper
+const formatDateTimeInEST = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
 export default function EventDetail() {
   const { id, is_registerable } = useLocalSearchParams<{ id: string; is_registerable: string }>();
   const [event, setEvent] = useState<any>(null);
@@ -138,11 +152,11 @@ export default function EventDetail() {
         <View style={styles.detailsContainer}>
           <Text style={styles.detail}>
             <Text style={styles.icon}>🗓 </Text>
-            {new Date(event.start_time).toLocaleString()}
+            {formatDateTimeInEST(event.start_time)}
           </Text>
           <Text style={styles.detail}>
             <Text style={styles.icon}>⏱ </Text>
-            {new Date(event.end_time).toLocaleString()}
+            {formatDateTimeInEST(event.end_time)}
           </Text>
           <Text style={styles.detail}>
             <Text style={styles.icon}>📍 </Text>

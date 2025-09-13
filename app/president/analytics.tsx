@@ -106,12 +106,18 @@ export default function PresidentAnalytics() {
       const events = eventsResponse.data || [];
       const attendance = attendanceResponse.data || [];
 
-      // Calculate user points from attendance records
+      // Filter users to only include brothers for attendance calculations
+      const brothers = users.filter(user => user.role === 'brother');
+
+      // Calculate user points from attendance records (only for brothers)
       const userPointsCalculated: Record<string, number> = {};
       attendance.forEach(att => {
-        const event = att.events as any;
-        const pointValue = event?.point_value || 1; // Default to 1 point if not specified
-        userPointsCalculated[att.user_id] = (userPointsCalculated[att.user_id] || 0) + pointValue;
+        const user = users.find(u => u.user_id === att.user_id);
+        if (user && user.role === 'brother') {
+          const event = att.events as any;
+          const pointValue = event?.point_value || 1; // Default to 1 point if not specified
+          userPointsCalculated[att.user_id] = (userPointsCalculated[att.user_id] || 0) + pointValue;
+        }
       });
 
       // Create sorted array of user points for analytics
@@ -126,27 +132,27 @@ export default function PresidentAnalytics() {
         return acc;
       }, {} as Record<string, any>);
 
-      // Calculate metrics
-      const pledgeClassSizes = users.reduce((acc, user) => {
+      // Calculate metrics using brothers for membership/attendance stats
+      const pledgeClassSizes = brothers.reduce((acc, user) => {
         if (user.pledge_class) {
           acc[user.pledge_class] = (acc[user.pledge_class] || 0) + 1;
         }
         return acc;
       }, {} as Record<string, number>);
 
-      // Calculate graduation years distribution
-      const graduationYears = users.reduce((acc, user) => {
+      // Calculate graduation years distribution for brothers
+      const graduationYears = brothers.reduce((acc, user) => {
         if (user.expected_graduation) {
           acc[user.expected_graduation] = (acc[user.expected_graduation] || 0) + 1;
         }
         return acc;
       }, {} as Record<string, number>);
 
-      // Calculate officer count
+      // Calculate officer count (all users)
       const officerCount = users.filter(user => user.officer_position).length;
 
-      // Calculate demographic distributions
-      const majorDistribution = users.reduce((acc, user) => {
+      // Calculate demographic distributions for brothers
+      const majorDistribution = brothers.reduce((acc, user) => {
         if (user.majors) {
           const majors = user.majors.split(', ');
           majors.forEach((major: string) => {
@@ -156,31 +162,31 @@ export default function PresidentAnalytics() {
         return acc;
       }, {} as Record<string, number>);
 
-      const genderDistribution = users.reduce((acc, user) => {
+      const genderDistribution = brothers.reduce((acc, user) => {
         const gender = user.gender || 'Not Specified';
         acc[gender] = (acc[gender] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
-      const pronounDistribution = users.reduce((acc, user) => {
+      const pronounDistribution = brothers.reduce((acc, user) => {
         const pronouns = user.pronouns || 'Not Specified';
         acc[pronouns] = (acc[pronouns] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
-      const housingDistribution = users.reduce((acc, user) => {
+      const housingDistribution = brothers.reduce((acc, user) => {
         const housing = user.house_membership || 'Not Specified';
         acc[housing] = (acc[housing] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
-      const livingTypeDistribution = users.reduce((acc, user) => {
+      const livingTypeDistribution = brothers.reduce((acc, user) => {
         const livingType = user.living_type || 'Not Specified';
         acc[livingType] = (acc[livingType] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
-      const recentlyActive = users.filter(user => 
+      const recentlyActive = brothers.filter(user => 
         attendance.some(att => att.user_id === user.user_id && 
           new Date(att.attended_at || '') >= currentMonth)
       );
@@ -202,9 +208,9 @@ export default function PresidentAnalytics() {
 
       const healthMetrics: FraternityHealthMetrics = {
         membershipGrowth: {
-          total: users.length,
+          total: brothers.length,
           activeMembers: recentlyActive.length,
-          retentionRate: users.length > 0 ? (recentlyActive.length / users.length) * 100 : 0,
+          retentionRate: brothers.length > 0 ? (recentlyActive.length / brothers.length) * 100 : 0,
           pledgeClassSizes,
           graduationYears,
           officerCount,
@@ -218,7 +224,7 @@ export default function PresidentAnalytics() {
         },
         eventEngagement: {
           totalEvents: events.length,
-          avgAttendanceRate: users.length > 0 ? (attendance.length / users.length) * 100 : 0,
+          avgAttendanceRate: brothers.length > 0 ? (Object.keys(userPointsCalculated).length / brothers.length) * 100 : 0,
           eventCompletionRate: events.length > 0 ? (events.filter(e => attendance.some(a => a.event_id === e.id)).length / events.length) * 100 : 0,
           pointDistribution,
         },

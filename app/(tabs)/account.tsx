@@ -22,6 +22,21 @@ import { Event } from '../../types/account';
 
 const { width: screenWidth } = Dimensions.get('window');
 
+// Helper functions to format dates in EST timezone consistently
+const formatDateInEST = (dateString: string, options: Intl.DateTimeFormatOptions) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    timeZone: 'America/New_York',
+    ...options
+  });
+};
+
+const getDateInEST = (dateString: string) => {
+  const date = new Date(dateString + (dateString.includes('T') ? '' : 'T00:00:00'));
+  const estDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  return estDate;
+};
+
 // Achievement configurations
 const ACHIEVEMENTS = {
   // Consistency & Streaks
@@ -131,7 +146,7 @@ const EventRow: React.FC<{
   <View style={styles.tableRow}>
     <Text style={styles.cell}>{event.title}</Text>
     <Text style={styles.cell}>
-      {new Date(event.date).toLocaleDateString()}
+      {formatDateInEST(event.date, { month: 'short', day: 'numeric', year: 'numeric' })}
     </Text>
     <Text style={styles.cell}>{event.host_name}</Text>
     {hasFeedbackSubmitted ? (
@@ -144,7 +159,7 @@ const EventRow: React.FC<{
         onPress={() => onFeedbackPress(event)}
         activeOpacity={0.7}
       >
-        <Text style={styles.feedbackButtonText}>📝 Rate</Text>
+        <Text style={styles.feedbackButtonText}>📝</Text>
       </TouchableOpacity>
     )}
   </View>
@@ -311,18 +326,18 @@ export default function AccountTab() {
       
       // Basic counts and points
       const totalPoints = userEvents.reduce((sum, event) => sum + (event.point_value || 0), 0);
-      const eventsThisMonth = userEvents.filter(event => new Date(event.date) >= thisMonth).length;
-      const eventsThisSemester = userEvents.filter(event => new Date(event.date) >= thisSemester).length;
+      const eventsThisMonth = userEvents.filter(event => getDateInEST(event.date) >= thisMonth).length;
+      const eventsThisSemester = userEvents.filter(event => getDateInEST(event.date) >= thisSemester).length;
       
       // Calculate streaks
-      const sortedEvents = [...userEvents].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const sortedEvents = [...userEvents].sort((a, b) => getDateInEST(a.date).getTime() - getDateInEST(b.date).getTime());
       let currentStreak = 0;
       let longestStreak = 0;
       let tempStreak = 0;
       let lastEventDate: Date | null = null;
       
       sortedEvents.forEach(event => {
-        const eventDate = new Date(event.date);
+        const eventDate = getDateInEST(event.date);
         if (lastEventDate) {
           const daysDiff = Math.floor((eventDate.getTime() - lastEventDate.getTime()) / (1000 * 60 * 60 * 24));
           if (daysDiff <= 14) { // Events within 2 weeks count as consecutive
@@ -409,7 +424,7 @@ export default function AccountTab() {
         const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
         
         const monthEvents = userEvents.filter(event => {
-          const eventDate = new Date(event.date);
+          const eventDate = getDateInEST(event.date);
           return eventDate >= monthStart && eventDate <= monthEnd;
         }).length;
         
@@ -619,7 +634,7 @@ export default function AccountTab() {
       const daysRemaining = Math.ceil((nextEditDate!.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
       Alert.alert(
         'Profile Edit Limit',
-        `You can only edit your profile once per week. You can edit again in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} (${nextEditDate!.toLocaleDateString()}).`,
+        `You can only edit your profile once per week. You can edit again in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} (${formatDateInEST(nextEditDate!)}).`,
         [{ text: 'OK', style: 'default' }]
       );
       return;
@@ -1393,7 +1408,7 @@ export default function AccountTab() {
             </TouchableOpacity>
             <Text style={styles.editRestrictedText}>
               Profile can be edited once per week.{'\n'}
-              Next edit available: {getNextEditDate()?.toLocaleDateString() || 'N/A'}
+              Next edit available: {getNextEditDate() ? formatDateInEST(getNextEditDate()!) : 'N/A'}
             </Text>
           </View>
         )}
@@ -1704,7 +1719,7 @@ export default function AccountTab() {
                 <>
                   <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
                   <Text style={styles.eventDate}>
-                    {new Date(selectedEvent.date).toLocaleDateString()}
+                    {formatDateInEST(selectedEvent.start_time)}
                   </Text>
                 </>
               )}

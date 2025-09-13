@@ -2,16 +2,16 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
@@ -162,32 +162,20 @@ export default function AdminRegisterEvent() {
       const roundedStart = roundToNearestMinute(combinedStart);
       const roundedEnd = roundToNearestMinute(combinedEnd);
 
-      // iOS-compatible timezone handling - format as local datetime string for Supabase
-      const getLocalISOString = (date: Date) => {
-        if (Platform.OS === 'ios') {
-          // Use native iOS date formatting for better compatibility
-          const formatter = new Intl.DateTimeFormat('en-CA', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false
-          });
-          return formatter.format(date).replace(',', '');
-        } else {
-          // Android fallback with manual formatting
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          const hours = String(date.getHours()).padStart(2, '0');
-          const minutes = String(date.getMinutes()).padStart(2, '0');
-          const seconds = String(date.getSeconds()).padStart(2, '0');
-          
-          // Return in format YYYY-MM-DD HH:MM:SS (local time, no timezone conversion)
-          return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-        }
+      // Format datetime in EST timezone consistently
+      const getESTISOString = (date: Date) => {
+        // Convert to EST (UTC-5) or EDT (UTC-4) automatically
+        const estDate = new Date(date.toLocaleString("en-US", {timeZone: "America/New_York"}));
+        
+        const year = estDate.getFullYear();
+        const month = String(estDate.getMonth() + 1).padStart(2, '0');
+        const day = String(estDate.getDate()).padStart(2, '0');
+        const hours = String(estDate.getHours()).padStart(2, '0');
+        const minutes = String(estDate.getMinutes()).padStart(2, '0');
+        const seconds = String(estDate.getSeconds()).padStart(2, '0');
+        
+        // Return in format YYYY-MM-DD HH:MM:SS in EST timezone
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
       };
 
       const { error } = await supabase.from('events').insert({
@@ -196,8 +184,8 @@ export default function AdminRegisterEvent() {
         location: isNonEvent ? '' : location,
         point_type: isNonEvent ? pointType : (isNoPoint ? 'No Point' : pointType),
         point_value: isNonEvent ? 1 : (isNoPoint ? 0 : 1),
-        start_time: getLocalISOString(roundedStart),
-        end_time: getLocalISOString(roundedEnd),
+        start_time: getESTISOString(roundedStart),
+        end_time: getESTISOString(roundedEnd),
         created_by: user.id, // Using user.id from auth, which maps to user_id in users table
         is_registerable: isNonEvent ? false : isRegisterable,
         available_to_pledges: availableToPledges,

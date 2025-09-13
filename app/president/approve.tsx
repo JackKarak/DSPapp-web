@@ -58,9 +58,9 @@ export default function EventApproval() {
         return;
       }
 
-      // Only presidents/admins can approve events
+      // Only presidents/admins can confirm events
       if (userData.role !== 'admin' && userData.officer_position !== 'president') {
-        Alert.alert('Access Denied', 'Only presidents can approve events.');
+        Alert.alert('Access Denied', 'Only presidents can confirm events.');
         router.replace('/(tabs)');
         return;
       }
@@ -127,7 +127,7 @@ export default function EventApproval() {
     }
   };
 
-  const approveEvent = async (eventId: string) => {
+  const confirmEvent = async (eventId: string) => {
     try {
       setProcessingEventIds(prev => new Set(prev).add(eventId));
 
@@ -137,16 +137,16 @@ export default function EventApproval() {
         .eq('id', eventId);
 
       if (error) {
-        console.error('Approval Error:', error);
-        Alert.alert('Error', 'Failed to approve event.');
+        console.error('Confirmation Error:', error);
+        Alert.alert('Error', 'Failed to confirm event.');
         return;
       }
 
-      Alert.alert('Success', 'Event approved successfully!');
+      Alert.alert('Success', 'Event confirmed successfully!');
       fetchPendingEvents(); // Refresh the list
     } catch (error) {
-      console.error('Error approving event:', error);
-      Alert.alert('Error', 'Failed to approve event.');
+      console.error('Error confirming event:', error);
+      Alert.alert('Error', 'Failed to confirm event.');
     } finally {
       setProcessingEventIds(prev => {
         const newSet = new Set(prev);
@@ -188,6 +188,7 @@ export default function EventApproval() {
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
+      timeZone: 'America/New_York',
       weekday: 'short',
       month: 'short',
       day: 'numeric',
@@ -207,8 +208,8 @@ export default function EventApproval() {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <Text style={styles.title}>Event Approval</Text>
-      <Text style={styles.subtitle}>Review and approve pending events</Text>
+      <Text style={styles.title}>Event Confirmation</Text>
+      <Text style={styles.subtitle}>Review and confirm pending events</Text>
 
       {pendingEvents.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -256,14 +257,14 @@ export default function EventApproval() {
 
                 <View style={styles.actionButtons}>
                   <TouchableOpacity
-                    style={[styles.approveButton, isProcessing && styles.disabledButton]}
-                    onPress={() => approveEvent(event.id)}
+                    style={[styles.confirmButton, isProcessing && styles.disabledButton]}
+                    onPress={() => confirmEvent(event.id)}
                     disabled={isProcessing}
                   >
                     {isProcessing ? (
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
-                      <Text style={styles.approveButtonText}>✓ Approve</Text>
+                      <Text style={styles.confirmButtonText}>✓ Confirm</Text>
                     )}
                   </TouchableOpacity>
 
@@ -411,7 +412,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  approveButton: {
+  confirmButton: {
     flex: 1,
     backgroundColor: '#16a34a',
     paddingVertical: 14,
@@ -423,7 +424,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  approveButtonText: {
+  confirmButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',

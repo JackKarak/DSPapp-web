@@ -87,6 +87,21 @@ const CustomDropdown: React.FC<DropdownProps> = ({ label, value, options, onValu
   );
 };
 
+// Helper function to format dates in EST timezone consistently
+const formatDateInEST = (dateString: string, options: Intl.DateTimeFormatOptions) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    timeZone: 'America/New_York',
+    ...options
+  });
+};
+
+const getDateInEST = (dateString: string) => {
+  const date = new Date(dateString + (dateString.includes('T') ? '' : 'T00:00:00'));
+  const estDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  return estDate;
+};
+
 type Event = {
   id: string;
   title: string;
@@ -231,7 +246,7 @@ export default function CalendarTab() {
   };
 
   const filteredEvents = events.filter(e => {
-    const eventDate = new Date(e.start_time);
+    const eventDate = getDateInEST(e.start_time);
     const isUpcoming = eventDate > new Date();
     
     // Filter by point type
@@ -258,8 +273,8 @@ export default function CalendarTab() {
     return true;
   }).sort((a, b) => {
     // Sort by date, with upcoming events first
-    const dateA = new Date(a.start_time);
-    const dateB = new Date(b.start_time);
+    const dateA = getDateInEST(a.start_time);
+    const dateB = getDateInEST(b.start_time);
     const now = new Date();
     
     const aIsUpcoming = dateA > now;
@@ -480,7 +495,7 @@ export default function CalendarTab() {
         <View style={styles.eventsContainer}>
           {filteredEvents.map(item => {
             const isRegistered = registeredEventIds.includes(item.id);
-            const eventDate = new Date(item.start_time);
+            const eventDate = getDateInEST(item.start_time);
             const isUpcoming = eventDate > new Date();
             
             return (
@@ -502,7 +517,7 @@ export default function CalendarTab() {
                       {eventDate.getDate()}
                     </Text>
                     <Text style={styles.dateMonth}>
-                      {eventDate.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()}
+                      {formatDateInEST(item.start_time, { month: 'short' }).toUpperCase()}
                     </Text>
                   </View>
                   
@@ -511,7 +526,7 @@ export default function CalendarTab() {
                       {item.title}
                     </Text>
                     <Text style={styles.eventTime}>
-                      {eventDate.toLocaleDateString('en-US', { 
+                      {formatDateInEST(item.start_time, { 
                         weekday: 'short',
                         month: 'short', 
                         day: 'numeric',

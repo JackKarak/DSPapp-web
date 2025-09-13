@@ -15,6 +15,29 @@ import { CalendarEvent, googleCalendarService } from '../../lib/googleCalendar';
 import { createGoogleCalendarLink, SimpleCalendarEvent } from '../../lib/simpleCalendar';
 import { supabase } from '../../lib/supabase';
 
+// Helper functions to format dates in EST timezone consistently
+const formatDateInEST = (dateString: string, options: Intl.DateTimeFormatOptions) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    timeZone: 'America/New_York',
+    ...options
+  });
+};
+
+const formatTimeInEST = (dateString: string, options: Intl.DateTimeFormatOptions) => {
+  const date = new Date(dateString);
+  return date.toLocaleTimeString('en-US', {
+    timeZone: 'America/New_York',
+    ...options
+  });
+};
+
+const getDateInEST = (dateString: string) => {
+  const date = new Date(dateString + (dateString.includes('T') ? '' : 'T00:00:00'));
+  const estDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  return estDate;
+};
+
 function generateRandomCode(length = 5) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
@@ -359,13 +382,13 @@ export default function ConfirmEventsScreen() {
         >
           <View style={styles.dateColumn}>
             <Text style={styles.dateMonth}>
-              {start.toLocaleDateString([], { month: 'short' }).toUpperCase()}
+              {formatDateInEST(item.start_time, { month: 'short' }).toUpperCase()}
             </Text>
             <Text style={styles.dateDay}>
-              {start.getDate()}
+              {getDateInEST(item.start_time).getDate()}
             </Text>
             <Text style={styles.dateWeekday}>
-              {start.toLocaleDateString([], { weekday: 'short' })}
+              {formatDateInEST(item.start_time, { weekday: 'short' })}
             </Text>
           </View>
           
@@ -399,8 +422,8 @@ export default function ConfirmEventsScreen() {
               <View style={styles.metaRow}>
                 <Text style={styles.metaIcon}>⏰</Text>
                 <Text style={styles.metaText}>
-                  {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {' '}
-                  {end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {formatTimeInEST(item.start_time, { hour: '2-digit', minute: '2-digit' })} - {' '}
+                  {formatTimeInEST(item.end_time, { hour: '2-digit', minute: '2-digit' })}
                 </Text>
               </View>
               {redFlags.length > 0 && (

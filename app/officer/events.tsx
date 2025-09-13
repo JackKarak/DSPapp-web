@@ -2,6 +2,19 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
+// Helper function to format dates in EST timezone consistently
+const formatDateTimeInEST = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+};
+
 type Event = {
   id: number;
   title: string;
@@ -120,10 +133,10 @@ export default function OfficerEventsManagement() {
       <Text style={styles.eventTitle}>{event.title}</Text>
       <Text style={styles.eventDetail}>Location: {event.location}</Text>
       <Text style={styles.eventDetail}>
-        Start: {new Date(event.start_time).toLocaleString()}
+        Start: {formatDateTimeInEST(event.start_time)}
       </Text>
       <Text style={styles.eventDetail}>
-        End: {new Date(event.end_time).toLocaleString()}
+        End: {formatDateTimeInEST(event.end_time)}
       </Text>
       {event.is_registerable && typeof event.registrationCount === 'number' && (
         <Text style={[styles.eventDetail, styles.registrationCount]}>
@@ -151,10 +164,10 @@ export default function OfficerEventsManagement() {
       <Text style={styles.eventTitle}>{event.title}</Text>
       <Text style={styles.eventDetail}>Location: {event.location}</Text>
       <Text style={styles.eventDetail}>
-        Start: {new Date(event.start_time).toLocaleString()}
+        Start: {formatDateTimeInEST(event.start_time)}
       </Text>
       <Text style={styles.eventDetail}>
-        End: {new Date(event.end_time).toLocaleString()}
+        End: {formatDateTimeInEST(event.end_time)}
       </Text>
       <Text style={[styles.eventDetail, styles.statusText]}>
         Status: {event.status.charAt(0).toUpperCase() + event.status.slice(1)}

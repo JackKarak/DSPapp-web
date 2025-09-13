@@ -11,6 +11,33 @@ import {
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
+// EST timezone helpers
+const formatDateTimeInEST = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
+const getCurrentTimeInEST = () => {
+  const now = new Date();
+  return now.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
 export default function AttendanceScreen() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -63,7 +90,7 @@ export default function AttendanceScreen() {
       setLoading(false);
       Alert.alert(
         '⏰ Event Not Started',
-        `You cannot check in before the event starts.\n\nEvent Start: ${eventStartTime.toLocaleString()}\nCurrent Time: ${currentTime.toLocaleString()}`
+        `You cannot check in before the event starts.\n\nEvent Start: ${formatDateTimeInEST(event.start_time)}\nCurrent Time (EST): ${getCurrentTimeInEST()}`
       );
       return;
     }
@@ -72,7 +99,7 @@ export default function AttendanceScreen() {
       setLoading(false);
       Alert.alert(
         '⏰ Event Has Ended',
-        `You cannot check in after the event has ended.\n\nEvent End: ${eventEndTime.toLocaleString()}\nCurrent Time: ${currentTime.toLocaleString()}`
+        `You cannot check in after the event has ended.\n\nEvent End: ${formatDateTimeInEST(event.end_time)}\nCurrent Time (EST): ${getCurrentTimeInEST()}`
       );
       return;
     }

@@ -11,6 +11,21 @@ import {
 import { BarChart, LineChart, PieChart } from '../../components/IOSCharts';
 import { supabase } from '../../lib/supabase';
 
+// Helper functions to format dates in EST timezone consistently
+const formatDateInEST = (dateString: string, options: Intl.DateTimeFormatOptions) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    timeZone: 'America/New_York',
+    ...options
+  });
+};
+
+const getDateInEST = (dateString: string) => {
+  const date = new Date(dateString + (dateString.includes('T') ? '' : 'T00:00:00'));
+  const estDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  return estDate;
+};
+
 type KPICardProps = {
   title: string;
   value: string | number;
@@ -163,13 +178,13 @@ export default function OfficerAnalytics() {
         growth_rate: 0,
       };
       
-      eventStatsTemp.upcoming = eventsData.filter(event => new Date(event.start_time) > now).length;
+      eventStatsTemp.upcoming = eventsData.filter(event => getDateInEST(event.start_time) > now).length;
       
       // Process event data for analytics
       const monthlyData: Record<string, { events: number; attendance: number }> = {};
       eventsData.forEach(event => {
         eventStatsTemp.by_point_type[event.point_type] = (eventStatsTemp.by_point_type[event.point_type] || 0) + 1;
-        const month = new Date(event.start_time).toLocaleString('default', { month: 'short', year: 'numeric' });
+        const month = formatDateInEST(event.start_time, { month: 'short', year: 'numeric' });
         eventStatsTemp.by_month[month] = (eventStatsTemp.by_month[month] || 0) + 1;
         
         if (!monthlyData[month]) {
@@ -631,7 +646,7 @@ export default function OfficerAnalytics() {
                     ))}
                   </View>
                   <Text style={styles.feedbackDate}>
-                    {new Date(feedback.created_at).toLocaleDateString()}
+                    {formatDateInEST(feedback.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
                   </Text>
                 </View>
                 <Text style={styles.feedbackText}>&quot;{feedback.comments}&quot;</Text>

@@ -1,21 +1,53 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 
-const POINT_REQUIREMENTS: Record<string, number> = {
-  brotherhood: 20,
-  professional: 4,
-  service: 4,
-  scholarship: 4,
-  health: 3,
-  fundraising: 3,
-  dei: 3,
+const POINT_REQUIREMENTS: Record<string, { required: number; name: string; description: string }> = {
+  brotherhood: { 
+    required: 20, 
+    name: 'Brotherhood', 
+    description: 'Build lasting bonds with your brothers' 
+  },
+  professional: { 
+    required: 4, 
+    name: 'Professional Development', 
+    description: 'Advance your career and skills' 
+  },
+  service: { 
+    required: 4, 
+    name: 'Service', 
+    description: 'Give back to the community' 
+  },
+  scholarship: { 
+    required: 4, 
+    name: 'Scholarship', 
+    description: 'Excel academically and learn' 
+  },
+  health: { 
+    required: 3, 
+    name: 'Health & Wellness', 
+    description: 'Maintain physical and mental well-being' 
+  },
+  fundraising: { 
+    required: 3, 
+    name: 'Fundraising', 
+    description: 'Support chapter financial goals' 
+  },
+  dei: { 
+    required: 3, 
+    name: 'Diversity, Equity & Inclusion', 
+    description: 'Promote understanding and inclusion' 
+  },
 };
 
 export default function PointsScreen() {
+  // Force light mode
+  const isDark = false;
+  const colors = Colors['light'];
+  
   const [pointsByCategory, setPointsByCategory] = useState<Record<string, number>>({});
   const [pillarsMet, setPillarsMet] = useState(0);
   const [triggerConfetti, setTriggerConfetti] = useState(false);
@@ -161,8 +193,8 @@ export default function PointsScreen() {
         }
       });
 
-      const metCount = Object.entries(POINT_REQUIREMENTS).reduce((count, [cat, required]) => {
-        return (categoryPoints[cat] || 0) >= required ? count + 1 : count;
+      const metCount = Object.entries(POINT_REQUIREMENTS).reduce((count, [cat, config]) => {
+        return (categoryPoints[cat] || 0) >= config.required ? count + 1 : count;
       }, 0);
 
       setPointsByCategory(categoryPoints);
@@ -413,230 +445,395 @@ export default function PointsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.grayText}>Loading your points...</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <StatusBar 
+          barStyle={isDark ? "light-content" : "dark-content"} 
+          backgroundColor={colors.background} 
+        />
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.icon }]}>
+            Loading your points...
+          </Text>
+        </View>
       </View>
     );
   }
 
+  const totalPillars = Object.keys(POINT_REQUIREMENTS).length;
+  const completionPercentage = (pillarsMet / totalPillars) * 100;
+
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* Header Section */}
-      <View style={styles.headerSection}>
-        <View style={styles.headerContent}>
-          <MaterialIcons name="assessment" size={28} color={Colors.primary} />
-          <Text style={styles.title}>Point Tracker</Text>
-          <Text style={styles.subtitle}>
-            {pillarsMet} of {Object.keys(POINT_REQUIREMENTS).length} pillars completed
-          </Text>
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View 
-                style={[
-                  styles.progressFill, 
-                  { width: `${(pillarsMet / Object.keys(POINT_REQUIREMENTS).length) * 100}%` }
-                ]} 
-              />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar 
+        barStyle={isDark ? "light-content" : "dark-content"} 
+        backgroundColor={colors.background} 
+      />
+      
+      <ScrollView 
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header Section */}
+        <View style={[styles.headerSection, { backgroundColor: colors.cardBackground }]}>
+          <View style={styles.headerContent}>
+            <View style={[styles.iconContainer, { backgroundColor: colors.primary }]}>
+              <MaterialIcons name="assessment" size={32} color="#FFF" />
             </View>
-            <Text style={styles.progressText}>
-              {Math.round((pillarsMet / Object.keys(POINT_REQUIREMENTS).length) * 100)}% Complete
+            <Text style={[styles.title, { color: colors.text }]}>Point Tracker</Text>
+            <Text style={[styles.subtitle, { color: colors.icon }]}>
+              Track your progress across all fraternity pillars
             </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Point Audit Cards */}
-      <View style={styles.auditSection}>
-        <Text style={styles.sectionTitle}>📊 Point Categories</Text>
-        {Object.entries(POINT_REQUIREMENTS).map(([category, required]) => {
-          const earned = pointsByCategory[category] || 0;
-          const met = earned >= required;
-          const progress = Math.min((earned / required) * 100, 100);
-
-          // Category icons and colors (simplified)
-          const getCategoryInfo = (cat: string) => {
-            switch (cat) {
-              case 'brotherhood':
-                return { icon: 'people', color: Colors.primary };
-              case 'professional':
-                return { icon: 'business-center', color: '#4A90E2' };
-              case 'service':
-                return { icon: 'volunteer-activism', color: '#50C878' };
-              case 'scholarship':
-                return { icon: 'school', color: '#8E44AD' };
-              case 'health':
-                return { icon: 'fitness-center', color: '#E67E22' };
-              case 'fundraising':
-                return { icon: 'attach-money', color: '#F39C12' };
-              case 'dei':
-                return { icon: 'groups', color: '#E74C3C' };
-              default:
-                return { icon: 'category', color: '#95A5A6' };
-            }
-          };
-
-          const categoryInfo = getCategoryInfo(category);
-
-          return (
-            <View
-              key={category}
-              style={[styles.categoryCard, met && styles.categoryCardCompleted]}
-            >
-              <View style={styles.categoryHeader}>
-                <View style={[styles.categoryIconContainer, { backgroundColor: categoryInfo.color }]}>
-                  <MaterialIcons name={categoryInfo.icon as any} size={24} color="white" />
-                </View>
-                <View style={styles.categoryInfo}>
-                  <Text style={styles.categoryTitle}>
-                    {category === 'dei' ? 'DEI' : 
-                     category === 'h&w' ? 'Health & Wellness' : 
-                     category.charAt(0).toUpperCase() + category.slice(1)}
+            
+            {/* Progress Overview */}
+            <View style={[styles.progressOverview, { backgroundColor: colors.background }]}>
+              <View style={styles.progressStats}>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statNumber, { color: colors.primary }]}>
+                    {pillarsMet}
                   </Text>
-                  <Text style={styles.categorySubtitle}>
-                    {earned.toFixed(1)} / {required} points
+                  <Text style={[styles.statLabel, { color: colors.icon }]}>
+                    Completed
                   </Text>
                 </View>
-                <View style={styles.statusContainer}>
-                  {met ? (
-                    <View style={styles.completedBadge}>
-                      <MaterialIcons name="check-circle" size={16} color="white" />
-                      <Text style={styles.badgeText}>Complete</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.pendingBadge}>
-                      <MaterialIcons name="schedule" size={14} color="white" />
-                      <Text style={styles.badgeText}>
-                        {(required - earned).toFixed(1)} left
-                      </Text>
-                    </View>
-                  )}
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                  <Text style={[styles.statNumber, { color: colors.text }]}>
+                    {totalPillars}
+                  </Text>
+                  <Text style={[styles.statLabel, { color: colors.icon }]}>
+                    Total Pillars
+                  </Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                  <Text style={[styles.statNumber, { color: colors.accent }]}>
+                    {Math.round(completionPercentage)}%
+                  </Text>
+                  <Text style={[styles.statLabel, { color: colors.icon }]}>
+                    Complete
+                  </Text>
                 </View>
               </View>
               
-              <View style={styles.progressBarContainer}>
-                <View style={styles.progressBarTrack}>
-                  <View
+              <View style={styles.progressContainer}>
+                <View style={[styles.progressBar, { backgroundColor: colors.borderColor }]}>
+                  <View 
                     style={[
-                      styles.progressBarFill, 
+                      styles.progressFill, 
                       { 
-                        width: `${progress}%`,
-                        backgroundColor: met ? Colors.primary : categoryInfo.color
+                        width: `${completionPercentage}%`,
+                        backgroundColor: colors.primary
                       }
-                    ]}
+                    ]} 
                   />
                 </View>
-                <Text style={styles.progressPercentage}>{Math.round(progress)}%</Text>
+                <Text style={[styles.progressText, { color: colors.text }]}>
+                  {completionPercentage === 100 ? '🎉 All Pillars Complete!' : `${Math.round(completionPercentage)}% Complete`}
+                </Text>
               </View>
-            </View>
-          );
-        })}
-      </View>
-
-      {/* Leaderboard Section */}
-      <View style={styles.leaderboardSection}>
-        <View style={styles.leaderboardHeader}>
-          <MaterialIcons name="leaderboard" size={24} color={Colors.primary} />
-          <Text style={styles.leaderboardTitle}>Top Performers</Text>
-        </View>
-        
-        {leaderboard.map((user, index) => (
-          <View
-            key={user.name}
-            style={[
-              styles.leaderboardRow,
-              index === 0 && styles.firstPlace,
-              index === 1 && styles.secondPlace,
-              index === 2 && styles.thirdPlace
-            ]}
-          >
-            <View style={styles.rankContainer}>
-              <Text style={[styles.rankText, index < 3 && styles.topThreeRank]}>
-                {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${user.rank}`}
-              </Text>
-            </View>
-            <Text style={[styles.leaderboardName, index < 3 && styles.topThreeName]} 
-                  numberOfLines={1} 
-                  ellipsizeMode="tail">
-              {user.name}
-            </Text>
-            <View style={styles.pointsContainer}>
-              <Text style={[styles.leaderboardPoints, index < 3 && styles.topThreePoints]}>
-                {user.totalPoints.toFixed(1)}
-              </Text>
-              <Text style={styles.pointsLabel}>pts</Text>
             </View>
           </View>
-        ))}
+        </View>
 
-        {/* Current User's Rank (if not in top 5) */}
-        {userRank && userRank.rank > 5 && (
-          <View style={styles.userRankSection}>
-            <Text style={styles.userRankLabel}>Your Ranking:</Text>
-            <View style={styles.userRankRow}>
-              <View style={styles.rankContainer}>
-                <Text style={styles.userRankText}>#{userRank.rank}</Text>
+        {/* Point Categories Section */}
+        <View style={styles.auditSection}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            📊 Point Categories
+          </Text>
+          
+          {Object.entries(POINT_REQUIREMENTS).map(([category, config]) => {
+            const earned = pointsByCategory[category] || 0;
+            const met = earned >= config.required;
+            const progress = Math.min((earned / config.required) * 100, 100);
+
+            // Category icons and colors
+            const getCategoryInfo = (cat: string) => {
+              switch (cat) {
+                case 'brotherhood':
+                  return { icon: 'people', color: colors.primary };
+                case 'professional':
+                  return { icon: 'business-center', color: '#4A90E2' };
+                case 'service':
+                  return { icon: 'volunteer-activism', color: '#50C878' };
+                case 'scholarship':
+                  return { icon: 'school', color: '#8E44AD' };
+                case 'health':
+                  return { icon: 'fitness-center', color: '#E67E22' };
+                case 'fundraising':
+                  return { icon: 'attach-money', color: '#F39C12' };
+                case 'dei':
+                  return { icon: 'groups', color: '#E74C3C' };
+                default:
+                  return { icon: 'category', color: '#95A5A6' };
+              }
+            };
+
+            const categoryInfo = getCategoryInfo(category);
+
+            return (
+              <View
+                key={category}
+                style={[
+                  styles.categoryCard,
+                  { backgroundColor: colors.cardBackground },
+                  met && [styles.categoryCardCompleted, { borderColor: colors.primary }]
+                ]}
+              >
+                <View style={styles.categoryHeader}>
+                  <View style={[styles.categoryIconContainer, { backgroundColor: categoryInfo.color }]}>
+                    <MaterialIcons name={categoryInfo.icon as any} size={24} color="white" />
+                  </View>
+                  <View style={styles.categoryInfo}>
+                    <Text style={[styles.categoryTitle, { color: colors.text }]}>
+                      {config.name}
+                    </Text>
+                    <Text style={[styles.categorySubtitle, { color: colors.icon }]}>
+                      {earned.toFixed(1)} / {config.required} points
+                    </Text>
+                    <Text style={[styles.categoryDescription, { color: colors.icon }]}>
+                      {config.description}
+                    </Text>
+                  </View>
+                  <View style={styles.statusContainer}>
+                    {met ? (
+                      <View style={[styles.completedBadge, { backgroundColor: colors.primary }]}>
+                        <MaterialIcons name="check-circle" size={16} color="white" />
+                        <Text style={styles.badgeText}>Complete</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.pendingBadge}>
+                        <MaterialIcons name="schedule" size={14} color="white" />
+                        <Text style={styles.badgeText}>
+                          {(config.required - earned).toFixed(1)} left
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                
+                <View style={styles.progressBarContainer}>
+                  <View style={[styles.progressBarTrack, { backgroundColor: colors.borderColor }]}>
+                    <View
+                      style={[
+                        styles.progressBarFill, 
+                        { 
+                          width: `${progress}%`,
+                          backgroundColor: met ? colors.primary : categoryInfo.color
+                        }
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.progressPercentage, { color: colors.text }]}>
+                    {Math.round(progress)}%
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.userRankName} 
-                    numberOfLines={1} 
-                    ellipsizeMode="tail">
-                {userRank.name}
+            );
+          })}
+        </View>
+
+        {/* Leaderboard Section */}
+        <View style={[styles.leaderboardSection, { backgroundColor: colors.cardBackground }]}>
+          <View style={styles.leaderboardHeader}>
+            <MaterialIcons name="leaderboard" size={24} color={colors.primary} />
+            <Text style={[styles.leaderboardTitle, { color: colors.text }]}>
+              Top Performers
+            </Text>
+          </View>
+          
+          {leaderboard.map((user, index) => (
+            <View
+              key={user.name}
+              style={[
+                styles.leaderboardRow,
+                { backgroundColor: colors.background },
+                index === 0 && styles.firstPlace,
+                index === 1 && styles.secondPlace,
+                index === 2 && styles.thirdPlace
+              ]}
+            >
+              <View style={styles.rankContainer}>
+                <Text style={[
+                  styles.rankText, 
+                  { color: colors.text },
+                  index < 3 && styles.topThreeRank
+                ]}>
+                  {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${user.rank}`}
+                </Text>
+              </View>
+              <Text 
+                style={[
+                  styles.leaderboardName, 
+                  { color: colors.text },
+                  index < 3 && styles.topThreeName
+                ]} 
+                numberOfLines={1} 
+                ellipsizeMode="tail"
+              >
+                {user.name}
               </Text>
               <View style={styles.pointsContainer}>
-                <Text style={styles.userRankPoints}>{userRank.totalPoints.toFixed(1)}</Text>
-                <Text style={styles.pointsLabel}>pts</Text>
+                <Text style={[
+                  styles.leaderboardPoints, 
+                  { color: index < 3 ? colors.primary : colors.text },
+                  index < 3 && styles.topThreePoints
+                ]}>
+                  {user.totalPoints.toFixed(1)}
+                </Text>
+                <Text style={[styles.pointsLabel, { color: colors.icon }]}>pts</Text>
               </View>
             </View>
-          </View>
-        )}
-      </View>
+          ))}
+
+          {/* Current User's Rank (if not in top 5) */}
+          {userRank && userRank.rank > 5 && (
+            <View style={styles.userRankSection}>
+              <Text style={[styles.userRankLabel, { color: colors.icon }]}>
+                Your Ranking:
+              </Text>
+              <View style={[
+                styles.userRankRow,
+                { 
+                  backgroundColor: colors.background,
+                  borderColor: colors.primary 
+                }
+              ]}>
+                <View style={styles.rankContainer}>
+                  <Text style={[styles.userRankText, { color: colors.primary }]}>
+                    #{userRank.rank}
+                  </Text>
+                </View>
+                <Text 
+                  style={[styles.userRankName, { color: colors.primary }]} 
+                  numberOfLines={1} 
+                  ellipsizeMode="tail"
+                >
+                  {userRank.name}
+                </Text>
+                <View style={styles.pointsContainer}>
+                  <Text style={[styles.userRankPoints, { color: colors.primary }]}>
+                    {userRank.totalPoints.toFixed(1)}
+                  </Text>
+                  <Text style={[styles.pointsLabel, { color: colors.icon }]}>pts</Text>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
 
       {triggerConfetti && <ConfettiCannon count={150} origin={{ x: 200, y: -20 }} fadeOut={true} />}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
+  
+  // Loading styles
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: '500',
   },
   
   // Header Section
   headerSection: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    margin: 16,
-    marginBottom: 8,
+    marginHorizontal: 20,
+    marginTop: Platform.OS === 'ios' ? 10 : 20,
+    marginBottom: 20,
+    borderRadius: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   headerContent: {
-    padding: 20,
+    padding: 24,
     alignItems: 'center',
   },
+  iconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#2D3748',
+    fontSize: 28,
+    fontWeight: 'bold',
     textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#718096',
     textAlign: 'center',
-    marginBottom: 16,
-    fontWeight: '500',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  
+  // Progress Overview
+  progressOverview: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 8,
+  },
+  progressStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 20,
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 16,
   },
   progressContainer: {
     width: '100%',
@@ -644,79 +841,81 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     width: '100%',
-    height: 8,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
+    height: 12,
+    borderRadius: 6,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   progressText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#4A5568',
   },
   
   // Audit Section
   auditSection: {
-    marginHorizontal: 16,
-    marginBottom: 16,
+    marginHorizontal: 20,
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2D3748',
+    fontSize: 22,
+    fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   
   // Category Cards
   categoryCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    marginBottom: 12,
-    padding: 16,
+    borderRadius: 16,
+    marginBottom: 16,
+    padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
   },
   categoryCardCompleted: {
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    backgroundColor: '#F0FDF4',
+    borderWidth: 2,
   },
   categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   categoryIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   categoryInfo: {
     flex: 1,
   },
   categoryTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2D3748',
-    marginBottom: 2,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 4,
   },
   categorySubtitle: {
     fontSize: 14,
-    color: '#718096',
     fontWeight: '500',
+    marginBottom: 4,
+  },
+  categoryDescription: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    lineHeight: 16,
   },
   statusContainer: {
     alignItems: 'flex-end',
@@ -724,23 +923,27 @@ const styles = StyleSheet.create({
   completedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   pendingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#718096',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: '#6B7280',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
   badgeText: {
     color: 'white',
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: 'bold',
     marginLeft: 4,
   },
   
@@ -751,168 +954,136 @@ const styles = StyleSheet.create({
   },
   progressBarTrack: {
     flex: 1,
-    height: 6,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 3,
+    height: 8,
+    borderRadius: 4,
     overflow: 'hidden',
     marginRight: 12,
   },
   progressBarFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 4,
   },
   progressPercentage: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#4A5568',
-    minWidth: 35,
+    fontSize: 14,
+    fontWeight: 'bold',
+    minWidth: 40,
   },
   
   // Leaderboard Section
   leaderboardSection: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    margin: 16,
-    padding: 16,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 20,
+    padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   leaderboardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   leaderboardTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2D3748',
+    fontSize: 22,
+    fontWeight: 'bold',
     marginLeft: 8,
   },
   leaderboardRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-    backgroundColor: '#F7FAFC',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 12,
   },
   firstPlace: {
-    backgroundColor: '#FFF7ED',
     borderLeftWidth: 4,
     borderLeftColor: '#FFD700',
   },
   secondPlace: {
-    backgroundColor: '#F0F4F8',
     borderLeftWidth: 4,
     borderLeftColor: '#C0C0C0',
   },
   thirdPlace: {
-    backgroundColor: '#FFFAF0',
     borderLeftWidth: 4,
     borderLeftColor: '#CD7F32',
   },
   rankContainer: {
-    width: 40,
+    width: 50,
     alignItems: 'center',
   },
   rankText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4A5568',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   topThreeRank: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
   },
   leaderboardName: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '600',
     marginLeft: 12,
-    color: '#2D3748',
   },
   topThreeName: {
-    fontWeight: '600',
-    fontSize: 16,
+    fontWeight: 'bold',
+    fontSize: 17,
   },
   pointsContainer: {
     alignItems: 'center',
-    minWidth: 50,
+    minWidth: 60,
   },
   leaderboardPoints: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4A5568',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   topThreePoints: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.primary,
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   pointsLabel: {
-    fontSize: 10,
-    color: '#718096',
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
+    opacity: 0.7,
   },
   
   // User Rank Section
   userRankSection: {
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 20,
+    paddingTop: 20,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: '#E5E7EB',
   },
   userRankLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#718096',
-    marginBottom: 8,
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 12,
     textAlign: 'center',
   },
   userRankRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#EBF4FF',
-    borderWidth: 1,
-    borderColor: Colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 2,
   },
   userRankText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   userRankName: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: 'bold',
     marginLeft: 12,
-    color: Colors.primary,
   },
   userRankPoints: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  
-  // Loading styles
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-  },
-  grayText: {
-    marginTop: 12,
-    color: '#718096',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: 'bold',
   },
 });

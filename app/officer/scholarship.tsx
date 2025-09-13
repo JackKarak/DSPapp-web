@@ -1,17 +1,28 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
+
+// EST timezone helper
+const formatDateInEST = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+};
 
 export default function ScholarshipTab() {
   const [loading, setLoading] = useState(true);
@@ -369,7 +380,7 @@ export default function ScholarshipTab() {
                   Uploaded by: {item.users?.first_name} {item.users?.last_name}
                 </Text>
                 <Text style={styles.uploadDate}>
-                  {new Date(item.uploaded_at).toLocaleDateString()}
+                  {formatDateInEST(item.uploaded_at)}
                 </Text>
               </View>
               <Text style={styles.tapHint}>Tap to review →</Text>
@@ -425,6 +436,7 @@ export default function ScholarshipTab() {
                   <Text style={styles.detailLabel}>Upload Date</Text>
                   <Text style={styles.detailValue}>
                     {new Date(selectedItem.uploaded_at).toLocaleDateString('en-US', {
+                      timeZone: 'America/New_York',
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric',
