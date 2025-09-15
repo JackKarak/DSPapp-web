@@ -14,19 +14,35 @@ export const getLocalISOString = (date: Date): string => {
  * Combines date and time from separate Date objects while preserving timezone
  */
 export const combineDateAndTime = (dateValue: Date, timeValue: Date): Date => {
-  return new Date(
+  // Validate inputs
+  if (isNaN(dateValue.getTime()) || isNaN(timeValue.getTime())) {
+    throw new Error('Invalid date or time provided to combineDateAndTime');
+  }
+  
+  const combined = new Date(
     dateValue.getFullYear(),
     dateValue.getMonth(),
     dateValue.getDate(),
     timeValue.getHours(),
     timeValue.getMinutes()
   );
+  
+  // Validate the result
+  if (isNaN(combined.getTime())) {
+    throw new Error('Failed to combine date and time - result is invalid');
+  }
+  
+  return combined;
 };
 
 /**
  * Rounds a date to the nearest minute (useful for time consistency)
  */
 export const roundToNearestMinute = (date: Date): Date => {
+  if (isNaN(date.getTime())) {
+    throw new Error('Invalid date provided to roundToNearestMinute');
+  }
+  
   const newDate = new Date(date);
   newDate.setSeconds(0);
   newDate.setMilliseconds(0);
@@ -74,17 +90,32 @@ export const getDateInEST = (dateString: string): Date => {
  * Returns format: YYYY-MM-DD HH:MM:SS
  */
 export const getESTISOString = (date: Date): string => {
-  // Use toLocaleString to properly convert to EST timezone
-  const estDate = new Date(date.toLocaleString("en-US", {timeZone: "America/New_York"}));
+  // Check if the date is valid
+  if (isNaN(date.getTime())) {
+    throw new Error('Invalid date provided to getESTISOString');
+  }
   
-  const year = estDate.getFullYear();
-  const month = String(estDate.getMonth() + 1).padStart(2, '0');
-  const day = String(estDate.getDate()).padStart(2, '0');
-  const hours = String(estDate.getHours()).padStart(2, '0');
-  const minutes = String(estDate.getMinutes()).padStart(2, '0');
-  const seconds = String(estDate.getSeconds()).padStart(2, '0');
+  // Use Intl.DateTimeFormat to get parts in EST timezone
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
   
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  const parts = formatter.formatToParts(date);
+  const year = parts.find(part => part.type === 'year')?.value;
+  const month = parts.find(part => part.type === 'month')?.value;
+  const day = parts.find(part => part.type === 'day')?.value;
+  const hour = parts.find(part => part.type === 'hour')?.value;
+  const minute = parts.find(part => part.type === 'minute')?.value;
+  const second = parts.find(part => part.type === 'second')?.value;
+  
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
 };
 
 /**

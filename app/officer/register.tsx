@@ -134,13 +134,56 @@ export default function OfficerRegisterEvent() {
         return;
       }
 
-      // Combine date and time properly using the utility function
-      const combinedStart = combineDateAndTime(startDate, startTime);
-      const finalEndDate = isMultiDay ? endDate : startDate;
-      const combinedEnd = combineDateAndTime(finalEndDate, endTime);
+      // Validate dates before processing
+      if (isNaN(startDate.getTime()) || isNaN(startTime.getTime()) || 
+          isNaN(endDate.getTime()) || isNaN(endTime.getTime())) {
+        Alert.alert('Date Error', 'Invalid date or time selected. Please check your date and time selections.');
+        return;
+      }
 
-      const roundedStart = roundToNearestMinute(combinedStart);
-      const roundedEnd = roundToNearestMinute(combinedEnd);
+      // Combine date and time properly using the utility function with error handling
+      let combinedStart: Date;
+      let combinedEnd: Date;
+      
+      try {
+        combinedStart = combineDateAndTime(startDate, startTime);
+        const finalEndDate = isMultiDay ? endDate : startDate;
+        combinedEnd = combineDateAndTime(finalEndDate, endTime);
+        
+        // Additional validation: end time should be after start time
+        if (combinedEnd <= combinedStart) {
+          Alert.alert('Time Error', 'End time must be after start time.');
+          return;
+        }
+      } catch (dateError) {
+        console.error('Date combination error:', dateError);
+        Alert.alert('Date Error', 'Failed to process the selected dates and times. Please try again.');
+        return;
+      }
+
+      let roundedStart: Date;
+      let roundedEnd: Date;
+      
+      try {
+        roundedStart = roundToNearestMinute(combinedStart);
+        roundedEnd = roundToNearestMinute(combinedEnd);
+      } catch (roundError) {
+        console.error('Date rounding error:', roundError);
+        Alert.alert('Date Error', 'Failed to process the event times. Please try again.');
+        return;
+      }
+
+      let startTimeString: string;
+      let endTimeString: string;
+      
+      try {
+        startTimeString = getESTISOString(roundedStart);
+        endTimeString = getESTISOString(roundedEnd);
+      } catch (formatError) {
+        console.error('Date formatting error:', formatError);
+        Alert.alert('Date Error', 'Failed to format the event times. Please try again.');
+        return;
+      }
 
       const { error } = await supabase.from('events').insert({
         title,
@@ -148,8 +191,8 @@ export default function OfficerRegisterEvent() {
         location: isNonEvent ? '' : location,
         point_type: isNonEvent ? pointType : (isNoPoint ? 'No Point' : pointType),
         point_value: isNonEvent ? 1 : (isNoPoint ? 0 : 1),
-        start_time: getESTISOString(roundedStart),
-        end_time: getESTISOString(roundedEnd),
+        start_time: startTimeString,
+        end_time: endTimeString,
         created_by: user.id, // Using user.id from auth, which maps to user_id in users table
         is_registerable: isNonEvent ? false : isRegisterable,
         available_to_pledges: availableToPledges,
