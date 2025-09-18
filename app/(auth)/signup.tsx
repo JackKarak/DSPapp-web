@@ -24,6 +24,7 @@ export default function SignupScreen() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [pledgeClass, setPledgeClass] = useState('');
+  const [officerPosition, setOfficerPosition] = useState('');
   const [expectedGraduation, setExpectedGraduation] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -49,8 +50,13 @@ export default function SignupScreen() {
         pledge_class: pledgeClass || null,
         expected_graduation: expectedGraduation ? parseInt(expectedGraduation) : null,
       };
+    } else if (role === 'officer') {
+      return {
+        ...baseData,
+        officer_position: officerPosition || null,
+      };
     } else {
-      // Officer and admin only need basic fields
+      // Admin only needs basic fields
       return baseData;
     }
     
@@ -126,7 +132,14 @@ export default function SignupScreen() {
       return;
     }
   }
-  // Admin and officer roles only need basic fields (no additional validation needed)
+  
+  if (role === 'officer') {
+    if (!officerPosition) {
+      Alert.alert('Missing Information', 'Officer position is required for officers.');
+      return;
+    }
+  }
+  // Admin role only needs basic fields (no additional validation needed)
 
   setLoading(true);
 
@@ -377,6 +390,36 @@ export default function SignupScreen() {
               style={styles.input}
               placeholderTextColor="#999"
             />
+
+            {role === 'officer' && (
+              <>
+                <Text style={styles.label}>Officer Position</Text>
+                <Picker
+                  selectedValue={officerPosition}
+                  onValueChange={setOfficerPosition}
+                  style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
+                  itemStyle={styles.pickerItem}
+                >
+                  <Picker.Item label="Select Position" value="" />
+                  <Picker.Item label="Chancellor" value="chancellor" />
+                  <Picker.Item label="Senior Vice President" value="svp" />
+                  <Picker.Item label="VP Operations" value="vp_operations" />
+                  <Picker.Item label="VP Finance" value="vp_finance" />
+                  <Picker.Item label="VP Pledge Education" value="vp_pledgeed" />
+                  <Picker.Item label="VP Scholarship" value="vp_scholarship" />
+                  <Picker.Item label="VP Media" value="vp_media" />
+                  <Picker.Item label="VP Service" value="vp_service" />
+                  <Picker.Item label="VP DEI" value="vp_dei" />
+                  <Picker.Item label="Fundraising Chair" value="fundraising" />
+                  <Picker.Item label="Social Chair" value="social" />
+                  <Picker.Item label="Historian" value="historian" />
+                  <Picker.Item label="Wellness Chair" value="wellness" />
+                  <Picker.Item label="Brotherhood Chair" value="brotherhood" />
+                  <Picker.Item label="Risk Management" value="risk" />
+                  <Picker.Item label="Marketing Chair" value="marketing" />
+                </Picker>
+              </>
+            )}
 
             {(role === 'brother' || role === 'pledge') && (
               <>

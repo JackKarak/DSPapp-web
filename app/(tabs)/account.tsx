@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,11 +14,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { checkAuthentication, handleAuthenticationRedirect } from '../../lib/auth';
 import { formatDateInEST, getDateInEST } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
-import { Event } from '../../types/account';
+import { Event, PointAppeal, PointAppealSubmission } from '../../types/account';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -263,6 +263,15 @@ export default function AccountTab() {
   // Modal states
   const [testBankModalVisible, setTestBankModalVisible] = useState(false);
   const [accountDetailsModalVisible, setAccountDetailsModalVisible] = useState(false);
+  const [pointAppealModalVisible, setPointAppealModalVisible] = useState(false);
+
+  // Point appeal state
+  const [selectedAppealEvent, setSelectedAppealEvent] = useState<Event | null>(null);
+  const [appealReason, setAppealReason] = useState('');
+  const [appealPictureUrl, setAppealPictureUrl] = useState('');
+  const [userAppeals, setUserAppeals] = useState<PointAppeal[]>([]);
+  const [submittingAppeal, setSubmittingAppeal] = useState(false);
+  const [appealableEvents, setAppealableEvents] = useState<Event[]>([]);
 
   // Analytics state
   const [analytics, setAnalytics] = useState({
@@ -474,6 +483,121 @@ export default function AccountTab() {
     }
   }, []);
 
+  const fetchUserAppeals = useCallback(async () => {
+    try {
+      const authResult = await checkAuthentication();
+      if (!authResult.isAuthenticated) return;
+
+      const { data: appeals, error } = await supabase
+        .from('point_appeal')
+        .select(`
+          *,
+          events(id, title, start_time, point_value, point_type),
+          reviewer:reviewed_by(first_name, last_name)
+        `)
+        .eq('user_id', authResult.user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching appeals:', error);
+        return;
+      }
+
+      setUserAppeals(appeals || []);
+    } catch (error) {
+      console.error('Error in fetchUserAppeals:', error);
+    }
+  }, []);
+
+  const fetchAppealableEvents = useCallback(async () => {
+    try {
+      const authResult = await checkAuthentication();
+      if (!authResult.isAuthenticated) return;
+
+      // Fetch approved events from the last 30 days that user didn't attend
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { data: allEvents, error: eventsError } = await supabase
+        .from('events')
+        .select(`
+          id, 
+          title, 
+          start_time, 
+          point_value, 
+          point_type,
+          creator:created_by(first_name, last_name)
+        `)
+        .eq('status', 'approved')
+        .gte('start_time', thirtyDaysAgo.toISOString())
+        .order('start_time', { ascending: false });
+
+      if (eventsError) {
+        console.error('Error fetching events:', eventsError);
+        return;
+      }
+
+      // Fetch events the user attended
+      const { data: attendedEvents, error: attendanceError } = await supabase
+        .from('event_attendance')
+        .select('event_id')
+        .eq('user_id', authResult.user.id);
+
+      if (attendanceError) {
+        console.error('Error fetching attendance:', attendanceError);
+        return;
+      }
+
+      // Fetch events the user already appealed
+      const { data: appealedEvents, error: appealsError } = await supabase
+        .from('point_appeal')
+        .select('event_id')
+        .eq('user_id', authResult.user.id);
+
+      if (appealsError) {
+        console.error('Error fetching appeals:', appealsError);
+        return;
+      }
+
+      const attendedEventIds = new Set(attendedEvents?.map(a => a.event_id) || []);
+      const appealedEventIds = new Set(appealedEvents?.map(a => a.event_id) || []);
+
+      // Filter to events not attended and not appealed
+      const appealable = (allEvents || [])
+        .filter(event => 
+          !attendedEventIds.has(event.id) && 
+          !appealedEventIds.has(event.id)
+        )
+        .map(event => {
+          let hostName = 'N/A';
+          try {
+            if (Array.isArray(event.creator) && event.creator.length > 0) {
+              const creator = event.creator[0];
+              hostName = `${creator.first_name || ''} ${creator.last_name || ''}`.trim() || 'N/A';
+            } else if (event.creator && typeof event.creator === 'object') {
+              const creator = event.creator as any;
+              hostName = `${creator.first_name || ''} ${creator.last_name || ''}`.trim() || 'N/A';
+            }
+          } catch (e) {
+            hostName = 'N/A';
+          }
+          
+          return {
+            id: event.id,
+            title: event.title,
+            date: event.start_time,
+            host_name: hostName,
+            point_value: event.point_value || 0,
+            point_type: event.point_type || 'other',
+          };
+        });
+
+      setAppealableEvents(appealable);
+    } catch (error) {
+      console.error('Error in fetchAppealableEvents:', error);
+    }
+  }, []);
+
   const fetchAccountData = useCallback(async () => {
     try {
       setLoading(true);
@@ -598,7 +722,14 @@ export default function AccountTab() {
         }
         
         // Calculate analytics
-        await calculateAnalytics(formatted, profile, user.id);      }
+        await calculateAnalytics(formatted, profile, user.id);
+        
+        // Step 5: Fetch user's point appeals
+        await fetchUserAppeals();
+        
+        // Step 6: Fetch appealable events
+        await fetchAppealableEvents();
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       console.error('fetchAccountData error:', err);
@@ -794,6 +925,72 @@ export default function AccountTab() {
     } catch (error) {
       console.error('Event feedback submission error:', error);
       Alert.alert('Error', 'Could not submit feedback. Please try again.');
+    }
+  };
+
+  // Point appeal functions
+  const handlePointAppealPress = (event: Event) => {
+    setSelectedAppealEvent(event);
+    setPointAppealModalVisible(true);
+  };
+
+  const submitPointAppeal = async () => {
+    if (!selectedAppealEvent || submittingAppeal) return;
+
+    if (!appealReason.trim()) {
+      Alert.alert('Error', 'Please provide a reason for your appeal.');
+      return;
+    }
+
+    setSubmittingAppeal(true);
+
+    try {
+      const authResult = await checkAuthentication();
+      if (!authResult.isAuthenticated) {
+        handleAuthenticationRedirect();
+        return;
+      }
+
+      const appealData: PointAppealSubmission = {
+        event_id: selectedAppealEvent.id,
+        appeal_reason: appealReason.trim(),
+        picture_url: appealPictureUrl.trim() || undefined,
+      };
+
+      const { error } = await supabase
+        .from('point_appeal')
+        .insert({
+          user_id: authResult.user.id,
+          ...appealData,
+        });
+
+      if (error) {
+        if (error.code === '23505') { // Unique constraint violation
+          Alert.alert('Already Submitted', 'You have already submitted an appeal for this event.');
+        } else {
+          console.error('Point appeal submission error:', error);
+          Alert.alert('Error', 'Could not submit appeal. Please try again.');
+        }
+        return;
+      }
+
+      Alert.alert('Success', 'Your point appeal has been submitted for review.');
+      
+      // Reset form
+      setAppealReason('');
+      setAppealPictureUrl('');
+      setPointAppealModalVisible(false);
+      setSelectedAppealEvent(null);
+      
+      // Refresh appeals list
+      fetchUserAppeals();
+      // Refresh appealable events list
+      fetchAppealableEvents();
+    } catch (error) {
+      console.error('Point appeal submission error:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setSubmittingAppeal(false);
     }
   };
 
@@ -1571,6 +1768,93 @@ export default function AccountTab() {
           )}
         </View>
 
+        {/* Point Appeals Section */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.standardSectionHeader}>Point Appeals</Text>
+          
+          {/* User's Appeals Status */}
+          {userAppeals.length > 0 && (
+            <View style={styles.appealsContainer}>
+              <Text style={styles.subHeader}>Your Appeals Status</Text>
+              {userAppeals.map((appeal) => (
+                <View key={appeal.id} style={styles.appealCard}>
+                  <View style={styles.appealHeader}>
+                    <Text style={styles.appealEventTitle}>
+                      {appeal.event?.title || 'Unknown Event'}
+                    </Text>
+                    <View style={[
+                      styles.statusBadge,
+                      appeal.status === 'approved' && styles.statusApproved,
+                      appeal.status === 'denied' && styles.statusDenied,
+                      appeal.status === 'pending' && styles.statusPending,
+                    ]}>
+                      <Text style={[
+                        styles.statusText,
+                        appeal.status === 'approved' && styles.statusTextApproved,
+                        appeal.status === 'denied' && styles.statusTextDenied,
+                        appeal.status === 'pending' && styles.statusTextPending,
+                      ]}>
+                        {appeal.status.toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.appealReason}>
+                    Reason: {appeal.appeal_reason}
+                  </Text>
+                  <Text style={styles.appealDate}>
+                    Submitted: {formatDateInEST(appeal.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </Text>
+                  {appeal.admin_response && (
+                    <Text style={styles.adminResponse}>
+                      Admin Response: {appeal.admin_response}
+                    </Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Appealable Events */}
+          {appealableEvents.length > 0 && (
+            <View style={styles.appealsContainer}>
+              <Text style={styles.subHeader}>Submit New Appeal</Text>
+              <Text style={styles.appealsDescription}>
+                Appeal for events you attended but didn't receive points for.
+              </Text>
+              <View style={styles.table}>
+                <View style={styles.tableRowHeader}>
+                  <Text style={styles.cellHeader}>Event</Text>
+                  <Text style={styles.cellHeader}>Date</Text>
+                  <Text style={styles.cellHeader}>Points</Text>
+                  <Text style={styles.cellHeader}>Appeal</Text>
+                </View>
+                {appealableEvents.slice(0, 5).map((event) => (
+                  <View key={event.id} style={styles.tableRow}>
+                    <Text style={styles.cell}>{event.title}</Text>
+                    <Text style={styles.cell}>
+                      {formatDateInEST(event.date, { month: 'short', day: 'numeric' })}
+                    </Text>
+                    <Text style={styles.cell}>{event.point_value}</Text>
+                    <TouchableOpacity 
+                      style={styles.appealButton}
+                      onPress={() => handlePointAppealPress(event)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.appealButtonText}>Appeal</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {appealableEvents.length === 0 && userAppeals.length === 0 && (
+            <Text style={styles.noContent}>
+              No recent events available for appeal.
+            </Text>
+          )}
+        </View>
+
         {/* Account Details - Button to open modal */}
         <View style={styles.sectionContainer}>
           <Text style={styles.standardSectionHeader}>Account Details</Text>
@@ -2020,6 +2304,101 @@ export default function AccountTab() {
                   {renderProfileSection}
                 </View>
               )}
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Point Appeal Modal */}
+      <Modal
+        visible={pointAppealModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setPointAppealModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>Submit Point Appeal</Text>
+              
+              {selectedAppealEvent && (
+                <View style={styles.eventInfoCard}>
+                  <Text style={styles.eventInfoTitle}>{selectedAppealEvent.title}</Text>
+                  <Text style={styles.eventInfoDetail}>
+                    Date: {formatDateInEST(selectedAppealEvent.date, { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric' 
+                    })}
+                  </Text>
+                  <Text style={styles.eventInfoDetail}>
+                    Organizer: {selectedAppealEvent.host_name}
+                  </Text>
+                  <Text style={styles.eventInfoDetail}>
+                    Points: {selectedAppealEvent.point_value}
+                  </Text>
+                </View>
+              )}
+
+              <Text style={styles.formLabel}>
+                Why should you receive points for this event? *
+              </Text>
+              <TextInput
+                style={[styles.textArea, { minHeight: 120 }]}
+                placeholder="Explain why you believe you should receive points for this event. Include details about your attendance or participation."
+                placeholderTextColor="#999"
+                value={appealReason}
+                onChangeText={setAppealReason}
+                multiline
+                textAlignVertical="top"
+              />
+
+              <Text style={styles.formLabel}>
+                Picture Evidence (Optional)
+              </Text>
+              <Text style={styles.formHint}>
+                You can include a photo URL as evidence (e.g., social media post, event photo)
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="https://example.com/photo.jpg"
+                placeholderTextColor="#999"
+                value={appealPictureUrl}
+                onChangeText={setAppealPictureUrl}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+
+              <View style={styles.modalButtonContainer}>
+                <TouchableOpacity
+                  style={[styles.button, styles.cancelButton]}
+                  onPress={() => {
+                    setPointAppealModalVisible(false);
+                    setAppealReason('');
+                    setAppealPictureUrl('');
+                    setSelectedAppealEvent(null);
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.button, 
+                    styles.submitButton,
+                    (submittingAppeal || !appealReason.trim()) && { opacity: 0.5 }
+                  ]}
+                  onPress={submitPointAppeal}
+                  disabled={submittingAppeal || !appealReason.trim()}
+                >
+                  <Text style={styles.submitButtonText}>
+                    {submittingAppeal ? 'Submitting...' : 'Submit Appeal'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -3300,6 +3679,163 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
     lineHeight: 16,
+  },
+  
+  // Point Appeals Styles
+  appealsContainer: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  subHeader: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  appealsDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  appealCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary,
+  },
+  appealHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  appealEventTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+    marginRight: 12,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  statusApproved: {
+    backgroundColor: '#d4edda',
+  },
+  statusDenied: {
+    backgroundColor: '#f8d7da',
+  },
+  statusPending: {
+    backgroundColor: '#fff3cd',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  statusTextApproved: {
+    color: '#155724',
+  },
+  statusTextDenied: {
+    color: '#721c24',
+  },
+  statusTextPending: {
+    color: '#856404',
+  },
+  appealReason: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  appealDate: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 4,
+  },
+  adminResponse: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontStyle: 'italic',
+    backgroundColor: '#e8f4f8',
+    padding: 8,
+    borderRadius: 6,
+    marginTop: 8,
+  },
+  appealButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  appealButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  
+  // Point Appeal Modal Styles
+  eventInfoCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary,
+  },
+  eventInfoTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  eventInfoDetail: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  formLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  formHint: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 8,
+    fontStyle: 'italic',
+  },
+  textArea: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: 'white',
+    textAlignVertical: 'top',
+  },
+  modalButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 24,
+    gap: 12,
   },
 });
 

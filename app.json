@@ -69,7 +69,6 @@
       ]
     ],
     "experiments": { "typedRoutes": true },
-    "newArchEnabled": false,
     "privacy": "unlisted"
   }
 }
