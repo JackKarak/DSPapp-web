@@ -492,8 +492,7 @@ export default function AccountTab() {
         .from('point_appeal')
         .select(`
           *,
-          events(id, title, start_time, point_value, point_type),
-          reviewer:reviewed_by(first_name, last_name)
+          events(id, title, start_time, point_value, point_type)
         `)
         .eq('user_id', authResult.user.id)
         .order('created_at', { ascending: false });
@@ -503,7 +502,32 @@ export default function AccountTab() {
         return;
       }
 
-      setUserAppeals(appeals || []);
+      // Fetch reviewer information separately to avoid foreign key issues
+      let appealsWithReviewers = appeals || [];
+      if (appeals && appeals.length > 0) {
+        const reviewerIds = [...new Set(appeals.map(a => a.reviewed_by).filter(Boolean))];
+        
+        if (reviewerIds.length > 0) {
+          const { data: reviewers, error: reviewerError } = await supabase
+            .from('users')
+            .select('user_id, first_name, last_name')
+            .in('user_id', reviewerIds);
+
+          if (!reviewerError && reviewers) {
+            const reviewerMap = reviewers.reduce((map, reviewer) => {
+              map[reviewer.user_id] = reviewer;
+              return map;
+            }, {} as Record<string, any>);
+
+            appealsWithReviewers = appeals.map(appeal => ({
+              ...appeal,
+              reviewer: appeal.reviewed_by ? reviewerMap[appeal.reviewed_by] : null
+            }));
+          }
+        }
+      }
+
+      setUserAppeals(appealsWithReviewers);
     } catch (error) {
       console.error('Error in fetchUserAppeals:', error);
     }
