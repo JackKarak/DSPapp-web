@@ -942,6 +942,11 @@ export default function AccountTab() {
       return;
     }
 
+    if (!appealPictureUrl.trim()) {
+      Alert.alert('Error', 'Please provide a picture URL as evidence for your appeal.');
+      return;
+    }
+
     setSubmittingAppeal(true);
 
     try {
@@ -954,7 +959,7 @@ export default function AccountTab() {
       const appealData: PointAppealSubmission = {
         event_id: selectedAppealEvent.id,
         appeal_reason: appealReason.trim(),
-        picture_url: appealPictureUrl.trim() || undefined,
+        picture_url: appealPictureUrl.trim(), // Required field
       };
 
       const { error } = await supabase
@@ -2357,14 +2362,14 @@ export default function AccountTab() {
               />
 
               <Text style={styles.formLabel}>
-                Picture Evidence (Optional)
+                Picture Evidence *
               </Text>
               <Text style={styles.formHint}>
-                You can include a photo URL as evidence (e.g., social media post, event photo)
+                Please provide a photo URL as evidence (e.g., social media post, event photo). This is required for all appeals.
               </Text>
               <TextInput
                 style={styles.input}
-                placeholder="https://example.com/photo.jpg"
+                placeholder="https://example.com/photo.jpg (Required)"
                 placeholderTextColor="#999"
                 value={appealPictureUrl}
                 onChangeText={setAppealPictureUrl}

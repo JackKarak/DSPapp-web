@@ -70,9 +70,9 @@ export default function PresidentLayout() {
       <Tabs.Screen
         name="override"
         options={{
-          title: 'Override',
+          title: 'Appeals',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-add-outline" size={size} color={color} />
+            <Ionicons name="hand-right-outline" size={size} color={color} />
           ),
         }}
       />

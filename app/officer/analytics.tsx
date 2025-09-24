@@ -38,6 +38,19 @@ type EventStats = {
   growth_rate: number;
 };
 
+type IndividualEvent = {
+  id: string;
+  title: string;
+  start_time: string;
+  point_value: number;
+  point_type: string;
+  attendance_count: number;
+  attendance_rate: number;
+  creator_name: string;
+  location?: string;
+  is_non_event?: boolean;
+};
+
 const screenWidth = Dimensions.get('window').width;
 const pieColors = ['#4285F4', '#34A853', '#FBBC04', '#EA4335', '#9C27B0', '#FF9800', '#00BCD4', '#8BC34A'];
 
@@ -109,6 +122,7 @@ export default function OfficerAnalytics() {
     wellOrganizedPct: 0,
     recentComments: [],
   });
+  const [individualEvents, setIndividualEvents] = useState<IndividualEvent[]>([]);
 
   const fetchAnalytics = async () => {
     setLoading(true);
@@ -339,6 +353,54 @@ export default function OfficerAnalytics() {
       }
       
       setFeedbackStats(feedbackStatsData);
+
+      // Fetch individual events with detailed attendance data
+      const individualEventsData: IndividualEvent[] = [];
+      if (eventIds.length > 0) {
+        const { data: detailedEventsData, error: detailedEventsError } = await supabase
+          .from('events')
+          .select(`
+            id,
+            title,
+            start_time,
+            location,
+            point_value,
+            point_type,
+            created_by,
+            users!events_created_by_fkey(first_name, last_name)
+          `)
+          .in('id', eventIds)
+          .order('start_time', { ascending: false });
+
+        if (detailedEventsError) {
+          console.error('Detailed events fetch error:', detailedEventsError);
+        } else if (detailedEventsData) {
+          // Calculate attendance data for each event
+          for (const event of detailedEventsData) {
+            const eventAttendanceCount = attendanceByEvent[event.id] || 0;
+            const attendanceRate = regularUsers && regularUsers.length > 0 ? 
+              (eventAttendanceCount / regularUsers.length) * 100 : 0;
+            
+            const creatorName = event.users && event.users.length > 0 ? 
+              `${event.users[0].first_name} ${event.users[0].last_name}` : 
+              'Unknown Officer';
+
+            individualEventsData.push({
+              id: event.id,
+              title: event.title,
+              start_time: event.start_time,
+              location: event.location || 'TBD',
+              point_value: event.point_value,
+              point_type: event.point_type,
+              attendance_count: eventAttendanceCount,
+              attendance_rate: attendanceRate,
+              creator_name: creatorName
+            });
+          }
+        }
+      }
+      
+      setIndividualEvents(individualEventsData);
       
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -648,6 +710,71 @@ export default function OfficerAnalytics() {
           </View>
         )}
       </View>
+
+      {/* Individual Events Section */}
+      <View style={styles.chartCard}>
+        <Text style={styles.chartTitle}>📅 Individual Events by {officerPosition?.replace('_', ' ').toUpperCase() || 'Officer'}</Text>
+        <Text style={styles.chartSubtitle}>Detailed attendance data for each event</Text>
+        {individualEvents.length > 0 ? (
+          <View style={styles.eventsGrid}>
+            {individualEvents.map((event) => (
+              <View key={event.id} style={styles.eventCard}>
+                <View style={styles.eventHeader}>
+                  <Text style={styles.eventTitle} numberOfLines={2}>{event.title}</Text>
+                  <View style={styles.pointsBadge}>
+                    <Text style={styles.pointsText}>{event.point_value} pts</Text>
+                  </View>
+                </View>
+                <Text style={styles.eventDate}>
+                  {formatDateInEST(event.start_time, { 
+                    weekday: 'short',
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                  })}
+                </Text>
+                <Text style={styles.eventLocation}>📍 {event.location}</Text>
+                <Text style={styles.eventCreator}>👤 Created by: {event.creator_name}</Text>
+                <View style={styles.attendanceInfo}>
+                  <View style={styles.attendanceStats}>
+                    <Text style={styles.attendanceLabel}>Attendance</Text>
+                    <Text style={styles.attendanceCount}>{event.attendance_count} members</Text>
+                    <Text style={styles.attendanceRate}>
+                      {event.attendance_rate.toFixed(1)}% of eligible members
+                    </Text>
+                  </View>
+                  <View style={styles.attendanceIndicator}>
+                    <View 
+                      style={[
+                        styles.attendanceCircle, 
+                        { 
+                          backgroundColor: event.attendance_rate >= 70 ? '#34a853' : 
+                                         event.attendance_rate >= 50 ? '#fbbc04' : '#ea4335'
+                        }
+                      ]}
+                    >
+                      <Text style={styles.attendancePercent}>
+                        {Math.round(event.attendance_rate)}%
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.eventTypeBadge}>
+                  <Text style={styles.eventTypeText}>{event.point_type}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.noEventsContainer}>
+            <Text style={styles.noEventsTitle}>📋 No Events Found</Text>
+            <Text style={styles.noEventsText}>
+              No events have been created by officers with this position yet.
+            </Text>
+          </View>
+        )}
+      </View>
     </ScrollView>
   );
 }
@@ -953,5 +1080,144 @@ const styles = StyleSheet.create({
     color: '#5f6368',
     lineHeight: 18,
     flex: 1,
+  },
+  // Individual Events Styles
+  eventsGrid: {
+    gap: 16,
+    marginTop: 16,
+  },
+  eventCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4285F4',
+  },
+  eventHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  eventTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#202124',
+    flex: 1,
+    marginRight: 12,
+    lineHeight: 22,
+  },
+  pointsBadge: {
+    backgroundColor: '#4285F4',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  pointsText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  eventDate: {
+    fontSize: 14,
+    color: '#5f6368',
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+  eventLocation: {
+    fontSize: 13,
+    color: '#5f6368',
+    marginBottom: 4,
+  },
+  eventCreator: {
+    fontSize: 13,
+    color: '#5f6368',
+    marginBottom: 16,
+    fontStyle: 'italic',
+  },
+  attendanceInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  attendanceStats: {
+    flex: 1,
+  },
+  attendanceLabel: {
+    fontSize: 12,
+    color: '#5f6368',
+    fontWeight: '500',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  attendanceCount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#202124',
+    marginBottom: 2,
+  },
+  attendanceRate: {
+    fontSize: 12,
+    color: '#5f6368',
+  },
+  attendanceIndicator: {
+    marginLeft: 16,
+  },
+  attendanceCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attendancePercent: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  eventTypeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#e8f0fe',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  eventTypeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4285F4',
+    textTransform: 'capitalize',
+  },
+  noEventsContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 16,
+  },
+  noEventsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#5f6368',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  noEventsText: {
+    fontSize: 14,
+    color: '#80868b',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

@@ -3,12 +3,14 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,
   View
 } from 'react-native';
+import { Colors } from '../../constants/colors';
+import { formatDateInEST, formatTimeInEST, getDateInEST } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
 
 interface PendingEvent {
@@ -25,12 +27,144 @@ interface PendingEvent {
   is_registerable: boolean;
   available_to_pledges: boolean;
   status: string;
+  is_non_event?: boolean;
 }
+
+// Red flag detection functions
+const detectRedFlags = (event: PendingEvent, allEvents: PendingEvent[]) => {
+  const flags: {
+    type: 'error' | 'warning' | 'info';
+    icon: string;
+    message: string;
+    details?: string;
+  }[] = [];
+
+  // Missing information flags
+  if (!event.description || event.description.trim() === '') {
+    flags.push({
+      type: 'warning',
+      icon: '📝',
+      message: 'Missing Description',
+      details: 'Event lacks a detailed description for members'
+    });
+  }
+
+  // Only check location for regular events, not non-events
+  if (!event.is_non_event && (!event.location || event.location.trim() === '')) {
+    flags.push({
+      type: 'error',
+      icon: '📍',
+      message: 'Missing Location',
+      details: 'Event must have a location specified'
+    });
+  }
+
+  // Time-related flags (only for regular events, not non-events)
+  const eventStart = new Date(event.start_time);
+  const eventEnd = new Date(event.end_time);
+  const now = new Date();
+
+  if (!event.is_non_event) {
+    if (eventStart >= eventEnd) {
+      flags.push({
+        type: 'error',
+        icon: '⏰',
+        message: 'Invalid Time Range',
+        details: 'Event start time must be before end time'
+      });
+    }
+
+    if (eventStart < now) {
+      flags.push({
+        type: 'error',
+        icon: '📅',
+        message: 'Past Event',
+        details: 'Event is scheduled in the past'
+      });
+    }
+
+    // Check for overlapping events (only for regular events)
+    const overlappingEvents = allEvents.filter(otherEvent => {
+      if (otherEvent.id === event.id || otherEvent.is_non_event) return false;
+      
+      const otherStart = new Date(otherEvent.start_time);
+      const otherEnd = new Date(otherEvent.end_time);
+      
+      return (eventStart < otherEnd && eventEnd > otherStart);
+    });
+
+    if (overlappingEvents.length > 0) {
+      overlappingEvents.forEach(otherEvent => {
+        const otherStart = new Date(otherEvent.start_time);
+        flags.push({
+          type: 'warning',
+          icon: '⚠️',
+          message: 'Time Conflict',
+          details: `Overlaps with "${otherEvent.title}" (${otherStart.toLocaleString([], {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })})`
+        });
+      });
+    }
+  }
+
+  // Pledge-related flags
+  if (event.available_to_pledges) {
+    flags.push({
+      type: 'info',
+      icon: '👥',
+      message: 'Available to Pledges',
+      details: 'This event is open to pledge class participation'
+    });
+  }
+
+  // Non-event flag
+  if (event.is_non_event) {
+    flags.push({
+      type: 'info',
+      icon: '📊',
+      message: 'Non-Event',
+      details: 'This is a points-only entry and will not appear in the calendar or event list'
+    });
+  }
+
+  // Point-related flags
+  if (event.point_value === 0 && event.point_type !== 'No Point') {
+    flags.push({
+      type: 'warning',
+      icon: '🎯',
+      message: 'Zero Points',
+      details: 'Event has no point value but has a point type'
+    });
+  }
+
+  // Registration flags (only for regular events)
+  if (!event.is_non_event && event.is_registerable) {
+    const registrationDeadline = new Date(eventStart);
+    registrationDeadline.setHours(registrationDeadline.getHours() - 24);
+    
+    if (now > registrationDeadline) {
+      flags.push({
+        type: 'warning',
+        icon: '📝',
+        message: 'Late Registration',
+        details: 'Less than 24 hours for member registration'
+      });
+    }
+  }
+
+  return flags;
+};
 
 export default function EventApproval() {
   const [pendingEvents, setPendingEvents] = useState<PendingEvent[]>([]);
+  const [allEvents, setAllEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingEventIds, setProcessingEventIds] = useState<Set<string>>(new Set());
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const router = useRouter();
 
   useEffect(() => {
@@ -77,9 +211,25 @@ export default function EventApproval() {
     try {
       setLoading(true);
 
+      // Get pending events with creator info
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
-        .select('id, title, description, start_time, end_time, location, point_type, point_value, created_by, is_registerable, available_to_pledges, status')
+        .select(`
+          id, 
+          title, 
+          description, 
+          start_time, 
+          end_time, 
+          location, 
+          point_type, 
+          point_value, 
+          created_by, 
+          is_registerable, 
+          available_to_pledges, 
+          status,
+          is_non_event,
+          created_by_user:created_by(first_name, last_name)
+        `)
         .eq('status', 'pending')
         .order('start_time', { ascending: true });
 
@@ -89,36 +239,68 @@ export default function EventApproval() {
         return;
       }
 
+      // Get all events for conflict detection
+      const { data: allData, error: allError } = await supabase
+        .from('events')
+        .select('id, title, start_time, end_time, status')
+        .order('start_time', { ascending: true });
+
+      if (allError) {
+        console.error('Error fetching all events:', allError);
+      }
+
       if (!eventsData || eventsData.length === 0) {
         setPendingEvents([]);
+        setAllEvents([]);
         return;
       }
 
-      // Fetch creator names
-      const createdByIds = [...new Set(eventsData.map(e => e.created_by))];
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('user_id, first_name, last_name')
-        .in('user_id', createdByIds);
+      // Fetch creator names for events that don't have creator info
+      const createdByIds = [...new Set(eventsData
+        .filter(e => !e.created_by_user)
+        .map(e => e.created_by))];
+      
+      let usersMap: Record<string, string> = {};
+      
+      if (createdByIds.length > 0) {
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('user_id, first_name, last_name')
+          .in('user_id', createdByIds);
 
-      if (usersError) {
-        console.error('Users Error:', usersError);
+        if (usersError) {
+          console.error('Users Error:', usersError);
+        }
+
+        usersMap = usersData?.reduce((acc, user) => {
+          const fullName = user.first_name && user.last_name 
+            ? `${user.first_name} ${user.last_name}` 
+            : 'Unknown User';
+          acc[user.user_id] = fullName;
+          return acc;
+        }, {} as Record<string, string>) || {};
       }
 
-      const usersMap = usersData?.reduce((acc, user) => {
-        const fullName = user.first_name && user.last_name 
-          ? `${user.first_name} ${user.last_name}` 
-          : 'Unknown User';
-        acc[user.user_id] = fullName;
-        return acc;
-      }, {} as Record<string, string>) || {};
+      const enrichedEvents = eventsData.map((event: any) => {
+        let creatorName = 'Unknown User';
+        if (event.created_by_user && Array.isArray(event.created_by_user) && event.created_by_user.length > 0) {
+          const creator = event.created_by_user[0];
+          creatorName = `${creator.first_name} ${creator.last_name}`;
+        } else if (event.created_by_user && !Array.isArray(event.created_by_user)) {
+          const creator = event.created_by_user as any;
+          creatorName = `${creator.first_name} ${creator.last_name}`;
+        } else if (usersMap[event.created_by]) {
+          creatorName = usersMap[event.created_by];
+        }
 
-      const enrichedEvents = eventsData.map(event => ({
-        ...event,
-        creator_name: usersMap[event.created_by] || 'Unknown User',
-      }));
+        return {
+          ...event,
+          creator_name: creatorName,
+        };
+      });
 
       setPendingEvents(enrichedEvents);
+      setAllEvents(allData || []);
     } catch (error) {
       console.error('Error fetching pending events:', error);
       Alert.alert('Error', 'Failed to load pending events.');
@@ -185,6 +367,18 @@ export default function EventApproval() {
     }
   };
 
+  const toggleCardExpansion = (eventId: string) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
+  };
+
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -206,86 +400,215 @@ export default function EventApproval() {
     );
   }
 
+  const renderEventCard = ({ item }: { item: PendingEvent }) => {
+    const start = new Date(item.start_time);
+    const end = new Date(item.end_time);
+    const redFlags = detectRedFlags(item, allEvents);
+    const hasErrors = redFlags.some(flag => flag.type === 'error');
+    const hasWarnings = redFlags.some(flag => flag.type === 'warning');
+    const isExpanded = expandedCards.has(item.id);
+    const isProcessing = processingEventIds.has(item.id);
+
+    return (
+      <View style={styles.eventCard}>
+        {/* Event Hero Section - Always Visible */}
+        <TouchableOpacity 
+          style={styles.heroSection}
+          onPress={() => toggleCardExpansion(item.id)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.dateColumn}>
+            <Text style={styles.dateMonth}>
+              {formatDateInEST(item.start_time, { month: 'short' }).toUpperCase()}
+            </Text>
+            <Text style={styles.dateDay}>
+              {getDateInEST(item.start_time).getDate()}
+            </Text>
+            <Text style={styles.dateWeekday}>
+              {formatDateInEST(item.start_time, { weekday: 'short' })}
+            </Text>
+          </View>
+          
+          <View style={styles.eventInfo}>
+            <View style={styles.eventHeader}>
+              <Text style={styles.eventTitle} numberOfLines={2}>{item.title}</Text>
+              <View style={styles.expandIcon}>
+                <Text style={styles.expandIconText}>
+                  {isExpanded ? '−' : '+'}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.eventMeta}>
+              {!item.is_non_event && (
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaIcon}>📍</Text>
+                  <Text style={styles.metaText} numberOfLines={1}>
+                    {item.location || 'Location TBD'}
+                  </Text>
+                </View>
+              )}
+              {item.is_non_event && (
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaIcon}>📊</Text>
+                  <Text style={styles.metaText} numberOfLines={1}>
+                    Points-only entry
+                  </Text>
+                </View>
+              )}
+              <View style={styles.metaRow}>
+                <Text style={styles.metaIcon}>⏰</Text>
+                <Text style={styles.metaText}>
+                  {formatTimeInEST(item.start_time, { hour: '2-digit', minute: '2-digit' })} - {' '}
+                  {formatTimeInEST(item.end_time, { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
+              {redFlags.length > 0 && (
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaIcon}>
+                    {hasErrors ? '🔴' : hasWarnings ? '🟡' : '🔵'}
+                  </Text>
+                  <Text style={styles.metaText}>
+                    {redFlags.length} issue{redFlags.length !== 1 ? 's' : ''} detected
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* Expandable Content */}
+        {isExpanded && (
+          <>
+            {/* Event Details */}
+            <View style={styles.detailsSection}>
+              <Text style={styles.sectionTitle}>Event Details</Text>
+              <View style={styles.detailGrid}>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Type</Text>
+                  <Text style={styles.detailValue}>
+                    {item.is_non_event ? 'Non-Event (Points Only)' : 'Regular Event'}
+                  </Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Points</Text>
+                  <Text style={styles.detailValue}>
+                    {item.point_value || 0} {item.point_type || 'points'}
+                  </Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Registration</Text>
+                  <Text style={styles.detailValue}>
+                    {item.is_registerable ? 'Required' : 'Not required'}
+                  </Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Pledges</Text>
+                  <Text style={styles.detailValue}>
+                    {item.available_to_pledges ? 'Allowed' : 'Brothers only'}
+                  </Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Creator</Text>
+                  <Text style={styles.detailValue}>{item.creator_name}</Text>
+                </View>
+              </View>
+              
+              {item.description && (
+                <View style={styles.descriptionContainer}>
+                  <Text style={styles.detailLabel}>Description</Text>
+                  <Text style={styles.descriptionText}>{item.description}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Quality Assurance Issues */}
+            {redFlags.length > 0 && (
+              <View style={styles.flagsSection}>
+                <Text style={styles.redFlagsTitle}>
+                  Quality Assurance Issues ({redFlags.length})
+                </Text>
+                {redFlags.map((flag, index) => (
+                  <View key={index} style={[
+                    styles.flagItem,
+                    flag.type === 'error' && styles.flagError,
+                    flag.type === 'warning' && styles.flagWarning,
+                    flag.type === 'info' && styles.flagInfo
+                  ]}>
+                    <Text style={styles.flagIcon}>{flag.icon}</Text>
+                    <View style={styles.flagContent}>
+                      <Text style={[
+                        styles.flagMessage,
+                        flag.type === 'error' && styles.flagMessageError,
+                        flag.type === 'warning' && styles.flagMessageWarning,
+                        flag.type === 'info' && styles.flagMessageInfo
+                      ]}>
+                        {flag.message}
+                      </Text>
+                      {flag.details && (
+                        <Text style={styles.flagDetails}>{flag.details}</Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Action Buttons */}
+            <View style={styles.actionSection}>
+              <TouchableOpacity
+                style={[styles.approveButton, isProcessing && styles.disabledButton]}
+                onPress={() => confirmEvent(item.id)}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.approveButtonText}>✓ Approve</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.denyButton, isProcessing && styles.disabledButton]}
+                onPress={() => rejectEvent(item.id)}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.denyButtonText}>✗ Deny</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </View>
+    );
+  };
+
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <Text style={styles.title}>Event Confirmation</Text>
-      <Text style={styles.subtitle}>Review and confirm pending events</Text>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Event Approval</Text>
+        <Text style={styles.subtitle}>Review and approve pending events</Text>
+      </View>
 
       {pendingEvents.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>🎉 No pending events</Text>
-          <Text style={styles.emptySubtext}>All events have been reviewed</Text>
+          <Text style={styles.emptyIcon}>🎉</Text>
+          <Text style={styles.emptyTitle}>No Pending Events</Text>
+          <Text style={styles.emptySubtitle}>All events have been reviewed</Text>
         </View>
       ) : (
-        <View style={styles.eventsContainer}>
-          {pendingEvents.map((event) => {
-            const isProcessing = processingEventIds.has(event.id);
-            
-            return (
-              <View key={event.id} style={styles.eventCard}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.eventTitle}>{event.title}</Text>
-                  <View style={styles.typeTag}>
-                    <Text style={styles.typeTagText}>
-                      {event.point_type.toUpperCase()}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={styles.eventDescription}>{event.description}</Text>
-
-                <View style={styles.eventDetails}>
-                  <Text style={styles.detailLabel}>📅 Start: {formatDateTime(event.start_time)}</Text>
-                  <Text style={styles.detailLabel}>🕐 End: {formatDateTime(event.end_time)}</Text>
-                  <Text style={styles.detailLabel}>📍 Location: {event.location}</Text>
-                  <Text style={styles.detailLabel}>🏆 Points: {event.point_value}</Text>
-                  <Text style={styles.detailLabel}>👤 Created by: {event.creator_name}</Text>
-                </View>
-
-                <View style={styles.badgeContainer}>
-                  {event.is_registerable && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>Registerable</Text>
-                    </View>
-                  )}
-                  {event.available_to_pledges && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>Open to Pledges</Text>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.actionButtons}>
-                  <TouchableOpacity
-                    style={[styles.confirmButton, isProcessing && styles.disabledButton]}
-                    onPress={() => confirmEvent(event.id)}
-                    disabled={isProcessing}
-                  >
-                    {isProcessing ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.confirmButtonText}>✓ Confirm</Text>
-                    )}
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.rejectButton, isProcessing && styles.disabledButton]}
-                    onPress={() => rejectEvent(event.id)}
-                    disabled={isProcessing}
-                  >
-                    {isProcessing ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.rejectButtonText}>✗ Reject</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })}
-        </View>
+        <FlatList
+          data={pendingEvents}
+          renderItem={renderEventCard}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContainer}
+        />
       )}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -293,20 +616,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-    padding: 20,
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#330066',
-    marginBottom: 8,
-    textAlign: 'center',
+    color: '#1f2937',
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 24,
+    color: '#6b7280',
+  },
+  listContainer: {
+    padding: 16,
   },
   loadingContainer: {
     flex: 1,
@@ -315,136 +644,265 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f9fa',
   },
   loadingText: {
-    marginTop: 12,
+    marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: '#6B7280',
+    fontWeight: '500',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingHorizontal: 32,
   },
-  emptyText: {
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyTitle: {
     fontSize: 24,
-    fontWeight: '600',
-    color: '#330066',
+    fontWeight: '700',
+    color: '#1f2937',
     marginBottom: 8,
   },
-  emptySubtext: {
+  emptySubtitle: {
     fontSize: 16,
-    color: '#666',
+    color: '#6b7280',
     textAlign: 'center',
-  },
-  eventsContainer: {
-    gap: 16,
+    lineHeight: 24,
   },
   eventCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
-    padding: 20,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
+    overflow: 'hidden',
   },
-  cardHeader: {
+  heroSection: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    padding: 20,
+  },
+  dateColumn: {
+    width: 60,
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  dateMonth: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.primary,
+    letterSpacing: 0.5,
+  },
+  dateDay: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1f2937',
+    lineHeight: 32,
+  },
+  dateWeekday: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  eventInfo: {
+    flex: 1,
+  },
+  eventHeader: {
+    flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: 12,
   },
   eventTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#1f2937',
     flex: 1,
-    marginRight: 12,
+    lineHeight: 24,
   },
-  typeTag: {
-    backgroundColor: '#e0e7ff',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+  expandIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
   },
-  typeTagText: {
-    fontSize: 12,
+  expandIconText: {
+    fontSize: 18,
     fontWeight: '600',
-    color: '#3730a3',
+    color: '#6b7280',
   },
-  eventDescription: {
+  eventMeta: {
+    gap: 8,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  metaIcon: {
     fontSize: 16,
-    color: '#374151',
-    marginBottom: 16,
-    lineHeight: 22,
+    marginRight: 8,
+    width: 20,
   },
-  eventDetails: {
-    marginBottom: 16,
-  },
-  detailLabel: {
+  metaText: {
     fontSize: 14,
     color: '#6b7280',
-    marginBottom: 4,
+    fontWeight: '500',
+    flex: 1,
   },
-  badgeContainer: {
+  detailsSection: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 16,
+  },
+  detailGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 16,
     marginBottom: 20,
   },
-  badge: {
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
+  detailItem: {
+    minWidth: '45%',
+    backgroundColor: '#f9fafb',
+    padding: 12,
+    borderRadius: 8,
   },
-  badgeText: {
+  detailLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
   },
-  actionButtons: {
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  descriptionContainer: {
+    marginTop: 4,
+  },
+  descriptionText: {
+    fontSize: 14,
+    color: '#4b5563',
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  flagsSection: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    backgroundColor: '#fefefe',
+  },
+  redFlagsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#dc2626',
+    marginBottom: 12,
+  },
+  flagItem: {
     flexDirection: 'row',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  flagError: {
+    backgroundColor: '#fef2f2',
+    borderLeftWidth: 4,
+    borderLeftColor: '#dc2626',
+  },
+  flagWarning: {
+    backgroundColor: '#fffbeb',
+    borderLeftWidth: 4,
+    borderLeftColor: '#f59e0b',
+  },
+  flagInfo: {
+    backgroundColor: '#eff6ff',
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
+  },
+  flagIcon: {
+    fontSize: 16,
+    marginRight: 12,
+    width: 20,
+  },
+  flagContent: {
+    flex: 1,
+  },
+  flagMessage: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  flagMessageError: {
+    color: '#dc2626',
+  },
+  flagMessageWarning: {
+    color: '#d97706',
+  },
+  flagMessageInfo: {
+    color: '#2563eb',
+  },
+  flagDetails: {
+    fontSize: 12,
+    color: '#6b7280',
+    lineHeight: 16,
+  },
+  actionSection: {
+    flexDirection: 'row',
+    padding: 20,
     gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    backgroundColor: '#fafafa',
   },
-  confirmButton: {
+  approveButton: {
     flex: 1,
-    backgroundColor: '#16a34a',
+    backgroundColor: '#10b981',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#16a34a',
+    justifyContent: 'center',
+    shadowColor: '#10b981',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
-  confirmButtonText: {
-    color: '#fff',
+  approveButtonText: {
+    color: '#ffffff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  rejectButton: {
+  denyButton: {
     flex: 1,
-    backgroundColor: '#dc2626',
+    backgroundColor: '#ef4444',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#dc2626',
+    justifyContent: 'center',
+    shadowColor: '#ef4444',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
-  rejectButtonText: {
-    color: '#fff',
+  denyButtonText: {
+    color: '#ffffff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   disabledButton: {
     opacity: 0.6,
