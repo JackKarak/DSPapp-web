@@ -13,7 +13,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.deltasigmapi.app",
@@ -25,7 +27,9 @@
         "NSLocationWhenInUseUsageDescription": "This app uses location services to help find event locations and provide location-based features.",
         "NSDocumentPickerUsageDescription": "This app accesses documents to allow you to upload files for your profile and submissions."
       },
-      "config": { "usesNonExemptEncryption": false }
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -68,7 +72,11 @@
         }
       ]
     ],
-    "experiments": { "typedRoutes": true },
-    "privacy": "unlisted"
+    "experiments": {
+      "typedRoutes": true
+    },
+    "newArchEnabled": true,
+    "privacy": "unlisted",
+    "jsEngine": "hermes"
   }
 }
