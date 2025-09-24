@@ -57,6 +57,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
+    "@expo/cli": "^54.0.7",
     "@react-native-community/cli": "^20.0.2",
     "@types/react": "~19.1.10",
     "expo-build-properties": "~1.0.9",
