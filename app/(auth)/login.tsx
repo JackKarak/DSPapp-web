@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +15,8 @@ import {
   View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { logger, sanitizeForLog } from '../../lib/logger';
+import { validateInput, checkRateLimit } from '../../lib/secureAuth';
 
 const { width, height } = Dimensions.get('window');
 
@@ -26,9 +28,21 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
-  const handleLogin = async () => {
+  const handleLogin = useCallback(async () => {
+    // Input validation
     if (!email || !password) {
       Alert.alert('Missing Fields', 'Please enter both email and password.');
+      return;
+    }
+
+    if (!validateInput(email, 'email')) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
+
+    // Rate limiting
+    if (!checkRateLimit('login', 30000)) { // 30 seconds between attempts
+      Alert.alert('Too Many Attempts', 'Please wait before trying to log in again.');
       return;
     }
 
@@ -80,12 +94,12 @@ export default function LoginScreen() {
           router.replace('/(tabs)');
       }
     } catch (error: any) {
-      console.error('Login error:', error);
-      Alert.alert('Login Error', error.message);
+      logger.error('Login error', sanitizeForLog(error));
+      Alert.alert('Login Error', error.message || 'An unexpected error occurred.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, password, router]);
 
   const goToSignUp = () => {
     router.push('/(auth)/signup');

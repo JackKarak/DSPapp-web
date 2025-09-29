@@ -19,17 +19,21 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.deltasigmapi.app",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "deploymentTarget": "15.1",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "This app accesses your photo library to allow you to upload profile pictures and event photos.",
-        "NSCameraUsageDescription": "This app accesses your camera to allow you to take photos for your profile and events.",
-        "NSLocationWhenInUseUsageDescription": "This app uses location services to help find event locations and provide location-based features.",
-        "NSDocumentPickerUsageDescription": "This app accesses documents to allow you to upload files for your profile and submissions."
+        "NSPhotoLibraryUsageDescription": "The DSP App needs access to your photo library to allow you to upload profile pictures and event photos for fraternity activities and member identification.",
+        "NSCameraUsageDescription": "The DSP App needs camera access to allow you to take photos for your profile, event documentation, and submission of required materials.",
+        "NSLocationWhenInUseUsageDescription": "The DSP App uses your location only when you're using the app to help you find nearby fraternity events and provide location-based services for event check-ins.",
+        "NSDocumentPickerUsageDescription": "The DSP App needs access to your documents to allow you to upload files for scholarship submissions, event materials, and other fraternity-related documentation.",
+        "CFBundleLocalizations": ["en"],
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserTrackingUsageDescription": "This app does not track users for advertising purposes."
       },
       "config": {
         "usesNonExemptEncryption": false
-      }
+      },
+      "associatedDomains": ["applinks:deltasigmapi.org"]
     },
     "android": {
       "adaptiveIcon": {

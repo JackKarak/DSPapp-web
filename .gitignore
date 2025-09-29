@@ -32,11 +32,42 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
+.env.production
 
 # Google Service Account (sensitive)
 service-account.json
+google-services.json
+GoogleService-Info.plist
 
 # typescript
 *.tsbuildinfo
+
+# Temporary debugging files
+debug_*.sql
+test_*.sql
+*_test.*
+*_debug.*
+temp_*.*
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
+*.app
+
+# Logs
+logs
+*.log
+
+# Testing
+coverage/
+.nyc_output/
 
 app-example

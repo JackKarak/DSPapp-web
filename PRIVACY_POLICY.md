@@ -48,14 +48,44 @@ You have the right to:
 - Request deletion of your account
 - Opt out of non-essential communications
 
+## Data Retention
+
+- Account data is retained while you are an active member
+- Event data is retained for historical record keeping
+- You may request data deletion by contacting us
+- Deleted data is permanently removed within 30 days
+
+## Children's Privacy
+
+This app is not intended for use by individuals under 13 years of age. We do not knowingly collect personal information from children under 13.
+
+## Third-Party Services
+
+This app uses the following third-party services:
+- Supabase (data storage and authentication)
+- Google Calendar API (event synchronization)
+- Expo platform services (app functionality)
+
+## International Data Transfers
+
+Your data may be processed and stored in servers located outside your country. We ensure appropriate safeguards are in place to protect your data.
+
 ## Contact Us
 
 If you have questions about this Privacy Policy, please contact us at:
-- Email: jkara@umd.edu
+- Email: privacy@deltasigmapi.org
+- Mailing Address: [Insert Physical Address]
 - Through the app's feedback system
 
 ## Changes to This Policy
 
-We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy in the app and updating the "Last updated" date.
+We will notify users of material changes to this Privacy Policy through:
+- In-app notifications
+- Email notifications (if provided)
+- App Store update notes
 
-By using The DSP App, you agree to the collection and use of information in accordance with this Privacy Policy.
+## Effective Date
+
+This Privacy Policy is effective as of September 25, 2025.
+
+By using The DSP App, you acknowledge that you have read and understood this Privacy Policy and agree to the collection and use of information in accordance with this policy.

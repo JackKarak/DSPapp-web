@@ -1,7 +1,8 @@
 import { AuthSession } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { checkAuthentication } from '../lib/auth';
+import { checkAuthentication } from '../lib/secureAuth';
 import { supabase } from '../lib/supabase';
+import { logger } from '../lib/logger';
 
 interface AuthContextType {
   user: any | null;
@@ -46,7 +47,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (authResult.isAuthenticated) {
         setUser(authResult.user);
         // Get the session as well
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+          logger.error('Failed to get session', sessionError);
+        }
         setSession(session);
       } else {
         setUser(null);

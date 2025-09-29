@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { formatDateInEST, formatTimeInEST, getDateInEST } from '../../lib/dateUtils';
+import { googleCalendarService } from '../../lib/googleCalendar';
 import { supabase } from '../../lib/supabase';
 
 interface PendingEvent {
@@ -313,6 +314,13 @@ export default function EventApproval() {
     try {
       setProcessingEventIds(prev => new Set(prev).add(eventId));
 
+      // Find the event details for Google Calendar
+      const eventToApprove = pendingEvents.find(event => event.id === eventId);
+      if (!eventToApprove) {
+        Alert.alert('Error', 'Event not found.');
+        return;
+      }
+
       const { error } = await supabase
         .from('events')
         .update({ status: 'approved' })
@@ -324,7 +332,33 @@ export default function EventApproval() {
         return;
       }
 
-      Alert.alert('Success', 'Event confirmed successfully!');
+      // Only add regular events to Google Calendar (not non-events like points awards)
+      if (!eventToApprove.is_non_event) {
+        try {
+          await googleCalendarService.initialize();
+          const calendarResult = await googleCalendarService.createCalendarEvent({
+            title: eventToApprove.title,
+            description: eventToApprove.description,
+            location: eventToApprove.location,
+            startTime: eventToApprove.start_time,
+            endTime: eventToApprove.end_time,
+            isAllDay: false
+          });
+
+          if (calendarResult.success) {
+            console.log('✅ Event added to Google Calendar:', calendarResult.eventId);
+          } else {
+            console.warn('⚠️ Failed to add to Google Calendar:', calendarResult.error);
+            // Don't show error to user as the event was still approved in database
+          }
+        } catch (calendarError) {
+          console.error('Calendar integration error:', calendarError);
+          // Continue with approval even if calendar fails
+        }
+      }
+
+      Alert.alert('Success', 'Event confirmed successfully!' + 
+        (!eventToApprove.is_non_event ? ' Event has been added to the Google Calendar.' : ''));
       fetchPendingEvents(); // Refresh the list
     } catch (error) {
       console.error('Error confirming event:', error);
