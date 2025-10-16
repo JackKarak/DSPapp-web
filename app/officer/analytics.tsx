@@ -127,17 +127,23 @@ export default function OfficerAnalytics() {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      // Get current officer's position
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      // Parallelize: Get current officer's position and regular users
+      const [userResult, officerResult] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.auth.getUser().then(async ({ data: { user }, error: userError }) => {
+          if (userError || !user) throw userError || new Error('No user');
+          return supabase
+            .from('users')
+            .select('officer_position')
+            .eq('user_id', user.id)
+            .single();
+        })
+      ]);
+
+      const { data: { user }, error: userError } = userResult;
       if (userError || !user) throw userError || new Error('No user');
 
-      // Get the officer's position from users table
-      const { data: officerData, error: officerError } = await supabase
-        .from('users')
-        .select('officer_position')
-        .eq('user_id', user.id)
-        .single();
-      
+      const { data: officerData, error: officerError } = officerResult;
       if (officerError || !officerData?.officer_position) {
         console.error('Role check error:', officerError);
         throw new Error('Officer position not found');
@@ -145,14 +151,25 @@ export default function OfficerAnalytics() {
       
       setOfficerPosition(officerData.officer_position);
 
-      // Get all officers with the same position
-      const { data: officersWithSamePosition, error: officersError } = await supabase
-        .from('users')
-        .select('user_id')
-        .eq('officer_position', officerData.officer_position)
-        .neq('officer_position', null);
+      // Parallelize: Get officers with same position, their events, and regular users
+      const [officersResult, regularUsersResult] = await Promise.all([
+        supabase
+          .from('users')
+          .select('user_id')
+          .eq('officer_position', officerData.officer_position)
+          .neq('officer_position', null),
+        supabase
+          .from('users')
+          .select('user_id')
+          .is('officer_position', null)
+          .neq('role', 'admin')
+      ]);
+
+      const { data: officersWithSamePosition, error: officersError } = officersResult;
+      const { data: regularUsers, error: regularUsersError } = regularUsersResult;
       
       if (officersError) throw officersError;
+      if (regularUsersError) throw regularUsersError;
       
       const officerIds = officersWithSamePosition.map(o => o.user_id);
 
@@ -210,35 +227,91 @@ export default function OfficerAnalytics() {
       let attendanceByEvent: Record<string, number> = {};
       let attendeeUserIds: Set<string> = new Set();
       
-      // First, get all non-officer, non-admin users for filtering
-      const { data: regularUsers, error: regularUsersError } = await supabase
-        .from('users')
-        .select('user_id')
-        .is('officer_position', null)
-        .neq('role', 'admin');
-      
-      if (regularUsersError) throw regularUsersError;
-      
+      // Use regularUsers from earlier parallel fetch
       const regularUserIds = new Set(regularUsers?.map(u => u.user_id) || []);
       
-      // Fetch attendance for events by officers with this position, excluding officers/admins
+      // Try to use database aggregation for attendance stats (faster!)
       if (eventIds.length > 0) {
-        const { data: attendanceData, error: attendanceError } = await supabase
-          .from('event_attendance')
-          .select('event_id, user_id')
-          .in('event_id', eventIds);
-        
-        if (attendanceError) throw attendanceError;
-        
-        // Filter attendance data to only include regular members (non-officers/non-admins)
-        const filteredAttendance = attendanceData?.filter(record => 
-          regularUserIds.has(record.user_id)
-        ) || [];
-        
-        filteredAttendance.forEach(record => {
-          attendanceByEvent[record.event_id] = (attendanceByEvent[record.event_id] || 0) + 1;
-          attendeeUserIds.add(record.user_id);
+        const aggregationResult = await supabase.rpc('get_event_attendance_stats', {
+          event_ids: eventIds
         });
+
+        if (aggregationResult.error || !aggregationResult.data) {
+          // Fallback to client-side calculation
+          console.log('Using client-side attendance calculation (fallback)');
+          
+          const [attendanceResponse, approvedAppealsResponse] = await Promise.all([
+            supabase
+              .from('event_attendance')
+              .select('event_id, user_id')
+              .in('event_id', eventIds),
+            supabase
+              .from('point_appeal')
+              .select('event_id, user_id')
+              .in('event_id', eventIds)
+              .eq('status', 'approved')
+          ]);
+          
+          if (attendanceResponse.error) throw attendanceResponse.error;
+          if (approvedAppealsResponse.error) console.warn('Approved appeals error:', approvedAppealsResponse.error);
+          
+          const attendanceData = attendanceResponse.data || [];
+          const approvedAppealsData = approvedAppealsResponse.data || [];
+          
+          // Combine attendance and approved appeals
+          const combinedAttendanceData = [
+            ...attendanceData,
+            ...approvedAppealsData
+          ];
+          
+          // Filter attendance data to only include regular members (non-officers/non-admins)
+          // and deduplicate by user_id + event_id combination
+          const uniqueAttendance = new Map<string, { event_id: string; user_id: string }>();
+          
+          combinedAttendanceData.forEach(record => {
+            if (regularUserIds.has(record.user_id)) {
+              const key = `${record.user_id}_${record.event_id}`;
+              uniqueAttendance.set(key, record);
+            }
+          });
+          
+          const filteredAttendance = Array.from(uniqueAttendance.values());
+          
+          filteredAttendance.forEach(record => {
+            attendanceByEvent[record.event_id] = (attendanceByEvent[record.event_id] || 0) + 1;
+            attendeeUserIds.add(record.user_id);
+          });
+        } else {
+          // Use database aggregation results (MUCH faster!)
+          console.log('Using database aggregation for attendance stats');
+          
+          aggregationResult.data.forEach((stat: any) => {
+            attendanceByEvent[stat.event_id] = stat.attendance_count || 0;
+          });
+          
+          // Still need to fetch unique attendee user IDs for user stats
+          // This is a smaller query than before since we already have the counts
+          const [attendanceResponse, approvedAppealsResponse] = await Promise.all([
+            supabase
+              .from('event_attendance')
+              .select('user_id')
+              .in('event_id', eventIds)
+              .in('user_id', Array.from(regularUserIds)),
+            supabase
+              .from('point_appeal')
+              .select('user_id')
+              .in('event_id', eventIds)
+              .eq('status', 'approved')
+              .in('user_id', Array.from(regularUserIds))
+          ]);
+          
+          if (attendanceResponse.data) {
+            attendanceResponse.data.forEach(record => attendeeUserIds.add(record.user_id));
+          }
+          if (approvedAppealsResponse.data) {
+            approvedAppealsResponse.data.forEach(record => attendeeUserIds.add(record.user_id));
+          }
+        }
       }
       
       eventStatsTemp.average_attendance = 

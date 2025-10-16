@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -88,6 +88,37 @@ const CustomDropdown: React.FC<DropdownProps> = ({ label, value, options, onValu
   );
 };
 
+// Move style functions outside component to prevent recreation on every render
+const getTypeTagStyle = (type: string) => {
+  const colors = {
+    brotherhood: { backgroundColor: '#f3e8ff' },
+    service: { backgroundColor: '#fffbeb' },
+    scholarship: { backgroundColor: '#fffbeb' },
+    professional: { backgroundColor: '#f3e8ff' },
+    professionalism: { backgroundColor: '#f3e8ff' },
+    dei: { backgroundColor: '#f9f1ff' },
+    fundraising: { backgroundColor: '#fffbeb' },
+    health: { backgroundColor: '#fffbeb' },
+    'h&w': { backgroundColor: '#fffbeb' },
+  };
+  return colors[type.toLowerCase() as keyof typeof colors] || { backgroundColor: '#F5F5F5' };
+};
+
+const getTypeTagTextStyle = (type: string) => {
+  const colors = {
+    brotherhood: { color: Colors.primary },
+    service: { color: Colors.secondary },
+    scholarship: { color: Colors.secondary },
+    professional: { color: Colors.primary },
+    professionalism: { color: Colors.primary },
+    dei: { color: Colors.primary },
+    fundraising: { color: Colors.secondary },
+    health: { color: Colors.secondary },
+    'h&w': { color: Colors.secondary },
+  };
+  return colors[type.toLowerCase() as keyof typeof colors] || { color: '#666' };
+};
+
 type Event = {
   id: string;
   title: string;
@@ -99,6 +130,9 @@ type Event = {
   created_by: string;
   host_name?: string;
   is_registerable: boolean;
+  available_to_pledges: boolean;
+  startDate?: Date; // Pre-computed date
+  endDate?: Date; // Pre-computed date
 };
 
 export default function CalendarTab() {
@@ -117,6 +151,14 @@ export default function CalendarTab() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Set default filter for pledges to only show upcoming events
+  useEffect(() => {
+    if (userRole === 'pledge') {
+      setFilterPastEvents('Upcoming');
+      setCalendarView(false); // Ensure calendar view is disabled for pledges
+    }
+  }, [userRole]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -152,50 +194,71 @@ export default function CalendarTab() {
       setBrotherName(fullName);
       setUserRole(profile.role);
 
-      // If user is admin/president or approved officer, fetch pending feedback count
-      if ((profile.role === 'admin' || profile.officer_position === 'president') || 
-          (profile.approved && profile.officer_position)) {
-        try {
-          const { count, error: feedbackError } = await supabase
-            .from('admin_feedback')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'pending');
-
-          if (!feedbackError && count !== null) {
-            setPendingFeedbacks(count);
-          }
-        } catch (feedbackError) {
-          // Silently handle feedback count errors
-        }
-      }
-
-      // Fetch events (only approved events visible to users)
-      const { data: eventsData, error: eventsError } = await supabase
+      // Parallelize: fetch events, registrations, and optionally feedback count
+      const eventsPromise = supabase
         .from('events')
-        .select('id, title, start_time, end_time, location, point_value, point_type, created_by, is_registerable')
+        .select('id, title, start_time, end_time, location, point_value, point_type, created_by, is_registerable, available_to_pledges')
         .eq('is_non_event', false)
         .eq('status', 'approved')
         .order('start_time', { ascending: true });
+
+      const registrationsPromise = supabase
+        .from('event_registration')
+        .select('event_id')
+        .eq('user_id', user.id);
+
+      // Add feedback count query if user is admin/officer
+      let feedbackPromise = null;
+      if ((profile.role === 'admin' || profile.officer_position === 'president') || 
+          (profile.approved && profile.officer_position)) {
+        feedbackPromise = supabase
+          .from('admin_feedback')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'pending');
+      }
+
+      // Execute all queries in parallel
+      const [eventsResult, registrationsResult, feedbackResult] = await Promise.all([
+        eventsPromise,
+        registrationsPromise,
+        feedbackPromise
+      ]);
+
+      const { data: eventsData, error: eventsError } = eventsResult;
+      const { data: registrations, error: registrationError } = registrationsResult;
 
       if (eventsError) {
         console.error('Events Error:', eventsError);
         Alert.alert('Events Error', `Unable to load events: ${eventsError.message}`);
         setLoading(false);
         return;
-      }      if (!eventsData) {
+      }
+
+      if (!eventsData) {
         Alert.alert('Events Error', 'No events data received');
         setLoading(false);
         return;
       }
 
+      // Handle feedback count if query was executed
+      if (feedbackResult) {
+        const { count, error: feedbackError } = feedbackResult;
+        if (!feedbackError && count !== null) {
+          setPendingFeedbacks(count);
+        }
+      }
+
       // Fetch event creators info
-      const createdByIds = [...new Set(eventsData.map(e => e.created_by))];
+      const createdByIds = [...new Set(eventsData.map((e: any) => e.created_by))];
       const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select('user_id, first_name, last_name')
         .in('user_id', createdByIds);
 
-      if (usersError) {      }
+      if (usersError) {
+        console.error('Users fetch error:', usersError);
+        // Continue with empty map if user data fails to load
+      }
 
       const usersMap = usersData?.reduce((acc, user) => {
         const fullName = user.first_name && user.last_name 
@@ -205,23 +268,23 @@ export default function CalendarTab() {
         return acc;
       }, {} as Record<string, string>) || {};
 
-      const enrichedEvents = eventsData.map(event => ({
+      const enrichedEvents = eventsData.map((event: any) => ({
         ...event,
         host_name: usersMap[event.created_by] || 'Unknown',
         is_registerable: event.is_registerable ?? true, // default to true for backward compatibility
+        available_to_pledges: event.available_to_pledges ?? true, // default to true for backward compatibility
+        startDate: getDateInEST(event.start_time), // Pre-compute date
+        endDate: getDateInEST(event.end_time), // Pre-compute date
       }));
 
       setEvents(enrichedEvents);
 
-      // Fetch user's registrations
-      const { data: registrations, error: registrationError } = await supabase
-        .from('event_registration')
-        .select('event_id')
-        .eq('user_id', user.id);
+      if (registrationError) {
+        console.error('Registration fetch error:', registrationError);
+        // Continue with empty registration list if fetch fails
+      }
 
-      if (registrationError) {      }
-
-      setRegisteredEventIds(registrations?.map((r) => r.event_id) || []);
+      setRegisteredEventIds(registrations?.map((r: any) => r.event_id) || []);
       
     } catch (error) {
       console.error('Error in fetchData:', error);
@@ -231,50 +294,71 @@ export default function CalendarTab() {
     }
   };
 
-  const filteredEvents = events.filter(e => {
-    const eventDate = getDateInEST(e.start_time);
-    const isUpcoming = eventDate > new Date();
-    
-    // Filter by point type
-    if (selectedType !== 'All' && e.point_type !== selectedType) {
-      return false;
-    }
-    
-    // Filter by registerable status
-    if (filterRegisterable === 'Registerable' && !e.is_registerable) {
-      return false;
-    }
-    if (filterRegisterable === 'Non-Registerable' && e.is_registerable) {
-      return false;
-    }
-    
-    // Filter by past/upcoming status
-    if (filterPastEvents === 'Upcoming' && !isUpcoming) {
-      return false;
-    }
-    if (filterPastEvents === 'Past' && isUpcoming) {
-      return false;
-    }
-    
-    return true;
-  }).sort((a, b) => {
-    // Sort by date, with upcoming events first
-    const dateA = getDateInEST(a.start_time);
-    const dateB = getDateInEST(b.start_time);
+  // Memoize filtered events to prevent recalculation on every render
+  const filteredEvents = useMemo(() => {
     const now = new Date();
     
-    const aIsUpcoming = dateA > now;
-    const bIsUpcoming = dateB > now;
-    
-    // If one is upcoming and other is past, upcoming comes first
-    if (aIsUpcoming && !bIsUpcoming) return -1;
-    if (!aIsUpcoming && bIsUpcoming) return 1;
-    
-    // If both are upcoming or both are past, sort by date
-    return dateA.getTime() - dateB.getTime();
-  });
+    return events.filter(e => {
+      // Use pre-computed dates for better performance
+      const eventDate = e.startDate || getDateInEST(e.start_time);
+      const endDate = e.endDate || getDateInEST(e.end_time);
+      const isUpcoming = eventDate > now;
+      const isPast = endDate < now;
+      
+      // Pledge restrictions
+      if (userRole === 'pledge') {
+        // Pledges cannot access past events
+        if (isPast) {
+          return false;
+        }
+        
+        // Pledges cannot access events where available_to_pledges is false
+        if (!e.available_to_pledges) {
+          return false;
+        }
+      }
+      
+      // Filter by point type
+      if (selectedType !== 'All' && e.point_type !== selectedType) {
+        return false;
+      }
+      
+      // Filter by registerable status
+      if (filterRegisterable === 'Registerable' && !e.is_registerable) {
+        return false;
+      }
+      if (filterRegisterable === 'Non-Registerable' && e.is_registerable) {
+        return false;
+      }
+      
+      // Filter by past/upcoming status
+      if (filterPastEvents === 'Upcoming' && !isUpcoming) {
+        return false;
+      }
+      if (filterPastEvents === 'Past' && isUpcoming) {
+        return false;
+      }
+      
+      return true;
+    }).sort((a, b) => {
+      // Sort by date, with upcoming events first
+      // Use pre-computed dates for better performance
+      const dateA = a.startDate || getDateInEST(a.start_time);
+      const dateB = b.startDate || getDateInEST(b.start_time);
+      
+      const aIsUpcoming = dateA > now;
+      const bIsUpcoming = dateB > now;
+      
+      // If one is upcoming and other is past, upcoming comes first
+      if (aIsUpcoming && !bIsUpcoming) return -1;
+      if (!aIsUpcoming && bIsUpcoming) return 1;
+      
+      // If both are upcoming or both are past, sort by date
+      return dateA.getTime() - dateB.getTime();
+    });
+  }, [events, selectedType, filterRegisterable, filterPastEvents, userRole]);
 
-  const handleRegister = async (eventId: string) => {
+  const handleRegister = useCallback(async (eventId: string) => {
     try {
       const {
         data: { user },
@@ -298,11 +382,12 @@ export default function CalendarTab() {
         Alert.alert('Success', 'You have been registered for this event!');
       }
     } catch (error) {
+      console.error('Registration error:', error);
       Alert.alert('Error', 'Failed to register. Please try again.');
     }
-  };
+  }, []);
 
-  const handleUnregister = async (eventId: string) => {
+  const handleUnregister = useCallback(async (eventId: string) => {
     try {
       const {
         data: { user },
@@ -327,40 +412,10 @@ export default function CalendarTab() {
         Alert.alert('Success', 'You have been unregistered from this event.');
       }
     } catch (error) {
+      console.error('Unregistration error:', error);
       Alert.alert('Error', 'Failed to unregister. Please try again.');
     }
-  };
-
-  // Helper functions for styling using DSP colors
-  const getTypeTagStyle = (type: string) => {
-    const colors = {
-      brotherhood: { backgroundColor: '#f3e8ff' }, // Light purple tint
-      service: { backgroundColor: '#fffbeb' }, // Light gold tint  
-      scholarship: { backgroundColor: '#fffbeb' }, // Light gold tint
-      professional: { backgroundColor: '#f3e8ff' }, // Light purple tint
-      professionalism: { backgroundColor: '#f3e8ff' }, // Light purple tint
-      dei: { backgroundColor: '#f9f1ff' }, // Very light purple
-      fundraising: { backgroundColor: '#fffbeb' }, // Light gold tint
-      health: { backgroundColor: '#fffbeb' }, // Light gold tint
-      'h&w': { backgroundColor: '#fffbeb' }, // Light gold tint
-    };
-    return colors[type.toLowerCase() as keyof typeof colors] || { backgroundColor: '#F5F5F5' };
-  };
-
-  const getTypeTagTextStyle = (type: string) => {
-    const colors = {
-      brotherhood: { color: Colors.primary },
-      service: { color: Colors.secondary },
-      scholarship: { color: Colors.secondary },
-      professional: { color: Colors.primary },
-      professionalism: { color: Colors.primary },
-      dei: { color: Colors.primary },
-      fundraising: { color: Colors.secondary },
-      health: { color: Colors.secondary },
-      'h&w': { color: Colors.secondary },
-    };
-    return colors[type.toLowerCase() as keyof typeof colors] || { color: '#666' };
-  };
+  }, []);
 
   return (
     <ScrollView
@@ -397,13 +452,17 @@ export default function CalendarTab() {
         </TouchableOpacity>
       )}
 
-      <TouchableOpacity onPress={() => setCalendarView(!calendarView)} style={styles.toggleBtn}>
-        <Text style={styles.toggleText}>
-          {calendarView ? 'Switch to List View' : 'Switch to Calendar View'}
-        </Text>
-      </TouchableOpacity>
+      {/* Hide calendar toggle for pledges */}
+      {userRole !== 'pledge' && (
+        <TouchableOpacity onPress={() => setCalendarView(!calendarView)} style={styles.toggleBtn}>
+          <Text style={styles.toggleText}>
+            {calendarView ? 'Switch to List View' : 'Switch to Calendar View'}
+          </Text>
+        </TouchableOpacity>
+      )}
 
-      {calendarView && (
+      {/* Hide calendar view for pledges */}
+      {calendarView && userRole !== 'pledge' && (
         <View style={styles.calendarContainer}>
           <WebView
             style={styles.calendar}
@@ -456,7 +515,9 @@ export default function CalendarTab() {
             <CustomDropdown
               label="Status"
               value={filterPastEvents}
-              options={[
+              options={userRole === 'pledge' ? [
+                { label: 'Upcoming', value: 'Upcoming' }
+              ] : [
                 { label: 'All Events', value: 'All' },
                 { label: 'Upcoming', value: 'Upcoming' },
                 { label: 'Past Events', value: 'Past' }
@@ -481,7 +542,8 @@ export default function CalendarTab() {
         <View style={styles.eventsContainer}>
           {filteredEvents.map(item => {
             const isRegistered = registeredEventIds.includes(item.id);
-            const eventDate = getDateInEST(item.start_time);
+            // Use pre-computed date for better performance
+            const eventDate = item.startDate || getDateInEST(item.start_time);
             const isUpcoming = eventDate > new Date();
             
             return (

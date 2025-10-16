@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
 import { Alert, TouchableOpacity } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { ErrorBoundary } from '../../components/ErrorBoundary';
 
 export default function BrotherLayout() {
   const router = useRouter();
@@ -16,8 +17,9 @@ export default function BrotherLayout() {
   };
 
   return (
-    <Tabs
-      screenOptions={{
+    <ErrorBoundary>
+      <Tabs
+        screenOptions={{
         tabBarActiveTintColor: '#F7B910', // Gold
         tabBarInactiveTintColor: '#ADAFAA', // Silver
         tabBarStyle: {
@@ -85,5 +87,6 @@ export default function BrotherLayout() {
         }}
       />
     </Tabs>
+    </ErrorBoundary>
   );
 }

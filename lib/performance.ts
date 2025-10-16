@@ -2,27 +2,28 @@
  * Performance optimization utilities
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 // Debounce hook for search and input operations
 export const useDebounce = <T>(value: T, delay: number): T => {
   const [debouncedValue, setDebouncedValue] = useState<T>(value)
   const timeoutRef = useRef<number | null>(null)
 
-  const updateDebouncedValue = useCallback((newValue: T) => {
+  useEffect(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
     }
     
     timeoutRef.current = setTimeout(() => {
-      setDebouncedValue(newValue)
+      setDebouncedValue(value)
     }, delay) as unknown as number
-  }, [delay])
 
-  // Update debounced value when original value changes
-  if (value !== debouncedValue) {
-    updateDebouncedValue(value)
-  }
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [value, delay])
 
   return debouncedValue
 }

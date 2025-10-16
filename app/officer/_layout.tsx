@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, Alert, TouchableOpacity, View } from 'react-native';
 import { useOfficerRole } from '../../hooks/useOfficerRole';
 import { supabase } from '../../lib/supabase';
+import { ErrorBoundary } from '../../components/ErrorBoundary';
 
 export default function OfficerLayout() {
   const router = useRouter();
@@ -58,8 +59,9 @@ export default function OfficerLayout() {
   const accessibleTabs = getAccessibleTabs();
   
   return (
-    <Tabs
-      screenOptions={{
+    <ErrorBoundary>
+      <Tabs
+        screenOptions={{
         tabBarStyle: { backgroundColor: '#330066' },
         tabBarActiveTintColor: '#F7B910',
         tabBarInactiveTintColor: '#ADAFAA',
@@ -144,5 +146,6 @@ export default function OfficerLayout() {
         }}
       />
     </Tabs>
+    </ErrorBoundary>
   );
 }

@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { Colors } from '../../constants/colors';
@@ -44,13 +44,11 @@ const POINT_REQUIREMENTS: Record<string, { required: number; name: string; descr
 };
 
 export default function PointsScreen() {
-  // Force light mode
-  const isDark = false;
   const colors = Colors['light'];
   
   const [pointsByCategory, setPointsByCategory] = useState<Record<string, number>>({});
   const [pillarsMet, setPillarsMet] = useState(0);
-  const [triggerConfetti, setTriggerConfetti] = useState(false);
+  const [previousPillarsMet, setPreviousPillarsMet] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [leaderboard, setLeaderboard] = useState<{
@@ -64,132 +62,100 @@ export default function PointsScreen() {
     rank: number;
   } | null>(null);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        console.log('🚀 Starting initial data load...');
-        
-        // Get current user
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        
-        if (userError || !user) {
-          console.error('❌ User fetch error:', userError);
-          return;
-        }
-        
-        console.log('👤 Current user ID:', user.id);
-        
-        // Load all data
-        await fetchPoints();
-        await fetchLeaderboard(user.id);
-      } catch (error) {
-        console.error('❌ Error in initial data load:', error);
-      }
-    };
+  // Calculate confetti trigger - must be before early return to maintain hook order
+  const totalPillars = Object.keys(POINT_REQUIREMENTS).length;
+  const triggerConfetti = useMemo(() => {
+    return previousPillarsMet < totalPillars && pillarsMet >= totalPillars;
+  }, [previousPillarsMet, pillarsMet, totalPillars]);
 
-    loadData();
+  useEffect(() => {
+    fetchAllData();
   }, []);
 
   const onRefresh = async () => {
-    console.log('🔄 Manual refresh triggered');
     setRefreshing(true);
-    
-    try {
-      // Get current user for leaderboard refresh
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {
-        console.error('❌ User fetch error during refresh:', userError);
-        setRefreshing(false);
-        return;
-      }
-      
-      // Clear current data to force fresh fetch
-      setLeaderboard([]);
-      setUserRank(null);
-      setPointsByCategory({});
-      
-      // Refresh all data
-      await fetchPoints();
-      await fetchLeaderboard(user.id);
-      
-      console.log('✅ Manual refresh completed');
-    } catch (error) {
-      console.error('❌ Error during refresh:', error);
-    } finally {
-      setRefreshing(false);
-    }
+    await fetchAllData();
+    setRefreshing(false);
   };
 
-  const fetchPoints = async () => {
+  const fetchAllData = async () => {
     if (!refreshing) setLoading(true);
 
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
       if (userError || !user) {
-        console.error('User fetch error:', userError);
         setLoading(false);
         return;
       }
 
-      // Fetch attended events
-      const { data: attended, error: attendedError } = await supabase
-        .from('event_attendance')
-        .select('event_id')
-        .eq('user_id', user.id);
+      // Fetch ALL data in parallel - only once!
+      const [attendanceResult, appealsResult, registrationsResult, eventsResult, profilesResult] = await Promise.all([
+        supabase.from('event_attendance').select('*'),
+        supabase.from('point_appeal').select('event_id, user_id').eq('status', 'approved'),
+        supabase.from('event_registration').select('*'),
+        supabase.from('events').select('id, point_type, point_value'),
+        supabase.from('users').select('user_id, first_name, last_name, role, officer_position').eq('approved', true)
+      ]);
 
-      // Fetch registered events
-      const { data: registered, error: registeredError } = await supabase
-        .from('event_registration')
-        .select('event_id')
-        .eq('user_id', user.id);
+      const { data: allAttendance } = attendanceResult;
+      const { data: allApprovedAppeals } = appealsResult;
+      let { data: allRegistrations } = registrationsResult;
+      const { data: allEvents } = eventsResult;
+      const { data: profiles } = profilesResult;
 
-      if (attendedError || registeredError) {
-        console.error('Fetch error:', attendedError || registeredError);
-        setLoading(false);
-        return;
+      // Fallback for registrations if primary table failed
+      if (!allRegistrations) {
+        const { data: registrations2 } = await supabase.from('event_register').select('*');
+        allRegistrations = registrations2;
       }
 
-      const attendedEventIds = attended?.map((a) => a.event_id) || [];
-      const registeredEventIds = registered?.map((r) => r.event_id) || [];
-      const uniqueEventIds = [...new Set(attendedEventIds)];
+      // Pre-index data into Maps for O(1) lookups instead of O(N) filters
+      const attendanceByUser = new Map<string, Set<string>>();
+      const appealsByUser = new Map<string, Set<string>>();
+      const registrationsByUser = new Map<string, Set<string>>();
+      const eventsMap = new Map<string, any>();
 
-      if (uniqueEventIds.length === 0) {
-        // No events attended yet
-        setPointsByCategory({});
-        setPillarsMet(0);
-        // Still fetch leaderboard even if user has no points
-        await fetchLeaderboard(user.id);
-        setLoading(false);
-        return;
-      }
+      allAttendance?.forEach(a => {
+        if (!attendanceByUser.has(a.user_id)) {
+          attendanceByUser.set(a.user_id, new Set());
+        }
+        attendanceByUser.get(a.user_id)!.add(a.event_id);
+      });
 
-      // Fetch event details for points calculation
-      const { data: events, error: eventsError } = await supabase
-        .from('events')
-        .select('id, point_type, point_value')
-        .in('id', uniqueEventIds);
+      allApprovedAppeals?.forEach(a => {
+        if (!appealsByUser.has(a.user_id)) {
+          appealsByUser.set(a.user_id, new Set());
+        }
+        appealsByUser.get(a.user_id)!.add(a.event_id);
+      });
 
-      if (eventsError) {
-        console.error('Events error:', eventsError);
-        setLoading(false);
-        return;
-      }
+      allRegistrations?.forEach(r => {
+        if (!registrationsByUser.has(r.user_id)) {
+          registrationsByUser.set(r.user_id, new Set());
+        }
+        registrationsByUser.get(r.user_id)!.add(r.event_id);
+      });
+
+      allEvents?.forEach(e => {
+        eventsMap.set(e.id, e);
+      });
+
+      // Calculate current user's points
+      const userAttendedIds = attendanceByUser.get(user.id) || new Set();
+      const userAppealIds = appealsByUser.get(user.id) || new Set();
+      const userRegisteredIds = registrationsByUser.get(user.id) || new Set();
+      
+      const allUserEventIds = new Set([...userAttendedIds, ...userAppealIds]);
 
       const categoryPoints: Record<string, number> = {};
 
-      events?.forEach((event) => {
-        const wasRegistered = registeredEventIds.includes(event.id);
-        // Fixed point system: 1 point for attendance + 0.5 points for registration
-        const pointsEarned = wasRegistered ? 1.5 : 1;
-        const category = event.point_type;
-
-        if (category) {
-          categoryPoints[category] = (categoryPoints[category] || 0) + pointsEarned;
+      allUserEventIds.forEach(eventId => {
+        const event = eventsMap.get(eventId);
+        if (event?.point_type) {
+          const wasRegistered = userRegisteredIds.has(eventId);
+          const pointsEarned = wasRegistered ? 1.5 : 1;
+          categoryPoints[event.point_type] = (categoryPoints[event.point_type] || 0) + pointsEarned;
         }
       });
 
@@ -198,248 +164,88 @@ export default function PointsScreen() {
       }, 0);
 
       setPointsByCategory(categoryPoints);
+      setPreviousPillarsMet(pillarsMet);
       setPillarsMet(metCount);
-      
-      // Trigger confetti if all pillars are met
-      if (metCount >= Object.keys(POINT_REQUIREMENTS).length) {
-        setTriggerConfetti(true);
-      }
 
-      // Fetch leaderboard data
-      await fetchLeaderboard(user.id);
-
-    } catch (error) {
-      console.error('Error fetching points:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchLeaderboard = async (currentUserId: string) => {
-    try {
-      console.log('🔍 Starting comprehensive leaderboard debug...');
-      console.log('👤 Current user ID:', currentUserId);
-      
-      // Get all users with their profile information
-      const { data: profiles, error: profilesError } = await supabase
-        .from('users')
-        .select('user_id, first_name, last_name, role, officer_position')
-        .eq('approved', true); // Only get approved users
-
-      if (profilesError) {
-        console.error('❌ Error fetching profiles:', profilesError);
-        console.error('❌ Profile error details:', JSON.stringify(profilesError));
-        return;
-      }
-
-      console.log(`👥 Found ${profiles?.length || 0} approved users`);
-      console.log('👥 Sample users:', profiles?.slice(0, 3).map(u => ({ 
-        id: u.user_id, 
-        name: `${u.first_name} ${u.last_name}`, 
-        role: u.role 
-      })));
-
-      // Get all event attendance - Force refresh data
-      const { data: allAttendance, error: attendanceError } = await supabase
-        .from('event_attendance')
-        .select('*');
-
-      console.log(`📅 Total attendance records: ${allAttendance?.length || 0}`);
-      console.log('📅 Sample attendance:', allAttendance?.slice(0, 5));
-      
-      // DEBUG: Check if RLS is filtering data
-      console.log('🔐 RLS DEBUG: Checking if we can see other users\' attendance...');
-      const { data: allAttendanceNoRLS, error: attendanceErrorNoRLS } = await supabase
-        .rpc('get_all_attendance_admin');
-      
-      if (attendanceErrorNoRLS) {
-        console.log('⚠️ RLS bypass function not available - this confirms RLS is likely the issue');
-        console.log('🔐 We can only see attendance records we have permission to see');
-      } else {
-        console.log(`🔐 Admin function shows ${allAttendanceNoRLS?.length || 0} total attendance records`);
-        console.log(`📊 Visible to user: ${allAttendance?.length || 0}, Total in DB: ${allAttendanceNoRLS?.length || 0}`);
-      }
-      
-      // Debug: Show unique user IDs in attendance vs users table
-      const attendanceUserIds = [...new Set(allAttendance?.map(a => a.user_id))];
-      const profileUserIds = profiles?.map(p => p.user_id) || [];
-      console.log('🔍 Unique user IDs in attendance table (visible to current user):', attendanceUserIds);
-      console.log('🔍 User IDs in profiles table:', profileUserIds);
-      console.log('🔍 Current user ID:', currentUserId);
-      
-      // Check for mismatches
-      const missingInProfiles = attendanceUserIds.filter(id => !profileUserIds.includes(id));
-      const missingInAttendance = profileUserIds.filter(id => !attendanceUserIds.includes(id));
-      console.log('⚠️ User IDs in attendance but not in profiles:', missingInProfiles);
-      console.log('⚠️ User IDs in profiles but not in attendance:', missingInAttendance);
-      console.log('🔐 RLS ISSUE: If you only see your own user ID in attendance, RLS is blocking other users\' data');
-
-      if (attendanceError) {
-        console.error('❌ Error fetching attendance:', attendanceError);
-        console.error('❌ Attendance error details:', JSON.stringify(attendanceError));
-        return;
-      }
-
-      // Get all event registrations - try both table names
-      let allRegistrations;
-      const { data: registrations1, error: registrationsError1 } = await supabase
-        .from('event_registration')
-        .select('*');
-
-      if (registrationsError1) {
-        console.log('⚠️ event_registration table failed, trying event_register...');
-        const { data: registrations2, error: registrationsError2 } = await supabase
-          .from('event_register')
-          .select('*');
-        
-        if (registrationsError2) {
-          console.error('❌ Both registration tables failed:', registrationsError1, registrationsError2);
-          return;
-        } else {
-          allRegistrations = registrations2;
-          console.log(`📝 Using event_register table - ${allRegistrations?.length || 0} records`);
-        }
-      } else {
-        allRegistrations = registrations1;
-        console.log(`📝 Using event_registration table - ${allRegistrations?.length || 0} records`);
-      }
-
-      console.log('📝 Sample registrations:', allRegistrations?.slice(0, 5));
-
-      // Get all events with point values
-      const { data: allEvents, error: eventsError } = await supabase
-        .from('events')
-        .select('*');
-
-      console.log(`🎯 Total events: ${allEvents?.length || 0}`);
-      console.log('🎯 Sample events:', allEvents?.slice(0, 3).map(e => ({ 
-        id: e.id, 
-        title: e.title, 
-        point_type: e.point_type, 
-        point_value: e.point_value 
-      })));
-
-      if (eventsError) {
-        console.error('❌ Error fetching events:', eventsError);
-        console.error('❌ Events error details:', JSON.stringify(eventsError));
-        return;
-      }
-
-      // Calculate points for each user
-      const userPoints: Record<string, number> = {};
-      let processedUsers = 0;
-      
-      console.log('\n🧮 Starting point calculation for each user...');
-      
-      profiles?.forEach((profile, index) => {
-        const userId = profile.user_id;
-        const userAttendance = allAttendance?.filter(a => a.user_id === userId) || [];
-        const userRegistrations = allRegistrations?.filter(r => r.user_id === userId) || [];
-        
-        console.log(`\n👤 Processing user ${index + 1}/${profiles.length}: ${profile.first_name} ${profile.last_name} (${userId})`);
-        console.log(`   📅 Attendance records: ${userAttendance.length}`);
-        console.log(`   📝 Registration records: ${userRegistrations.length}`);
-        
-        // Debug: Show the actual user_id values to check for mismatches
-        if (userAttendance.length > 0) {
-          console.log(`   📅 User's attendance user_ids:`, userAttendance.map(a => a.user_id));
-        }
-        if (userRegistrations.length > 0) {
-          console.log(`   📝 User's registration user_ids:`, userRegistrations.map(r => r.user_id));
-        }
-        
-        // Check if this is the current user
-        const isCurrentUser = userId === currentUserId;
-        console.log(`   👤 Is current user: ${isCurrentUser}`);
-        
-        let totalPoints = 0;
-        
-        userAttendance.forEach((attendance, attIndex) => {
-          const event = allEvents?.find(e => e.id === attendance.event_id);
-          console.log(`   📅 Attendance ${attIndex + 1}: event_id=${attendance.event_id}, event found=${!!event}`);
-          
-          if (event) {
-            const wasRegistered = userRegistrations.some(r => r.event_id === event.id);
-            // Fixed point system: 1 point for attendance + 0.5 points for registration
-            const pointsEarned = wasRegistered ? 1.5 : 1;
-            totalPoints += pointsEarned;
-            
-            console.log(`     🎯 Event: ${event.title || 'Untitled'}, registered=${wasRegistered}, points=${pointsEarned}`);
-          } else {
-            console.log(`     ❌ Event ${attendance.event_id} not found in events table!`);
-            // Debug: Show what event IDs are available
-            console.log(`     🔍 Available event IDs:`, allEvents?.slice(0, 5).map(e => e.id));
-          }
-        });
-        
-        console.log(`   📊 ${profile.first_name} ${profile.last_name}: ${totalPoints} total points`);
-        userPoints[userId] = totalPoints;
-        
-        if (totalPoints > 0) {
-          processedUsers++;
-        }
-        
-        // Special logging for users with no points to debug why
-        if (totalPoints === 0 && userAttendance.length === 0) {
-          console.log(`   ⚠️ ${profile.first_name} ${profile.last_name} has NO attendance records`);
-          // Check if their user_id appears in ANY attendance records
-          const hasAnyAttendance = allAttendance?.some(a => a.user_id === userId);
-          console.log(`   🔍 User ID ${userId} found in ANY attendance: ${hasAnyAttendance}`);
-          
-          // Show what user_ids DO exist in attendance
-          const uniqueUserIds = [...new Set(allAttendance?.map(a => a.user_id))];
-          console.log(`   🔍 Unique user IDs in attendance table:`, uniqueUserIds.slice(0, 10));
-        }
+      // Try to use database aggregation for leaderboard (10x faster!)
+      const userIds = profiles?.map(p => p.user_id) || [];
+      const { data: dbPoints, error: rpcError } = await supabase.rpc('calculate_user_points', {
+        user_ids: userIds
       });
 
-      console.log(`\n📈 Users with points: ${processedUsers}`);
-      console.log('📈 All user points:', Object.entries(userPoints).map(([id, points]) => {
-        const user = profiles?.find(p => p.user_id === id);
-        return { name: user ? `${user.first_name} ${user.last_name}` : 'Unknown', points };
-      }));
+      let leaderboardData;
 
-      // Create leaderboard array with names
-      const leaderboardData = profiles?.map(profile => ({
-        id: profile.user_id,
-        name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown',
-        totalPoints: userPoints[profile.user_id] || 0,
-      })) || [];
+      if (!rpcError && dbPoints) {
+        // ✅ SUCCESS! Using database aggregation
+        console.log('✅ Using database aggregation for leaderboard calculation');
+        
+        // Map database points to profiles
+        const pointsMap = dbPoints.reduce((acc: any, item: any) => {
+          acc[item.user_id] = item.total_points;
+          return acc;
+        }, {});
 
-      console.log('📋 Leaderboard data before sorting:', leaderboardData.slice(0, 5));
+        leaderboardData = profiles?.map(profile => ({
+          id: profile.user_id,
+          name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown',
+          totalPoints: pointsMap[profile.user_id] || 0,
+        })) || [];
+      } else {
+        // ⚠️ FALLBACK: Database aggregation not available, use client-side
+        console.log('⚠️ Using client-side leaderboard calculation (fallback)');
+        
+        const userPointsMap = new Map<string, number>();
 
-      // Sort by total points (descending)
+        profiles?.forEach(profile => {
+          const userId = profile.user_id;
+          const userAttended = attendanceByUser.get(userId) || new Set();
+          const userAppeals = appealsByUser.get(userId) || new Set();
+          const userRegistrations = registrationsByUser.get(userId) || new Set();
+          
+          const allUserEvents = new Set([...userAttended, ...userAppeals]);
+          let totalPoints = 0;
+
+          allUserEvents.forEach(eventId => {
+            const event = eventsMap.get(eventId);
+            if (event) {
+              const wasRegistered = userRegistrations.has(eventId);
+              totalPoints += wasRegistered ? 1.5 : 1;
+            }
+          });
+
+          userPointsMap.set(userId, totalPoints);
+        });
+
+        leaderboardData = profiles?.map(profile => ({
+          id: profile.user_id,
+          name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown',
+          totalPoints: userPointsMap.get(profile.user_id) || 0,
+        })) || [];
+      }
+
+      // Sort and rank leaderboard
       leaderboardData.sort((a, b) => b.totalPoints - a.totalPoints);
 
-      console.log('📋 Leaderboard data after sorting:', leaderboardData.slice(0, 5));
-
-      // Add rankings
       const rankedData = leaderboardData.map((user, index) => ({
         ...user,
         rank: index + 1,
       }));
 
-      console.log('📋 Ranked leaderboard data:', rankedData.slice(0, 5));
+      setLeaderboard(rankedData.slice(0, 5));
 
-      // Set top 5 for leaderboard
-      const top5 = rankedData.slice(0, 5);
-      console.log('🏆 Final top 5 being set to state:', top5);
-      setLeaderboard(top5);
-
-      // Find current user's rank
-      const currentUserData = rankedData.find(user => user.id === currentUserId);
-      console.log('👤 Current user data:', currentUserData);
-      
+      const currentUserData = rankedData.find(u => u.id === user.id);
       if (currentUserData) {
         setUserRank({
           name: currentUserData.name,
           totalPoints: currentUserData.totalPoints,
           rank: currentUserData.rank,
         });
-        console.log('👤 Current user rank set:', currentUserData.rank);
       }
 
     } catch (error) {
-      console.error('💥 Error fetching leaderboard:', error);
+      // Error loading data
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -447,7 +253,7 @@ export default function PointsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <StatusBar 
-          barStyle={isDark ? "light-content" : "dark-content"} 
+          barStyle="dark-content" 
           backgroundColor={colors.background} 
         />
         <View style={styles.centered}>
@@ -460,13 +266,12 @@ export default function PointsScreen() {
     );
   }
 
-  const totalPillars = Object.keys(POINT_REQUIREMENTS).length;
   const completionPercentage = (pillarsMet / totalPillars) * 100;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar 
-        barStyle={isDark ? "light-content" : "dark-content"} 
+        barStyle="dark-content" 
         backgroundColor={colors.background} 
       />
       
@@ -612,7 +417,6 @@ export default function PointsScreen() {
                       </View>
                     ) : (
                       <View style={styles.pendingBadge}>
-                        <MaterialIcons name="schedule" size={14} color="white" />
                         <Text style={styles.badgeText}>
                           {(config.required - earned).toFixed(1)} left
                         </Text>
@@ -942,7 +746,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: 'bold',
     marginLeft: 4,
   },

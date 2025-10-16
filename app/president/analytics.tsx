@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
+  FlatList,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View
 } from 'react-native';
@@ -14,6 +17,15 @@ import {
   ProgressChart
 } from '../../components/IOSCharts';
 import { supabase } from '../../lib/supabase';
+import {
+  ChartSection,
+  ChartSkeleton,
+  EmptyState,
+  EventCardSkeleton,
+  KPICard,
+  KPICardSkeleton,
+  LoadingFooter,
+} from '../../components/AnalyticsComponents';
 
 // Enhanced analytics types with more detailed member analytics and individual event data
 type FraternityHealthMetrics = {
@@ -80,7 +92,8 @@ type AnalysisInsights = {
 };
 
 const screenWidth = Dimensions.get('window').width;
-const chartWidth = Math.min(screenWidth - 64, 320); // More conservative width calculation
+// Account for: marginHorizontal (16) + padding (24) + some buffer (20) = 60px
+const chartWidth = screenWidth - 60;
 const chartConfig = {
   backgroundColor: '#ffffff',
   backgroundGradientFrom: '#ffffff',
@@ -90,7 +103,7 @@ const chartConfig = {
   barPercentage: 0.7,
   useShadowColorFromDataset: false,
   decimalPlaces: 0,
-  propsForLabels: { fontSize: 12, fontWeight: '400' as any },
+  propsForLabels: { fontSize: 11, fontWeight: '400' as any },
   propsForBackgroundLines: { strokeDasharray: '5,5', stroke: '#e0e0e0', strokeWidth: 1 },
 };
 
@@ -98,14 +111,96 @@ const pieColors = ['#4285F4', '#34A853', '#FBBC04', '#EA4335', '#9C27B0', '#FF98
 
 export default function PresidentAnalytics() {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'overview' | 'members' | 'demographics' | 'events' | 'analysis'>('overview');
-  const [fraternityHealth, setFraternityHealth] = useState<FraternityHealthMetrics | null>(null);
-  const [analysisInsights, setAnalysisInsights] = useState<AnalysisInsights | null>(null);
-  const [analytics, setAnalytics] = useState<any>(null);
+  
+  // Consolidated state to reduce re-renders
+  const [analyticsData, setAnalyticsData] = useState<{
+    fraternityHealth: FraternityHealthMetrics | null;
+    analysisInsights: AnalysisInsights | null;
+    analytics: any;
+  }>({
+    fraternityHealth: null,
+    analysisInsights: null,
+    analytics: null,
+  });
 
-  useEffect(() => {
-    fetchComprehensiveAnalytics();
-  }, []);
+  // Pagination and filtering state
+  const [eventsPagination, setEventsPagination] = useState({
+    page: 0,
+    pageSize: 20,
+    hasMore: true,
+    loadingMore: false,
+  });
+  
+  const [eventsFilter, setEventsFilter] = useState({
+    searchQuery: '',
+    eventType: 'all',
+    dateRange: 'all',
+  });
+
+  // Destructure for backward compatibility
+  const { fraternityHealth, analysisInsights, analytics } = analyticsData;
+
+  // Memoize expensive calculations to prevent recalculation on every render
+  const kpiData = useMemo(() => ({
+    totalMembers: fraternityHealth?.membershipGrowth.total || 0,
+    officerCount: fraternityHealth?.membershipGrowth.officerCount || 0,
+    retentionRate: fraternityHealth?.membershipGrowth.retentionRate || 0,
+    avgAttendanceRate: fraternityHealth?.eventEngagement.avgAttendanceRate || 0,
+    totalEvents: fraternityHealth?.eventEngagement.totalEvents || 0,
+    averagePoints: fraternityHealth?.memberPerformance.averagePoints || 0,
+    isHealthyRetention: (fraternityHealth?.membershipGrowth.retentionRate || 0) > 70,
+    isHealthyAttendance: (fraternityHealth?.eventEngagement.avgAttendanceRate || 0) > 60,
+  }), [fraternityHealth]);
+
+  const performanceDistribution = useMemo(() => {
+    if (!fraternityHealth) return [];
+    return [
+      {
+        name: 'High Performers',
+        population: fraternityHealth.memberPerformance.engagementTiers.high || 0,
+        color: '#10b981',
+        legendFontColor: '#333',
+        legendFontSize: 15,
+      },
+      {
+        name: 'Average Members',
+        population: fraternityHealth.memberPerformance.engagementTiers.medium || 0,
+        color: '#f59e0b',
+        legendFontColor: '#333',
+        legendFontSize: 15,
+      },
+      {
+        name: 'At-Risk Members',
+        population: fraternityHealth.memberPerformance.engagementTiers.low || 0,
+        color: '#ef4444',
+        legendFontColor: '#333',
+        legendFontSize: 15,
+      }
+    ];
+  }, [fraternityHealth]);
+
+  const pledgeClassData = useMemo(() => {
+    if (!fraternityHealth?.membershipGrowth.pledgeClassSizes) return null;
+    const sizes = fraternityHealth.membershipGrowth.pledgeClassSizes;
+    if (Object.keys(sizes).length === 0) return null;
+    return {
+      labels: Object.keys(sizes).slice(0, 6),
+      datasets: [{ data: Object.values(sizes).slice(0, 6) }]
+    };
+  }, [fraternityHealth]);
+
+  const eventTypeDistribution = useMemo(() => {
+    if (!fraternityHealth?.eventEngagement.pointDistribution) return [];
+    return Object.entries(fraternityHealth.eventEngagement.pointDistribution).map(([name, count], i) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      population: count,
+      color: pieColors[i % pieColors.length],
+      legendFontColor: '#333',
+      legendFontSize: 13,
+    }));
+  }, [fraternityHealth]);
 
   const fetchComprehensiveAnalytics = async () => {
     setLoading(true);
@@ -114,38 +209,68 @@ export default function PresidentAnalytics() {
       const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
       const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      // Fetch data with more comprehensive queries
-      const [usersResponse, eventsResponse, attendanceResponse, eventRatingResponse] = await Promise.all([
+      // Fetch data with more comprehensive queries including approved appeals
+      const [usersResponse, eventsResponse, attendanceResponse, approvedAppealsResponse, eventRatingResponse] = await Promise.all([
         supabase.from('users').select('*').eq('approved', true),
         supabase.from('events').select('*, created_by(first_name, last_name)').eq('status', 'approved').gte('start_time', sixMonthsAgo.toISOString()),
         supabase.from('event_attendance').select('*, events!inner(start_time, point_type, point_value, title, id)').gte('events.start_time', sixMonthsAgo.toISOString()),
+        supabase.from('point_appeal').select('*, events!inner(start_time, point_type, point_value, title, id)').eq('status', 'approved').gte('events.start_time', sixMonthsAgo.toISOString()),
         supabase.from('event_feedback').select('rating, event_id').gte('created_at', sixMonthsAgo.toISOString())
       ]);
 
       if (usersResponse.error) throw usersResponse.error;
       if (eventsResponse.error) throw eventsResponse.error;
       if (attendanceResponse.error) throw attendanceResponse.error;
+      if (approvedAppealsResponse.error) console.warn('Approved appeals error:', approvedAppealsResponse.error);
       if (eventRatingResponse.error) console.warn('Event ratings error:', eventRatingResponse.error);
 
       const users = usersResponse.data || [];
       const events = eventsResponse.data || [];
       const attendance = attendanceResponse.data || [];
+      const approvedAppeals = approvedAppealsResponse.data || [];
       const eventRatings = eventRatingResponse.data || [];
+
+      // Combine attendance records and approved appeals
+      const combinedAttendance = [
+        ...attendance,
+        ...approvedAppeals.map(appeal => ({
+          ...appeal,
+          user_id: appeal.user_id,
+          events: appeal.events
+        }))
+      ];
 
       // Filter users to only include brothers for attendance calculations
       const brothers = users.filter(user => user.role === 'brother');
 
-      // Calculate user points and attendance counts
+      // Calculate user points and attendance counts from combined data
       const userPointsCalculated: Record<string, number> = {};
       const userAttendanceCounts: Record<string, number> = {};
       
-      attendance.forEach(att => {
+      // Track unique event attendance per user to avoid double counting
+      const userEventAttendance: Record<string, Set<string>> = {};
+      
+      combinedAttendance.forEach(att => {
         const user = users.find(u => u.user_id === att.user_id);
         if (user && user.role === 'brother') {
           const event = att.events as any;
-          const pointValue = event?.point_value || 1;
-          userPointsCalculated[att.user_id] = (userPointsCalculated[att.user_id] || 0) + pointValue;
-          userAttendanceCounts[att.user_id] = (userAttendanceCounts[att.user_id] || 0) + 1;
+          const eventId = event?.id;
+          
+          if (eventId) {
+            // Initialize user's event set if not exists
+            if (!userEventAttendance[att.user_id]) {
+              userEventAttendance[att.user_id] = new Set();
+            }
+            
+            // Only count if user hasn't already been counted for this event
+            if (!userEventAttendance[att.user_id].has(eventId)) {
+              userEventAttendance[att.user_id].add(eventId);
+              
+              const pointValue = event?.point_value || 1;
+              userPointsCalculated[att.user_id] = (userPointsCalculated[att.user_id] || 0) + pointValue;
+              userAttendanceCounts[att.user_id] = (userAttendanceCounts[att.user_id] || 0) + 1;
+            }
+          }
         }
       });
 
@@ -232,10 +357,13 @@ export default function PresidentAnalytics() {
         return acc;
       }, {} as Record<string, number>);
 
-      // Calculate event engagement metrics
+      // Calculate event engagement metrics using combined attendance data
       const recentlyActive = brothers.filter(user => 
-        attendance.some(att => att.user_id === user.user_id && 
-          new Date(att.checked_in_at || '') >= currentMonth)
+        combinedAttendance.some(att => {
+          if (att.user_id !== user.user_id) return false;
+          const event = att.events as any;
+          return event?.start_time && new Date(event.start_time) >= currentMonth;
+        })
       );
 
       const pointDistribution = events.reduce((acc, event) => {
@@ -254,7 +382,7 @@ export default function PresidentAnalytics() {
           const eventDate = new Date(event.start_time);
           return eventDate.getMonth() === date.getMonth() && eventDate.getFullYear() === date.getFullYear();
         });
-        const monthAttendance = attendance.filter(att => {
+        const monthAttendance = combinedAttendance.filter(att => {
           const event = att.events as any;
           if (!event?.start_time) return false;
           const eventDate = new Date(event.start_time);
@@ -276,10 +404,15 @@ export default function PresidentAnalytics() {
       }, {} as Record<string, number[]>);
 
       const individualEvents: EventAnalytics[] = events.map(event => {
-        const eventAttendance = attendance.filter(att => {
+        const eventAttendance = combinedAttendance.filter(att => {
           const attEvent = att.events as any;
           return attEvent?.id === event.id;
         });
+        
+        // Deduplicate by user_id to avoid counting users twice for the same event
+        const uniqueAttendees = eventAttendance.filter((att, index, self) => 
+          index === self.findIndex(a => a.user_id === att.user_id)
+        );
         
         const ratings = eventRatingsMap[event.id] || [];
         const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined;
@@ -297,8 +430,8 @@ export default function PresidentAnalytics() {
           id: event.id,
           title: event.title,
           date: event.start_time,
-          attendanceCount: eventAttendance.length,
-          attendanceRate: brothers.length > 0 ? (eventAttendance.length / brothers.length) * 100 : 0,
+          attendanceCount: uniqueAttendees.length,
+          attendanceRate: brothers.length > 0 ? (uniqueAttendees.length / brothers.length) * 100 : 0,
           pointValue: event.point_value || 0,
           pointType: event.point_type || 'other',
           rsvpCount: 0, // Would need RSVP table to calculate
@@ -431,9 +564,13 @@ export default function PresidentAnalytics() {
       };
 
       const insights = generateInsights(healthMetrics);
-      setFraternityHealth(healthMetrics);
-      setAnalytics(analyticsData);
-      setAnalysisInsights(insights);
+      
+      // Single state update to prevent multiple re-renders
+      setAnalyticsData({
+        fraternityHealth: healthMetrics,
+        analytics: analyticsData,
+        analysisInsights: insights,
+      });
 
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -441,6 +578,100 @@ export default function PresidentAnalytics() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchComprehensiveAnalytics();
+  }, []);
+
+  // Load more events for pagination
+  const loadMoreEvents = useCallback(async () => {
+    if (eventsPagination.loadingMore || !eventsPagination.hasMore) return;
+
+    setEventsPagination(prev => ({ ...prev, loadingMore: true }));
+
+    try {
+      const nextPage = eventsPagination.page + 1;
+      const from = nextPage * eventsPagination.pageSize;
+      const to = from + eventsPagination.pageSize - 1;
+
+      const now = new Date();
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+
+      let query = supabase
+        .from('events')
+        .select('*, created_by(first_name, last_name)')
+        .eq('status', 'approved')
+        .gte('start_time', sixMonthsAgo.toISOString())
+        .order('start_time', { ascending: false })
+        .range(from, to);
+
+      // Apply filters
+      if (eventsFilter.eventType !== 'all') {
+        query = query.eq('point_type', eventsFilter.eventType);
+      }
+
+      const { data: newEvents, error } = await query;
+
+      if (error) throw error;
+
+      if (newEvents && newEvents.length > 0) {
+        // Merge new events with existing ones
+        setAnalyticsData(prev => ({
+          ...prev,
+          analytics: {
+            ...prev.analytics,
+            individualEvents: [
+              ...(prev.analytics?.individualEvents || []),
+              ...newEvents.map((event: any) => {
+                const creator = Array.isArray(event.created_by) ? event.created_by[0] : event.created_by;
+                const creatorName = creator && typeof creator === 'object'
+                  ? `${creator.first_name || ''} ${creator.last_name || ''}`.trim() || 'Unknown'
+                  : 'Unknown';
+
+                return {
+                  id: event.id,
+                  title: event.title,
+                  date: event.start_time,
+                  attendanceCount: 0, // Would need to fetch separately
+                  attendanceRate: 0,
+                  pointValue: event.point_value || 0,
+                  pointType: event.point_type || 'other',
+                  rsvpCount: 0,
+                  noShowRate: 0,
+                  topAttendees: [],
+                  creator: creatorName,
+                };
+              })
+            ]
+          }
+        }));
+
+        setEventsPagination(prev => ({
+          ...prev,
+          page: nextPage,
+          hasMore: newEvents.length === eventsPagination.pageSize,
+          loadingMore: false,
+        }));
+      } else {
+        setEventsPagination(prev => ({
+          ...prev,
+          hasMore: false,
+          loadingMore: false,
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading more events:', error);
+      setEventsPagination(prev => ({ ...prev, loadingMore: false }));
+    }
+  }, [eventsPagination, eventsFilter]);
+
+  // Refresh function
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    setEventsPagination({ page: 0, pageSize: 20, hasMore: true, loadingMore: false });
+    await fetchComprehensiveAnalytics();
+    setRefreshing(false);
+  }, []);
 
   const generateInsights = (metrics: FraternityHealthMetrics): AnalysisInsights => {
     const strengths: string[] = [];
@@ -472,7 +703,7 @@ export default function PresidentAnalytics() {
     return { strengths, concerns, recommendations };
   };
 
-  const renderTabBar = () => (
+  const renderTabBar = useCallback(() => (
     <View style={styles.tabBar}>
       {(['overview', 'members', 'demographics', 'events', 'analysis'] as const).map((tab) => (
         <TouchableOpacity
@@ -486,51 +717,49 @@ export default function PresidentAnalytics() {
         </TouchableOpacity>
       ))}
     </View>
-  );
+  ), [selectedTab]);
 
-  const renderOverview = () => (
+  const renderOverview = useCallback(() => (
     <View>
       <View style={styles.kpiGrid}>
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiValue}>{fraternityHealth?.membershipGrowth.total || 0}</Text>
-          <Text style={styles.kpiLabel}>Members</Text>
-          <Text style={[styles.kpiChange, { color: '#10b981' }]}>
-            {fraternityHealth?.membershipGrowth.officerCount || 0} officers
-          </Text>
-        </View>
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiValue}>
-            {fraternityHealth?.membershipGrowth.retentionRate.toFixed(0) || '0'}%
-          </Text>
-          <Text style={styles.kpiLabel}>Retention</Text>
-          <Text style={[styles.kpiChange, { 
-            color: (fraternityHealth?.membershipGrowth.retentionRate || 0) > 70 ? '#10b981' : '#ef4444' 
-          }]}>
-            {(fraternityHealth?.membershipGrowth.retentionRate || 0) > 70 ? 'Healthy' : 'At Risk'}
-          </Text>
-        </View>
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiValue}>
-            {fraternityHealth?.eventEngagement.avgAttendanceRate.toFixed(0) || '0'}%
-          </Text>
-          <Text style={styles.kpiLabel}>Attendance</Text>
-          <Text style={[styles.kpiChange, { 
-            color: (fraternityHealth?.eventEngagement.avgAttendanceRate || 0) > 60 ? '#10b981' : '#f59e0b' 
-          }]}>
-            {fraternityHealth?.eventEngagement.totalEvents || 0} events
-          </Text>
-        </View>
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiValue}>{fraternityHealth?.memberPerformance.averagePoints.toFixed(0) || 0}</Text>
-          <Text style={styles.kpiLabel}>Avg Points</Text>
-          <Text style={[styles.kpiChange, { color: '#6366f1' }]}>
-            Per member
-          </Text>
-        </View>
+        {loading ? (
+          <>
+            <KPICardSkeleton />
+            <KPICardSkeleton />
+            <KPICardSkeleton />
+            <KPICardSkeleton />
+          </>
+        ) : (
+          <>
+            <KPICard
+              value={kpiData.totalMembers}
+              label="Members"
+              sublabel={`${kpiData.officerCount} officers`}
+              sublabelColor="#10b981"
+            />
+            <KPICard
+              value={`${kpiData.retentionRate.toFixed(0)}%`}
+              label="Retention"
+              sublabel={kpiData.isHealthyRetention ? 'Healthy' : 'At Risk'}
+              sublabelColor={kpiData.isHealthyRetention ? '#10b981' : '#ef4444'}
+            />
+            <KPICard
+              value={`${kpiData.avgAttendanceRate.toFixed(0)}%`}
+              label="Attendance"
+              sublabel={`${kpiData.totalEvents} events`}
+              sublabelColor={kpiData.isHealthyAttendance ? '#10b981' : '#f59e0b'}
+            />
+            <KPICard
+              value={kpiData.averagePoints.toFixed(0)}
+              label="Avg Points"
+              sublabel="Per member"
+              sublabelColor="#6366f1"
+            />
+          </>
+        )}
       </View>
 
-      <View style={styles.chartSection}>
-        <Text style={styles.sectionTitle}>🏥 Health Score</Text>
+      <ChartSection title="🏥 Health Score" loading={loading}>
         <ProgressChart
           data={{
             labels: ['Retention', 'Attendance', 'Performance', 'Leadership'],
@@ -542,9 +771,9 @@ export default function PresidentAnalytics() {
             ]
           }}
           width={chartWidth}
-          height={160}
-          strokeWidth={12}
-          radius={24}
+          height={180}
+          strokeWidth={10}
+          radius={20}
           chartConfig={{
             backgroundColor: '#ffffff',
             backgroundGradientFrom: '#ffffff',
@@ -556,58 +785,32 @@ export default function PresidentAnalytics() {
           }}
           style={styles.chart}
         />
-      </View>
+      </ChartSection>
     </View>
-  );
+  ), [kpiData, fraternityHealth, loading]);
 
-  const renderMemberAnalysis = () => (
+  const renderMemberAnalysis = useCallback(() => (
     <View>
       <View style={styles.chartSection}>
         <Text style={styles.sectionTitle}>👥 Member Performance Distribution</Text>
         <PieChart
-          data={[
-            {
-              name: 'High Performers',
-              population: fraternityHealth?.memberPerformance.engagementTiers.high || 0,
-              color: '#10b981',
-              legendFontColor: '#333',
-              legendFontSize: 15,
-            },
-            {
-              name: 'Average Members',
-              population: fraternityHealth?.memberPerformance.engagementTiers.medium || 0,
-              color: '#f59e0b',
-              legendFontColor: '#333',
-              legendFontSize: 15,
-            },
-            {
-              name: 'At-Risk Members',
-              population: fraternityHealth?.memberPerformance.engagementTiers.low || 0,
-              color: '#ef4444',
-              legendFontColor: '#333',
-              legendFontSize: 15,
-            }
-          ]}
+          data={performanceDistribution}
           width={chartWidth}
           height={200}
           chartConfig={chartConfig}
           accessor="population"
           backgroundColor="transparent"
-          paddingLeft="15"
+          paddingLeft="0"
+          center={[10, 0]}
           style={styles.chart}
         />
       </View>
 
       <View style={styles.chartSection}>
         <Text style={styles.sectionTitle}>🎓 Pledge Class Distribution</Text>
-        {fraternityHealth?.membershipGrowth.pledgeClassSizes && Object.keys(fraternityHealth.membershipGrowth.pledgeClassSizes).length > 0 ? (
+        {pledgeClassData ? (
           <BarChart
-            data={{
-              labels: Object.keys(fraternityHealth.membershipGrowth.pledgeClassSizes).slice(0, 6),
-              datasets: [{
-                data: Object.values(fraternityHealth.membershipGrowth.pledgeClassSizes).slice(0, 6)
-              }]
-            }}
+            data={pledgeClassData}
             width={chartWidth}
             height={180}
             yAxisLabel=""
@@ -620,9 +823,9 @@ export default function PresidentAnalytics() {
         )}
       </View>
     </View>
-  );
+  ), [performanceDistribution, pledgeClassData]);
 
-  const renderEventAnalysis = () => (
+  const renderEventAnalysis = useCallback(() => (
     <View>
       <View style={styles.chartSection}>
         <Text style={styles.sectionTitle}>📊 Event Trends Over Time</Text>
@@ -635,7 +838,7 @@ export default function PresidentAnalytics() {
                 color: (opacity = 1) => `rgba(66, 133, 244, ${opacity})`,
               }]
             }}
-            width={screenWidth - 40}
+            width={chartWidth}
             height={180}
             chartConfig={chartConfig}
             yAxisLabel=""
@@ -649,21 +852,16 @@ export default function PresidentAnalytics() {
 
       <View style={styles.chartSection}>
         <Text style={styles.sectionTitle}>🎯 Event Distribution by Type</Text>
-        {fraternityHealth?.eventEngagement.pointDistribution && Object.keys(fraternityHealth.eventEngagement.pointDistribution).length > 0 ? (
+        {eventTypeDistribution.length > 0 ? (
           <PieChart
-            data={Object.entries(fraternityHealth.eventEngagement.pointDistribution).map(([name, count], i) => ({
-              name: name.charAt(0).toUpperCase() + name.slice(1),
-              population: count,
-              color: pieColors[i % pieColors.length],
-              legendFontColor: '#333',
-              legendFontSize: 13,
-            }))}
+            data={eventTypeDistribution}
             width={chartWidth}
             height={200}
             chartConfig={chartConfig}
             accessor="population"
             backgroundColor="transparent"
-            paddingLeft="15"
+            paddingLeft="0"
+            center={[10, 0]}
             style={styles.chart}
           />
         ) : (
@@ -673,63 +871,115 @@ export default function PresidentAnalytics() {
 
       <View style={styles.chartSection}>
         <Text style={styles.sectionTitle}>📋 Individual Event Performance</Text>
-        <ScrollView style={styles.eventsScrollView} showsVerticalScrollIndicator={false}>
-          {analytics?.individualEvents?.map((event: any, index: number) => (
-            <View key={event.id} style={styles.eventCard}>
-              <View style={styles.eventHeader}>
-                <Text style={styles.eventTitle} numberOfLines={2}>{event.title}</Text>
-                <View style={styles.eventMetrics}>
-                  <Text style={styles.eventAttendance}>{event.attendanceCount} attendees</Text>
-                  <Text style={styles.eventRate}>{event.attendanceRate.toFixed(1)}% rate</Text>
+        
+        {/* Search and Filter Bar */}
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search events..."
+            value={eventsFilter.searchQuery}
+            onChangeText={(text) => setEventsFilter(prev => ({ ...prev, searchQuery: text }))}
+            placeholderTextColor="#94a3b8"
+          />
+        </View>
+
+        {analytics?.individualEvents && analytics.individualEvents.length > 0 ? (
+          <FlatList
+            data={analytics.individualEvents.filter((event: any) => 
+              eventsFilter.searchQuery === '' || 
+              event.title.toLowerCase().includes(eventsFilter.searchQuery.toLowerCase()) ||
+              event.creator.toLowerCase().includes(eventsFilter.searchQuery.toLowerCase())
+            )}
+            scrollEnabled={false}
+            nestedScrollEnabled={false}
+            renderItem={({ item }) => (
+              <View style={styles.eventCard}>
+                <View style={styles.eventHeader}>
+                  <Text style={styles.eventTitle} numberOfLines={2}>{item.title}</Text>
+                  <View style={styles.eventMetrics}>
+                    <Text style={styles.eventAttendance}>{item.attendanceCount} attendees</Text>
+                    <Text style={styles.eventRate}>{item.attendanceRate.toFixed(1)}% rate</Text>
+                  </View>
                 </View>
-              </View>
-              
-              <View style={styles.eventDetails}>
-                <View style={styles.eventDetailRow}>
-                  <Text style={styles.eventDetailLabel}>Date:</Text>
-                  <Text style={styles.eventDetailValue}>
-                    {new Date(event.date).toLocaleDateString()}
-                  </Text>
-                </View>
-                <View style={styles.eventDetailRow}>
-                  <Text style={styles.eventDetailLabel}>Points:</Text>
-                  <Text style={styles.eventDetailValue}>{event.pointValue} ({event.pointType})</Text>
-                </View>
-                <View style={styles.eventDetailRow}>
-                  <Text style={styles.eventDetailLabel}>Creator:</Text>
-                  <Text style={styles.eventDetailValue}>{event.creator}</Text>
-                </View>
-                {event.averageRating && (
+                
+                <View style={styles.eventDetails}>
                   <View style={styles.eventDetailRow}>
-                    <Text style={styles.eventDetailLabel}>Rating:</Text>
+                    <Text style={styles.eventDetailLabel}>Date:</Text>
                     <Text style={styles.eventDetailValue}>
-                      {event.averageRating.toFixed(1)}/5 ⭐
+                      {new Date(item.date).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <View style={styles.eventDetailRow}>
+                    <Text style={styles.eventDetailLabel}>Points:</Text>
+                    <Text style={styles.eventDetailValue}>{item.pointValue} ({item.pointType})</Text>
+                  </View>
+                  <View style={styles.eventDetailRow}>
+                    <Text style={styles.eventDetailLabel}>Creator:</Text>
+                    <Text style={styles.eventDetailValue}>{item.creator}</Text>
+                  </View>
+                  {item.averageRating && (
+                    <View style={styles.eventDetailRow}>
+                      <Text style={styles.eventDetailLabel}>Rating:</Text>
+                      <Text style={styles.eventDetailValue}>
+                        {item.averageRating.toFixed(1)}/5 ⭐
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                
+                {item.topAttendees && item.topAttendees.length > 0 && (
+                  <View style={styles.topAttendees}>
+                    <Text style={styles.topAttendeesLabel}>Top Attendees:</Text>
+                    <Text style={styles.topAttendeesText}>
+                      {item.topAttendees.slice(0, 3).join(', ')}
+                      {item.topAttendees.length > 3 && ` +${item.topAttendees.length - 3} more`}
                     </Text>
                   </View>
                 )}
-              </View>
-              
-              {event.topAttendees && event.topAttendees.length > 0 && (
-                <View style={styles.topAttendees}>
-                  <Text style={styles.topAttendeesLabel}>Top Attendees:</Text>
-                  <Text style={styles.topAttendeesText}>
-                    {event.topAttendees.slice(0, 3).join(', ')}
-                    {event.topAttendees.length > 3 && ` +${event.topAttendees.length - 3} more`}
-                  </Text>
+                
+                <View style={styles.attendanceBar}>
+                  <View 
+                    style={[
+                      styles.attendanceProgress, 
+                      { width: `${Math.min(item.attendanceRate, 100)}%` }
+                    ]} 
+                  />
                 </View>
-              )}
-              
-              <View style={styles.attendanceBar}>
-                <View 
-                  style={[
-                    styles.attendanceProgress, 
-                    { width: `${Math.min(event.attendanceRate, 100)}%` }
-                  ]} 
-                />
               </View>
-            </View>
-          )) || <Text style={styles.noDataText}>No individual event data available</Text>}
-        </ScrollView>
+            )}
+            keyExtractor={(item) => item.id}
+            style={styles.eventsScrollView}
+            showsVerticalScrollIndicator={false}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews={true}
+            initialNumToRender={5}
+            onEndReached={loadMoreEvents}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              eventsPagination.loadingMore ? <LoadingFooter /> : null
+            }
+            ListEmptyComponent={
+              <EmptyState
+                icon="📭"
+                title="No events found"
+                subtitle="Try adjusting your search or filters"
+              />
+            }
+          />
+        ) : loading ? (
+          <>
+            <EventCardSkeleton />
+            <EventCardSkeleton />
+            <EventCardSkeleton />
+          </>
+        ) : (
+          <EmptyState
+            icon="📅"
+            title="No events available"
+            subtitle="Events will appear here once they are created"
+          />
+        )}
       </View>
 
       <View style={styles.chartSection}>
@@ -751,9 +1001,9 @@ export default function PresidentAnalytics() {
         </View>
       </View>
     </View>
-  );
+  ), [analytics, eventTypeDistribution, fraternityHealth]);
 
-  const renderDemographics = () => (
+  const renderDemographics = useCallback(() => (
     <View>
       <View style={styles.chartSection}>
         <Text style={styles.sectionTitle}>🎓 Graduation Years</Text>
@@ -765,7 +1015,7 @@ export default function PresidentAnalytics() {
                 data: Object.values(fraternityHealth.membershipGrowth.graduationYears).slice(0, 6)
               }]
             }}
-            width={screenWidth - 40}
+            width={chartWidth}
             height={180}
             chartConfig={chartConfig}
             yAxisLabel=""
@@ -806,9 +1056,9 @@ export default function PresidentAnalytics() {
         </View>
       </View>
     </View>
-  );
+  ), [fraternityHealth]);
 
-  const renderAnalysisInsights = () => (
+  const renderAnalysisInsights = useCallback(() => (
     <View>
       <View style={styles.insightSection}>
         <Text style={styles.insightTitle}>💪 Organizational Strengths</Text>
@@ -863,7 +1113,7 @@ export default function PresidentAnalytics() {
         </Text>
       </View>
     </View>
-  );
+  ), [analysisInsights, fraternityHealth]);
 
   if (loading) {
     return (
@@ -887,6 +1137,14 @@ export default function PresidentAnalytics() {
         style={styles.content} 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#6366f1']}
+            tintColor="#6366f1"
+          />
+        }
       >
         {selectedTab === 'overview' && renderOverview()}
         {selectedTab === 'members' && renderMemberAnalysis()}
@@ -1011,6 +1269,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
+    overflow: 'hidden',
   },
   sectionTitle: {
     fontSize: 16,
@@ -1020,6 +1279,7 @@ const styles = StyleSheet.create({
   },
   chart: {
     borderRadius: 16,
+    alignSelf: 'center',
   },
   noDataText: {
     fontSize: 14,
@@ -1294,5 +1554,46 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#10b981',
     borderRadius: 2,
+  },
+  // Search and filter styles
+  searchContainer: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  searchInput: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  filterChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  filterChipActive: {
+    backgroundColor: '#6366f1',
+    borderColor: '#6366f1',
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  filterChipTextActive: {
+    color: '#ffffff',
   },
 });

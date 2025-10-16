@@ -1,8 +1,10 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useOfficerRole } from '../../hooks/useOfficerRole';
 import { supabase } from '../../lib/supabase';
+import { AccountDeletionService } from '../../lib/accountDeletion';
+import { handleAuthenticationRedirect, checkAuthentication } from '../../lib/auth';
 
 interface DashboardStats {
   eventsCreated: number;
@@ -21,6 +23,11 @@ export default function OfficerDashboard() {
   });
   const { role, loading: roleLoading } = useOfficerRole();
   const router = useRouter();
+  
+  // Account deletion state
+  const [accountDeletionModalVisible, setAccountDeletionModalVisible] = useState(false);
+  const [deletionConfirmationText, setDeletionConfirmationText] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   useEffect(() => {
     if (!roleLoading && role.is_officer) {
@@ -74,6 +81,79 @@ export default function OfficerDashboard() {
     }
   };
 
+  const handleAccountDeletion = () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to permanently delete your account? This action cannot be undone and will:\n\n• Delete all your personal data\n• Remove your event history\n• Cancel any pending appeals\n• Remove you from all organizations\n\nThis process may take up to 30 days to complete.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => setAccountDeletionModalVisible(true),
+        },
+      ]
+    );
+  };
+
+  const confirmAccountDeletion = async () => {
+    if (deletionConfirmationText.toLowerCase() !== 'delete my account') {
+      Alert.alert('Confirmation Required', 'Please type "DELETE MY ACCOUNT" exactly to confirm deletion.');
+      return;
+    }
+
+    setIsDeletingAccount(true);
+
+    try {
+      // Check authentication
+      const authResult = await checkAuthentication();
+      if (!authResult.isAuthenticated) {
+        handleAuthenticationRedirect();
+        return;
+      }
+
+      const user = authResult.user;
+
+      // Call the account deletion service
+      const result = await AccountDeletionService.deleteAccount(user.id);
+
+      if (!result.success) {
+        console.error('Account deletion error:', result.error);
+        Alert.alert(
+          'Deletion Failed',
+          result.error || 'We encountered an error while processing your account deletion. Please try again or contact support.'
+        );
+        return;
+      }
+
+      // Sign out the user
+      await supabase.auth.signOut();
+
+      Alert.alert(
+        'Account Deletion Initiated',
+        'Your account deletion has been initiated. You have been logged out and your data will be permanently removed within 30 days. If you change your mind, you can contact support within 7 days to potentially recover your account.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setAccountDeletionModalVisible(false);
+              setDeletionConfirmationText('');
+              handleAuthenticationRedirect();
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Unexpected error during account deletion:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
   const quickActions = [
     {
       title: 'Create Event',
@@ -105,7 +185,8 @@ export default function OfficerDashboard() {
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.welcomeText}>Welcome back!</Text>
@@ -193,7 +274,75 @@ export default function OfficerDashboard() {
           )}
         </View>
       </View>
+
+      {/* Account Management */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Account Management</Text>
+        <TouchableOpacity 
+          style={styles.deleteAccountButton}
+          onPress={handleAccountDeletion}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.deleteAccountText}>Delete Account</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
+
+    {/* Account Deletion Modal */}
+    <Modal
+      visible={accountDeletionModalVisible}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setAccountDeletionModalVisible(false)}
+    >
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalOverlay}
+      >
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Delete Account</Text>
+          
+          <Text style={styles.modalText}>
+            This action is permanent and cannot be undone. All your data will be deleted within 30 days.
+          </Text>
+          
+          <Text style={styles.modalInstructions}>
+            To confirm, type "DELETE MY ACCOUNT" below:
+          </Text>
+          
+          <TextInput
+            style={styles.confirmationInput}
+            value={deletionConfirmationText}
+            onChangeText={setDeletionConfirmationText}
+            placeholder="Type here to confirm..."
+            autoCapitalize="characters"
+          />
+          
+          <View style={styles.modalButtons}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => {
+                setAccountDeletionModalVisible(false);
+                setDeletionConfirmationText('');
+              }}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.deleteButton, isDeletingAccount && styles.disabledButton]}
+              onPress={confirmAccountDeletion}
+              disabled={isDeletingAccount}
+            >
+              <Text style={styles.deleteButtonText}>
+                {isDeletingAccount ? 'Deleting...' : 'Delete Account'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+    </>
   );
 }
 
@@ -344,5 +493,103 @@ const styles = StyleSheet.create({
   resourceDescription: {
     fontSize: 14,
     color: '#5f6368',
+  },
+  
+  // Account Management Styles
+  deleteAccountButton: {
+    backgroundColor: '#dc3545',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  deleteAccountText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#dc3545',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 22,
+  },
+  modalInstructions: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  confirmationInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  cancelButtonText: {
+    color: '#333',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    flex: 1,
+    backgroundColor: '#dc3545',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });

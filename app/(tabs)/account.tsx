@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { AccountDeletionService } from '../../lib/accountDeletion';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { checkAuthentication, handleAuthenticationRedirect } from '../../lib/auth';
@@ -23,32 +24,46 @@ import { Event, PointAppeal, PointAppealSubmission } from '../../types/account';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// Achievement configurations
+// Achievement configurations with tier system
 const ACHIEVEMENTS = {
-  // Consistency & Streaks
-  streak_starter: { title: 'Streak Starter', description: 'Attended 3 meetings in a row', category: 'Consistency' },
-  iron_brother: { title: 'Iron Brother', description: 'Attended 10 meetings in a row', category: 'Consistency' },
-  unstoppable: { title: 'Unstoppable', description: 'Attended 20 meetings in a row', category: 'Consistency' },
+  // Consistency & Streaks - Bronze to Rose Gold progression
+  streak_starter: { title: 'Streak Starter', description: 'Attended 3 meetings in a row', category: 'Consistency', tier: 'bronze', icon: '🥉' },
+  iron_brother: { title: 'Iron Brother', description: 'Attended 10 meetings in a row', category: 'Consistency', tier: 'silver', icon: '🥈' },
+  unstoppable: { title: 'Unstoppable', description: 'Attended 20 meetings in a row', category: 'Consistency', tier: 'gold', icon: '🥇' },
+  legend_streak: { title: 'Legend Streak', description: 'Attended 30 meetings in a row', category: 'Consistency', tier: 'rose-gold', icon: '🏆' },
   
-  // Milestone Attendance  
-  first_timer: { title: 'First Timer', description: 'Attended your first meeting', category: 'Milestones' },
-  ten_strong: { title: '10 Strong', description: 'Attended 10 meetings total', category: 'Milestones' },
-  silver_brother: { title: 'Silver Brother', description: 'Attended 25 meetings total', category: 'Milestones' },
-  gold_brother: { title: 'Gold Brother', description: 'Attended 50 meetings total', category: 'Milestones' },
-  diamond_brother: { title: 'Diamond Brother', description: 'Attended 100 meetings total', category: 'Milestones' },
+  // Milestone Attendance - Progressive tiers
+  first_timer: { title: 'First Timer', description: 'Attended your first meeting', category: 'Milestones', tier: 'bronze', icon: '🥉' },
+  ten_strong: { title: '10 Strong', description: 'Attended 10 meetings total', category: 'Milestones', tier: 'bronze', icon: '🥉' },
+  silver_brother: { title: 'Silver Brother', description: 'Attended 25 meetings total', category: 'Milestones', tier: 'silver', icon: '🥈' },
+  gold_brother: { title: 'Gold Brother', description: 'Attended 50 meetings total', category: 'Milestones', tier: 'gold', icon: '🥇' },
+  diamond_brother: { title: 'Diamond Brother', description: 'Attended 100 meetings total', category: 'Milestones', tier: 'rose-gold', icon: '🏆' },
   
-  // Points & Performance
-  points_50: { title: 'Scholar', description: '50 total points', category: 'Performance' },
-  points_100: { title: 'Master', description: '100 total points', category: 'Performance' },
-  points_250: { title: 'Elite', description: '250 total points', category: 'Performance' },
-  punctual_pro: { title: 'Punctual Pro', description: '75%+ attendance rate', category: 'Performance' },
-  perfect_semester: { title: 'Perfect Semester', description: '100% attendance this semester', category: 'Performance' },
-  monthly_champion: { title: 'Monthly Champion', description: 'Attended 5+ events this month', category: 'Performance' },
+  // Points & Performance - Multi-tier achievements
+  points_50: { title: 'Scholar', description: '50 total points', category: 'Performance', tier: 'bronze', icon: '🥉' },
+  points_100: { title: 'Master', description: '100 total points', category: 'Performance', tier: 'silver', icon: '🥈' },
+  points_250: { title: 'Elite', description: '250 total points', category: 'Performance', tier: 'gold', icon: '🥇' },
+  points_500: { title: 'Legendary', description: '500 total points', category: 'Performance', tier: 'rose-gold', icon: '🏆' },
+  punctual_pro: { title: 'Punctual Pro', description: '75%+ attendance rate', category: 'Performance', tier: 'silver', icon: '🥈' },
+  perfect_semester: { title: 'Perfect Semester', description: '100% attendance this semester', category: 'Performance', tier: 'gold', icon: '🥇' },
+  monthly_champion: { title: 'Monthly Champion', description: 'Attended 5+ events this month', category: 'Performance', tier: 'bronze', icon: '🥉' },
   
-  // Leadership & Recognition
-  top_3: { title: 'Top Performer', description: 'Top 3 in pledge class', category: 'Leadership' },
-  community_leader: { title: 'Community Leader', description: 'Attended 3+ different event types', category: 'Leadership' },
-  dedicated_member: { title: 'Dedicated Member', description: 'Active for full semester', category: 'Leadership' }
+  // Leadership & Recognition - High-tier achievements
+  top_3: { title: 'Top Performer', description: 'Top 3 in pledge class', category: 'Leadership', tier: 'gold', icon: '🥇' },
+  community_leader: { title: 'Community Leader', description: 'Attended 3+ different event types', category: 'Leadership', tier: 'silver', icon: '🥈' },
+  dedicated_member: { title: 'Dedicated Member', description: 'Active for full semester', category: 'Leadership', tier: 'rose-gold', icon: '🏆' },
+  
+  // Special Recognition - Rose Gold tier exclusives
+  fraternity_legend: { title: 'Fraternity Legend', description: 'Outstanding lifetime contribution', category: 'Leadership', tier: 'rose-gold', icon: '🏆' },
+  mentor_master: { title: 'Mentor Master', description: 'Guided 5+ new members successfully', category: 'Leadership', tier: 'rose-gold', icon: '🏆' }
+};
+
+// Tier configuration for styling and order
+const TIER_CONFIG = {
+  bronze: { name: 'Bronze', color: '#CD7F32', gradient: ['#CD7F32', '#B8860B'], order: 1 },
+  silver: { name: 'Silver', color: '#C0C0C0', gradient: ['#C0C0C0', '#A8A8A8'], order: 2 },
+  gold: { name: 'Gold', color: '#FFD700', gradient: ['#FFD700', '#FFA500'], order: 3 },
+  'rose-gold': { name: 'Rose Gold', color: '#E8B4A0', gradient: ['#E8B4A0', '#D4A574'], order: 4 }
 };
 
 // Available majors for multi-select
@@ -137,7 +152,7 @@ const EventRow: React.FC<{
     <Text style={styles.cell}>{event.host_name}</Text>
     {hasFeedbackSubmitted ? (
       <View style={[styles.feedbackButton, { backgroundColor: '#28a745' }]}>
-        <Text style={[styles.feedbackButtonText, { color: 'white' }]}>✅ Done</Text>
+        <Text style={[styles.feedbackButtonText, { color: 'white' }]}>✅</Text>
       </View>
     ) : (
       <TouchableOpacity 
@@ -181,24 +196,81 @@ const ProgressRing: React.FC<{ progress: number; size: number; strokeWidth: numb
   );
 };
 
-const AchievementBadge: React.FC<{ title: string; icon?: string; earned: boolean; description?: string }> = ({ title, icon, earned, description }) => (
-  <View style={[styles.badge, earned ? styles.badgeEarned : styles.badgeLocked]}>
-    <Text style={[styles.badgeIcon, { opacity: earned ? 1 : 0.3 }]}>
-      {icon || '🏆'}
-    </Text>
-    <Text style={[styles.badgeTitle, { 
-      opacity: earned ? 1 : 0.5,
-      color: earned ? Colors.primary : '#888'
-    }]}>
-      {title}
-    </Text>
-    {description && (
-      <Text style={[styles.badgeDescription, { opacity: earned ? 1 : 0.6 }]}>
-        {description}
+const AchievementBadge: React.FC<{ 
+  title: string; 
+  icon?: string; 
+  earned: boolean; 
+  description?: string;
+  tier?: string;
+  size?: 'small' | 'medium' | 'large';
+}> = ({ title, icon, earned, description, tier = 'bronze', size = 'medium' }) => {
+  const tierConfig = TIER_CONFIG[tier as keyof typeof TIER_CONFIG] || TIER_CONFIG.bronze;
+  const sizeStyle = size === 'small' ? styles.badgeSmall : size === 'large' ? styles.badgeLarge : styles.badge;
+  
+  return (
+    <View style={[
+      sizeStyle,
+      earned ? [styles.badgeEarned, { borderColor: tierConfig.color }] : styles.badgeLocked
+    ]}>
+      {/* Tier indicator */}
+      {earned && (
+        <View style={[styles.tierIndicator, { backgroundColor: tierConfig.color }]}>
+          <Text style={styles.tierText}>{tierConfig.name.toUpperCase()}</Text>
+        </View>
+      )}
+      
+      {/* Achievement Icon */}
+      <View style={styles.badgeIconContainer}>
+        <Text style={[
+          styles.badgeIcon, 
+          { opacity: earned ? 1 : 0.3 },
+          size === 'large' && styles.badgeIconLarge,
+          size === 'small' && styles.badgeIconSmall
+        ]}>
+          {earned ? (icon || tierConfig.gradient[0] === '#CD7F32' ? '🥉' : 
+                     tierConfig.gradient[0] === '#C0C0C0' ? '🥈' :
+                     tierConfig.gradient[0] === '#FFD700' ? '🥇' : '🏆') : '🔒'}
+        </Text>
+        
+        {/* Glow effect for earned achievements */}
+        {earned && (
+          <View style={[styles.glowEffect, { backgroundColor: tierConfig.color + '20' }]} />
+        )}
+      </View>
+      
+      {/* Achievement Title */}
+      <Text style={[
+        styles.badgeTitle, 
+        { 
+          opacity: earned ? 1 : 0.5,
+          color: earned ? tierConfig.color : '#888',
+          fontWeight: earned ? '800' : '600'
+        },
+        size === 'large' && styles.badgeTitleLarge,
+        size === 'small' && styles.badgeTitleSmall
+      ]}>
+        {title}
       </Text>
-    )}
-  </View>
-);
+      
+      {/* Achievement Description */}
+      {description && (
+        <Text style={[
+          styles.badgeDescription, 
+          { opacity: earned ? 1 : 0.6 },
+          size === 'large' && styles.badgeDescriptionLarge,
+          size === 'small' && styles.badgeDescriptionSmall
+        ]}>
+          {description}
+        </Text>
+      )}
+      
+      {/* Shine effect for high-tier achievements */}
+      {earned && (tier === 'gold' || tier === 'rose-gold') && (
+        <View style={styles.shineEffect} />
+      )}
+    </View>
+  );
+};
 
 export default function AccountTab() {
   // Profile state variables
@@ -220,6 +292,7 @@ export default function AccountTab() {
   const [sexualOrientation, setSexualOrientation] = useState<string>('');
   const [expectedGraduation, setExpectedGraduation] = useState<string>('');
   const [pledgeClass, setPledgeClass] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [major, setMajor] = useState<string | null>(null);
   // Profile editing restriction: Users can only edit their profile once per week
   const [lastProfileUpdate, setLastProfileUpdate] = useState<string | null>(null);
@@ -264,6 +337,9 @@ export default function AccountTab() {
   const [testBankModalVisible, setTestBankModalVisible] = useState(false);
   const [accountDetailsModalVisible, setAccountDetailsModalVisible] = useState(false);
   const [pointAppealModalVisible, setPointAppealModalVisible] = useState(false);
+  const [accountDeletionModalVisible, setAccountDeletionModalVisible] = useState(false);
+  const [deletionConfirmationText, setDeletionConfirmationText] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   // Point appeal state
   const [selectedAppealEvent, setSelectedAppealEvent] = useState<Event | null>(null);
@@ -319,8 +395,24 @@ export default function AccountTab() {
       const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const thisSemester = new Date(now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1, 8, 1); // Fall semester starts in August
       
-      // Basic counts and points
-      const totalPoints = userEvents.reduce((sum, event) => sum + (event.point_value || 0), 0);
+      // Fetch registrations to calculate bonus points (0.5 for registration)
+      const eventIds = userEvents.map(e => e.id).filter(id => id);
+      const { data: registrations } = await supabase
+        .from('event_registration')
+        .select('event_id')
+        .eq('user_id', userId)
+        .in('event_id', eventIds);
+      
+      const registeredEventIds = new Set(registrations?.map(r => r.event_id) || []);
+      
+      // Calculate total points with registration bonus
+      // Fixed point system: 1 point for attendance + 0.5 points for registration
+      const totalPoints = userEvents.reduce((sum, event) => {
+        const wasRegistered = registeredEventIds.has(event.id);
+        const pointsEarned = wasRegistered ? 1.5 : 1;
+        return sum + pointsEarned;
+      }, 0);
+      
       const eventsThisMonth = userEvents.filter(event => getDateInEST(event.date) >= thisMonth).length;
       const eventsThisSemester = userEvents.filter(event => getDateInEST(event.date) >= thisSemester).length;
       
@@ -350,65 +442,129 @@ export default function AccountTab() {
       longestStreak = Math.max(longestStreak, tempStreak);
       currentStreak = tempStreak;
       
-      // Calculate attendance rate (compared to total available events)
-      const { data: allEvents } = await supabase
-        .from('events')
-        .select('id')
-        .eq('status', 'approved')
-        .gte('start_time', thisSemester.toISOString());
+      // Parallelize first batch of queries: events, pledge class members, all members
+      const [
+        { data: allEvents },
+        { data: pledgeClassMembers },
+        { data: allMembers }
+      ] = await Promise.all([
+        supabase
+          .from('events')
+          .select('id')
+          .eq('status', 'approved')
+          .gte('start_time', thisSemester.toISOString()),
+        supabase
+          .from('users')
+          .select('user_id')
+          .eq('pledge_class', profile.pledge_class)
+          .eq('approved', true),
+        supabase
+          .from('users')
+          .select('user_id')
+          .eq('approved', true)
+      ]);
       
       const attendanceRate = allEvents ? (eventsThisSemester / allEvents.length) * 100 : 0;
-      
-      // Get pledge class ranking
-      const { data: pledgeClassMembers } = await supabase
-        .from('users')
-        .select('user_id')
-        .eq('pledge_class', profile.pledge_class)
-        .eq('approved', true);
-      
       const totalInPledgeClass = pledgeClassMembers?.length || 1;
-      
-      // Get points for all pledge class members to calculate ranking
-      const { data: pledgeClassAttendance } = await supabase
-        .from('event_attendance')
-        .select('user_id, events(point_value)')
-        .in('user_id', pledgeClassMembers?.map(m => m.user_id) || []);
-      
-      const memberPoints = pledgeClassAttendance?.reduce((acc, record) => {
-        const userId = record.user_id;
-        const eventData = record.events as any;
-        const points = Array.isArray(eventData) ? eventData[0]?.point_value || 0 : eventData?.point_value || 0;
-        acc[userId] = (acc[userId] || 0) + points;
-        return acc;
-      }, {} as Record<string, number>) || {};
-      
-      const sortedMembers = Object.entries(memberPoints).sort(([,a], [,b]) => b - a);
-      const rankInPledgeClass = sortedMembers.findIndex(([id]) => id === userId) + 1;
-      
-      // Get fraternity ranking (all approved members)
-      const { data: allMembers } = await supabase
-        .from('users')
-        .select('user_id')
-        .eq('approved', true);
-      
       const totalInFraternity = allMembers?.length || 1;
       
-      // Get points for all fraternity members to calculate ranking
-      const { data: allAttendance } = await supabase
-        .from('event_attendance')
-        .select('user_id, events(point_value)')
-        .in('user_id', allMembers?.map(m => m.user_id) || []);
+      // Use database aggregation to calculate points per user (MUCH faster than client-side)
+      const pledgeClassUserIds = pledgeClassMembers?.map(m => m.user_id) || [];
+      const allMemberUserIds = allMembers ? allMembers.map(m => m.user_id) : [];
       
-      const allMemberPoints = allAttendance?.reduce((acc, record) => {
-        const userId = record.user_id;
-        const eventData = record.events as any;
-        const points = Array.isArray(eventData) ? eventData[0]?.point_value || 0 : eventData?.point_value || 0;
-        acc[userId] = (acc[userId] || 0) + points;
-        return acc;
-      }, {} as Record<string, number>) || {};
-      
-      const sortedAllMembers = Object.entries(allMemberPoints).sort(([,a], [,b]) => b - a);
-      const rankInFraternity = sortedAllMembers.findIndex(([id]) => id === userId) + 1;
+      // Calculate pledge class rankings using database aggregation
+      let rankInPledgeClass = 0;
+      if (pledgeClassUserIds.length > 0) {
+        // Try database aggregation first (fallback to manual if RPC doesn't exist)
+        const aggregationResult = await supabase.rpc('calculate_user_points', {
+          user_ids: pledgeClassUserIds
+        });
+
+        // Fallback to manual calculation if RPC doesn't exist or fails
+        if (aggregationResult.error || !aggregationResult.data) {
+          const [
+            { data: pledgeClassAttendance },
+            { data: pledgeClassApprovedAppeals }
+          ] = await Promise.all([
+            supabase
+              .from('event_attendance')
+              .select('user_id, events(point_value)')
+              .in('user_id', pledgeClassUserIds),
+            supabase
+              .from('point_appeal')
+              .select('user_id, events(point_value)')
+              .in('user_id', pledgeClassUserIds)
+              .eq('status', 'approved')
+          ]);
+
+          // Client-side aggregation as fallback
+          const memberPoints: Record<string, number> = {};
+          pledgeClassAttendance?.forEach(record => {
+            const eventData = record.events as any;
+            const points = Array.isArray(eventData) ? eventData[0]?.point_value || 0 : eventData?.point_value || 0;
+            memberPoints[record.user_id] = (memberPoints[record.user_id] || 0) + points;
+          });
+          pledgeClassApprovedAppeals?.forEach(record => {
+            const eventData = record.events as any;
+            const points = Array.isArray(eventData) ? eventData[0]?.point_value || 0 : eventData?.point_value || 0;
+            memberPoints[record.user_id] = (memberPoints[record.user_id] || 0) + points;
+          });
+
+          const sortedMembers = Object.entries(memberPoints).sort(([,a], [,b]) => b - a);
+          rankInPledgeClass = sortedMembers.findIndex(([id]) => id === userId) + 1;
+        } else {
+          // Use aggregated data from database
+          const sorted = aggregationResult.data.sort((a: any, b: any) => b.total_points - a.total_points);
+          rankInPledgeClass = sorted.findIndex((p: any) => p.user_id === userId) + 1;
+        }
+      }
+
+      // Calculate fraternity rankings using database aggregation
+      let rankInFraternity = 0;
+      if (allMemberUserIds.length > 0) {
+        // Try to use database aggregation RPC
+        const fraternityAggregation = await supabase.rpc('calculate_user_points', {
+          user_ids: allMemberUserIds
+        });
+
+        // Fallback to manual calculation if RPC doesn't exist or fails
+        if (fraternityAggregation.error || !fraternityAggregation.data) {
+          const [
+            { data: allAttendance },
+            { data: allApprovedAppeals }
+          ] = await Promise.all([
+            supabase
+              .from('event_attendance')
+              .select('user_id, events(point_value)')
+              .in('user_id', allMemberUserIds),
+            supabase
+              .from('point_appeal')
+              .select('user_id, events(point_value)')
+              .in('user_id', allMemberUserIds)
+              .eq('status', 'approved')
+          ]);
+
+          // Client-side aggregation as fallback
+          const fraternityPoints: Record<string, number> = {};
+          allAttendance?.forEach(record => {
+            const eventData = record.events as any;
+            const points = Array.isArray(eventData) ? eventData[0]?.point_value || 0 : eventData?.point_value || 0;
+            fraternityPoints[record.user_id] = (fraternityPoints[record.user_id] || 0) + points;
+          });
+          allApprovedAppeals?.forEach(record => {
+            const eventData = record.events as any;
+            const points = Array.isArray(eventData) ? eventData[0]?.point_value || 0 : eventData?.point_value || 0;
+            fraternityPoints[record.user_id] = (fraternityPoints[record.user_id] || 0) + points;
+          });
+
+          const sortedAllMembers = Object.entries(fraternityPoints).sort(([,a], [,b]) => b - a);
+          rankInFraternity = sortedAllMembers.findIndex(([id]) => id === userId) + 1;
+        } else {
+          // Use aggregated data from database
+          const sorted = fraternityAggregation.data.sort((a: any, b: any) => b.total_points - a.total_points);
+          rankInFraternity = sorted.findIndex((p: any) => p.user_id === userId) + 1;
+        }
+      }
       
       // Monthly progress for last 6 months
       const monthlyProgress = [];
@@ -435,10 +591,11 @@ export default function AccountTab() {
       // Get unique event types for diversity check
       const uniqueEventTypes = [...new Set(userEvents.map(event => event.point_type).filter(Boolean))];
       
-      // Consistency & Streaks
+      // Consistency & Streaks (Bronze → Rose Gold progression)
       if (currentStreak >= 3) achievements.push('streak_starter');
       if (currentStreak >= 10) achievements.push('iron_brother');
       if (currentStreak >= 20) achievements.push('unstoppable');
+      if (currentStreak >= 30) achievements.push('legend_streak');
       
       // Milestone Attendance
       if (eventsThisSemester >= 1) achievements.push('first_timer');
@@ -447,10 +604,11 @@ export default function AccountTab() {
       if (eventsThisSemester >= 50) achievements.push('gold_brother');
       if (eventsThisSemester >= 100) achievements.push('diamond_brother');
       
-      // Points-based achievements
+      // Points-based achievements (enhanced progression)
       if (totalPoints >= 50) achievements.push('points_50');
       if (totalPoints >= 100) achievements.push('points_100');
       if (totalPoints >= 250) achievements.push('points_250');
+      if (totalPoints >= 500) achievements.push('points_500');
       
       // Attendance rate achievements
       if (attendanceRate >= 75) achievements.push('punctual_pro');
@@ -463,6 +621,17 @@ export default function AccountTab() {
       if (rankInPledgeClass <= 3 && totalInPledgeClass > 3) achievements.push('top_3');
       if (uniqueEventTypes.length >= 3) achievements.push('community_leader');
       if (eventsThisSemester >= 15) achievements.push('dedicated_member');
+      
+      // Special Rose Gold achievements (very exclusive)
+      if (totalPoints >= 1000 && attendanceRate >= 95 && eventsThisSemester >= 75) {
+        achievements.push('fraternity_legend');
+      }
+      
+      // Check for mentor achievements (would need additional data tracking)
+      // For now, award based on high activity and leadership
+      if (eventsThisSemester >= 50 && rankInPledgeClass <= 2 && uniqueEventTypes.length >= 4) {
+        achievements.push('mentor_master');
+      }
       
       setAnalytics({
         totalPoints,
@@ -487,6 +656,12 @@ export default function AccountTab() {
     try {
       const authResult = await checkAuthentication();
       if (!authResult.isAuthenticated) return;
+      
+      // Skip fetching user appeals for pledges
+      if (userRole === 'pledge') {
+        setUserAppeals([]);
+        return;
+      }
 
       const { data: appeals, error } = await supabase
         .from('point_appeal')
@@ -531,52 +706,65 @@ export default function AccountTab() {
     } catch (error) {
       console.error('Error in fetchUserAppeals:', error);
     }
-  }, []);
+  }, []); // userRole is checked inside the function, no dependency needed
 
   const fetchAppealableEvents = useCallback(async () => {
     try {
       const authResult = await checkAuthentication();
       if (!authResult.isAuthenticated) return;
+      
+      // Skip fetching appealable events for pledges
+      if (userRole === 'pledge') {
+        setAppealableEvents([]);
+        return;
+      }
 
       // Fetch approved events from the last 30 days that user didn't attend
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const currentTime = new Date();
 
-      const { data: allEvents, error: eventsError } = await supabase
-        .from('events')
-        .select(`
-          id, 
-          title, 
-          start_time, 
-          point_value, 
-          point_type,
-          creator:created_by(first_name, last_name)
-        `)
-        .eq('status', 'approved')
-        .gte('start_time', thirtyDaysAgo.toISOString())
-        .order('start_time', { ascending: false });
+      // Parallelize all three queries
+      const [
+        { data: allEvents, error: eventsError },
+        { data: attendedEvents, error: attendanceError },
+        { data: appealedEvents, error: appealsError }
+      ] = await Promise.all([
+        supabase
+          .from('events')
+          .select(`
+            id, 
+            title, 
+            start_time,
+            end_time,
+            point_value, 
+            point_type,
+            creator:created_by(first_name, last_name)
+          `)
+          .eq('status', 'approved')
+          .gte('start_time', thirtyDaysAgo.toISOString())
+          .lt('end_time', currentTime.toISOString()) // Only past events
+          .neq('point_type', 'No Point') // Exclude "No Point" events
+          .order('start_time', { ascending: false }),
+        supabase
+          .from('event_attendance')
+          .select('event_id')
+          .eq('user_id', authResult.user.id),
+        supabase
+          .from('point_appeal')
+          .select('event_id')
+          .eq('user_id', authResult.user.id)
+      ]);
 
       if (eventsError) {
         console.error('Error fetching events:', eventsError);
         return;
       }
 
-      // Fetch events the user attended
-      const { data: attendedEvents, error: attendanceError } = await supabase
-        .from('event_attendance')
-        .select('event_id')
-        .eq('user_id', authResult.user.id);
-
       if (attendanceError) {
         console.error('Error fetching attendance:', attendanceError);
         return;
       }
-
-      // Fetch events the user already appealed
-      const { data: appealedEvents, error: appealsError } = await supabase
-        .from('point_appeal')
-        .select('event_id')
-        .eq('user_id', authResult.user.id);
 
       if (appealsError) {
         console.error('Error fetching appeals:', appealsError);
@@ -586,7 +774,11 @@ export default function AccountTab() {
       const attendedEventIds = new Set(attendedEvents?.map(a => a.event_id) || []);
       const appealedEventIds = new Set(appealedEvents?.map(a => a.event_id) || []);
 
-      // Filter to events not attended and not appealed
+      // Filter to events that meet appeal criteria:
+      // 1. Not attended by user
+      // 2. Not already appealed by user  
+      // 3. Past events only (end_time < current time) - filtered in query
+      // 4. Exclude "No Point" events - filtered in query
       const appealable = (allEvents || [])
         .filter(event => 
           !attendedEventIds.has(event.id) && 
@@ -620,7 +812,7 @@ export default function AccountTab() {
     } catch (error) {
       console.error('Error in fetchAppealableEvents:', error);
     }
-  }, []);
+  }, []); // userRole is checked inside the function, no dependency needed
 
   const fetchAccountData = useCallback(async () => {
     try {
@@ -644,6 +836,7 @@ export default function AccountTab() {
           last_name, 
           pledge_class, 
           approved, 
+          role,
           expected_graduation,
           phone_number,
           email,
@@ -685,6 +878,7 @@ export default function AccountTab() {
       setPhoneNumber(profile.phone_number || '');
       setEmail(profile.email || '');
       setUid(profile.uid || '');
+      setUserRole(profile.role || null);
       // setDateOfBirth(profile.date_of_birth || ''); // Column doesn't exist yet
       setMajors(profile.majors || '');
       // Parse majors into array for multi-select
@@ -703,11 +897,21 @@ export default function AccountTab() {
       setMajor(profile.majors || ''); // Use majors field for backward compatibility
       setLastProfileUpdate(profile.last_profile_update);
 
-      // Step 3: Fetch attended events with better error handling
-      const { data: attendedEvents, error: eventError } = await supabase
-        .from('event_attendance')
-        .select('id, events(id, title, start_time, point_value, point_type, creator:created_by(first_name, last_name))')
-        .eq('user_id', user.id);
+      // Step 3: Parallelize fetching attended events and approved appeals
+      const [
+        { data: attendedEvents, error: eventError },
+        { data: approvedAppeals, error: appealError }
+      ] = await Promise.all([
+        supabase
+          .from('event_attendance')
+          .select('id, events(id, title, start_time, point_value, point_type, creator:created_by(first_name, last_name))')
+          .eq('user_id', user.id),
+        supabase
+          .from('point_appeal')
+          .select('event_id, events(id, title, start_time, point_value, point_type, creator:created_by(first_name, last_name))')
+          .eq('user_id', user.id)
+          .eq('status', 'approved')
+      ]);
 
       if (eventError) {
         console.error('Event fetch error:', eventError);
@@ -716,8 +920,9 @@ export default function AccountTab() {
         setAnalytics(prev => ({ ...prev, totalPoints: 0, eventsThisMonth: 0, eventsThisSemester: 0 }));
         Alert.alert('Warning', 'Could not load event history, but profile loaded successfully.');
       } else {
-        const formatted: Event[] = (attendedEvents || []).map((record: any) => ({
-          id: record.events?.id || record.id, // Use the actual event ID from the nested events object
+        // Format regular attendance events
+        const formattedAttendance: Event[] = (attendedEvents || []).map((record: any) => ({
+          id: record.events?.id || record.id,
           title: record.events?.title || 'Unknown Event',
           date: record.events?.start_time || new Date().toISOString(),
           host_name: record.events?.creator 
@@ -727,11 +932,29 @@ export default function AccountTab() {
           point_type: record.events?.point_type || 'other',
         }));
 
-        formatted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        setEvents(formatted);
+        // Format approved appeals as attendance events
+        const formattedAppeals: Event[] = (approvedAppeals || []).map((record: any) => ({
+          id: record.events?.id || record.event_id,
+          title: record.events?.title || 'Unknown Event',
+          date: record.events?.start_time || new Date().toISOString(),
+          host_name: record.events?.creator 
+            ? `${record.events.creator.first_name || ''} ${record.events.creator.last_name || ''}`.trim() || 'N/A'
+            : 'N/A',
+          point_value: record.events?.point_value || 0,
+          point_type: record.events?.point_type || 'other',
+        }));
+
+        // Combine and deduplicate events (in case someone has both attendance and approved appeal for same event)
+        const allEvents = [...formattedAttendance, ...formattedAppeals];
+        const uniqueEvents = allEvents.filter((event, index, self) => 
+          index === self.findIndex(e => e.id === event.id)
+        );
+
+        uniqueEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setEvents(uniqueEvents);
         
         // Step 4: Fetch existing event feedback submissions
-        const eventIds = formatted.map(event => event.id).filter(id => id);
+        const eventIds = uniqueEvents.map(event => event.id).filter(id => id);
         if (eventIds.length > 0) {
           const { data: existingFeedback, error: feedbackError } = await supabase
             .from('event_feedback')
@@ -745,8 +968,8 @@ export default function AccountTab() {
           }
         }
         
-        // Calculate analytics
-        await calculateAnalytics(formatted, profile, user.id);
+        // Calculate analytics using combined events (attendance + approved appeals)
+        await calculateAnalytics(uniqueEvents, profile, user.id);
         
         // Step 5: Fetch user's point appeals
         await fetchUserAppeals();
@@ -762,7 +985,7 @@ export default function AccountTab() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [calculateAnalytics, fetchUserAppeals, fetchAppealableEvents]);
 
   useEffect(() => {
     fetchAccountData();
@@ -1030,6 +1253,79 @@ export default function AccountTab() {
     } else {
       // Redirect to login screen after successful logout
       handleAuthenticationRedirect();
+    }
+  };
+
+  const handleAccountDeletion = () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to permanently delete your account? This action cannot be undone and will:\n\n• Delete all your personal data\n• Remove your event history\n• Cancel any pending appeals\n• Remove you from all organizations\n\nThis process may take up to 30 days to complete.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => setAccountDeletionModalVisible(true),
+        },
+      ]
+    );
+  };
+
+  const confirmAccountDeletion = async () => {
+    if (deletionConfirmationText.toLowerCase() !== 'delete my account') {
+      Alert.alert('Confirmation Required', 'Please type "DELETE MY ACCOUNT" exactly to confirm deletion.');
+      return;
+    }
+
+    setIsDeletingAccount(true);
+
+    try {
+      // Check authentication
+      const authResult = await checkAuthentication();
+      if (!authResult.isAuthenticated) {
+        handleAuthenticationRedirect();
+        return;
+      }
+
+      const user = authResult.user;
+
+      // Call the account deletion service
+      const result = await AccountDeletionService.deleteAccount(user.id);
+
+      if (!result.success) {
+        console.error('Account deletion error:', result.error);
+        Alert.alert(
+          'Deletion Failed',
+          result.error || 'We encountered an error while processing your account deletion. Please try again or contact support.'
+        );
+        return;
+      }
+
+      // Sign out the user
+      await supabase.auth.signOut();
+
+      Alert.alert(
+        'Account Deletion Initiated',
+        'Your account deletion has been initiated. You have been logged out and your data will be permanently removed within 30 days. If you change your mind, you can contact support within 7 days to potentially recover your account.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setAccountDeletionModalVisible(false);
+              setDeletionConfirmationText('');
+              handleAuthenticationRedirect();
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Unexpected error during account deletion:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsDeletingAccount(false);
     }
   };
 
@@ -1749,60 +2045,157 @@ export default function AccountTab() {
             </Text>
           </View>
           
-          {/* Preview Grid - Always visible - Show only 3 achievements to save space */}
+          {/* Preview Grid - Show highest tier earned achievements */}
           <View style={styles.achievementsPreview}>
-            {Object.entries(ACHIEVEMENTS).slice(0, 3).map(([key, achievement]) => (
-              <AchievementBadge 
-                key={key}
-                title={achievement.title}
-                earned={analytics.achievements.includes(key)}
-                description={achievement.description}
-              />
-            ))}
-            {/* Show count of remaining achievements */}
+            {(() => {
+              // Get earned achievements sorted by tier (highest first)
+              const earnedAchievements = Object.entries(ACHIEVEMENTS)
+                .filter(([key]) => analytics.achievements.includes(key))
+                .sort(([, a], [, b]) => {
+                  const tierA = TIER_CONFIG[a.tier as keyof typeof TIER_CONFIG] || TIER_CONFIG.bronze;
+                  const tierB = TIER_CONFIG[b.tier as keyof typeof TIER_CONFIG] || TIER_CONFIG.bronze;
+                  return tierB.order - tierA.order;
+                });
+              
+              // Show top 3 earned achievements, or first 3 if none earned
+              const displayAchievements = earnedAchievements.length > 0 
+                ? earnedAchievements.slice(0, 3)
+                : Object.entries(ACHIEVEMENTS).slice(0, 3);
+              
+              return displayAchievements.map(([key, achievement]) => (
+                <AchievementBadge 
+                  key={key}
+                  title={achievement.title}
+                  icon={achievement.icon}
+                  earned={analytics.achievements.includes(key)}
+                  description={achievement.description}
+                  tier={achievement.tier}
+                  size="small"
+                />
+              ));
+            })()}
+            
+            {/* Show count of remaining achievements with tier breakdown */}
             {Object.keys(ACHIEVEMENTS).length > 3 && (
               <View style={styles.moreAchievementsBadge}>
                 <Text style={styles.moreAchievementsText}>
                   +{Object.keys(ACHIEVEMENTS).length - 3} more
                 </Text>
+                <View style={styles.tierSummary}>
+                  {Object.entries(TIER_CONFIG).map(([tierKey, tierConfig]) => {
+                    const tierCount = Object.values(ACHIEVEMENTS).filter(a => a.tier === tierKey).length;
+                    const earnedCount = Object.entries(ACHIEVEMENTS)
+                      .filter(([key, achievement]) => 
+                        achievement.tier === tierKey && analytics.achievements.includes(key)
+                      ).length;
+                    return (
+                      <View key={tierKey} style={styles.tierSummaryItem}>
+                        <View style={[styles.tierDot, { backgroundColor: tierConfig.color }]} />
+                        <Text style={styles.tierSummaryText}>{earnedCount}/{tierCount}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
             )}
           </View>
 
-          {/* Full Grid - Expanded view */}
+          {/* Full Grid - Expanded view organized by tiers */}
           {achievementsExpanded && (
             <View style={styles.achievementsExpanded}>
-              {['Consistency', 'Milestones', 'Performance', 'Leadership'].map(category => {
-                const categoryAchievements = Object.entries(ACHIEVEMENTS).filter(
-                  ([_, achievement]) => achievement.category === category
-                );
-                
-                return (
-                  <View key={category} style={styles.achievementCategory}>
-                    <Text style={styles.categoryTitle}>{category}</Text>
-                    <View style={styles.achievementsGrid}>
-                      {categoryAchievements.map(([key, achievement]) => (
-                        <AchievementBadge 
-                          key={key}
-                          title={achievement.title}
-                          earned={analytics.achievements.includes(key)}
-                          description={achievement.description}
-                        />
-                      ))}
+              {Object.entries(TIER_CONFIG)
+                .sort(([, a], [, b]) => b.order - a.order) // Highest tier first
+                .map(([tierKey, tierConfig]) => {
+                  const tierAchievements = Object.entries(ACHIEVEMENTS).filter(
+                    ([_, achievement]) => achievement.tier === tierKey
+                  );
+                  
+                  if (tierAchievements.length === 0) return null;
+                  
+                  const earnedInTier = tierAchievements.filter(([key]) => 
+                    analytics.achievements.includes(key)
+                  ).length;
+                  
+                  return (
+                    <View key={tierKey} style={styles.achievementTier}>
+                      <View style={styles.tierHeader}>
+                        <View style={styles.tierHeaderLeft}>
+                          <View style={[styles.tierIcon, { backgroundColor: tierConfig.color }]}>
+                            <Text style={styles.tierIconText}>
+                              {tierKey === 'bronze' ? '🥉' : 
+                               tierKey === 'silver' ? '🥈' :
+                               tierKey === 'gold' ? '🥇' : '🏆'}
+                            </Text>
+                          </View>
+                          <View>
+                            <Text style={[styles.tierTitle, { color: tierConfig.color }]}>
+                              {tierConfig.name} Tier
+                            </Text>
+                            <Text style={styles.tierSubtitle}>
+                              {earnedInTier} of {tierAchievements.length} earned
+                            </Text>
+                          </View>
+                        </View>
+                        
+                        {/* Tier progress bar */}
+                        <View style={styles.tierProgress}>
+                          <View style={styles.tierProgressBar}>
+                            <View 
+                              style={[
+                                styles.tierProgressFill, 
+                                { 
+                                  width: `${(earnedInTier / tierAchievements.length) * 100}%`,
+                                  backgroundColor: tierConfig.color 
+                                }
+                              ]} 
+                            />
+                          </View>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.achievementsGrid}>
+                        {tierAchievements.map(([key, achievement]) => (
+                          <AchievementBadge 
+                            key={key}
+                            title={achievement.title}
+                            icon={achievement.icon}
+                            earned={analytics.achievements.includes(key)}
+                            description={achievement.description}
+                            tier={achievement.tier}
+                            size="medium"
+                          />
+                        ))}
+                      </View>
+                      
+                      {/* Category breakdown for this tier */}
+                      <View style={styles.tierCategories}>
+                        {['Consistency', 'Milestones', 'Performance', 'Leadership'].map(category => {
+                          const categoryCount = tierAchievements.filter(
+                            ([_, achievement]) => achievement.category === category
+                          ).length;
+                          if (categoryCount === 0) return null;
+                          
+                          return (
+                            <View key={category} style={styles.categoryChip}>
+                              <Text style={styles.categoryChipText}>{category} ({categoryCount})</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
                     </View>
-                  </View>
-                );
-              })}
+                  );
+                })}
             </View>
           )}
         </View>
 
-        {/* Point Appeals Section */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.standardSectionHeader}>Point Appeals</Text>
-          
-          {/* User's Appeals Status */}
-          {userAppeals.length > 0 && (
+        {/* Point Appeals Section - Hidden for pledges */}
+        {userRole !== 'pledge' && (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.standardSectionHeader}>Point Appeals</Text>
+            
+            {/* User's Appeals Status */}
+            {userAppeals.length > 0 && (
             <View style={styles.appealsContainer}>
               <Text style={styles.subHeader}>Your Appeals Status</Text>
               {userAppeals.map((appeal) => (
@@ -1882,7 +2275,8 @@ export default function AccountTab() {
               No recent events available for appeal.
             </Text>
           )}
-        </View>
+          </View>
+        )}
 
         {/* Account Details - Button to open modal */}
         <View style={styles.sectionContainer}>
@@ -1982,6 +2376,10 @@ export default function AccountTab() {
           </TouchableOpacity>
           <TouchableOpacity style={styles.linkButton} onPress={handleLogout}>
             <Text style={[styles.link, { color: 'red' }]}>Log Out</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.linkButton} onPress={handleAccountDeletion}>
+            <Text style={[styles.link, { color: '#dc3545', fontWeight: 'bold' }]}>Delete Account</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -2432,6 +2830,105 @@ export default function AccountTab() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Account Deletion Modal */}
+      <Modal
+        visible={accountDeletionModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        transparent={false}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalContent}
+          >
+            <ScrollView contentContainerStyle={styles.modalScrollContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Delete Account</Text>
+                <TouchableOpacity
+                  style={styles.modalCloseButton}
+                  onPress={() => {
+                    setAccountDeletionModalVisible(false);
+                    setDeletionConfirmationText('');
+                  }}
+                >
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.deletionWarningContainer}>
+                <Text style={styles.deletionWarningIcon}>⚠️</Text>
+                <Text style={styles.deletionWarningTitle}>Permanent Account Deletion</Text>
+                <Text style={styles.deletionWarningText}>
+                  This action will permanently delete your account and cannot be undone. The following data will be removed:
+                </Text>
+                
+                <View style={styles.deletionItemsList}>
+                  <Text style={styles.deletionItem}>• Personal profile information</Text>
+                  <Text style={styles.deletionItem}>• Event attendance history</Text>
+                  <Text style={styles.deletionItem}>• Points and achievements</Text>
+                  <Text style={styles.deletionItem}>• Point appeals and feedback</Text>
+                  <Text style={styles.deletionItem}>• Organization memberships</Text>
+                  <Text style={styles.deletionItem}>• All uploaded files and documents</Text>
+                </View>
+
+                <Text style={styles.deletionProcessText}>
+                  Account deletion may take up to 30 days to complete. During this time, your account will be deactivated and inaccessible.
+                </Text>
+
+                <Text style={styles.deletionRecoveryText}>
+                  You have 7 days from deletion initiation to contact support for potential account recovery.
+                </Text>
+              </View>
+
+              <View style={styles.confirmationContainer}>
+                <Text style={styles.confirmationLabel}>
+                  To confirm deletion, type "DELETE MY ACCOUNT" below:
+                </Text>
+                <TextInput
+                  style={styles.confirmationInput}
+                  value={deletionConfirmationText}
+                  onChangeText={setDeletionConfirmationText}
+                  placeholder="Type here to confirm..."
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <View style={styles.modalButtonContainer}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => {
+                    setAccountDeletionModalVisible(false);
+                    setDeletionConfirmationText('');
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.deleteConfirmButton,
+                    (deletionConfirmationText.toLowerCase() !== 'delete my account' || isDeletingAccount) && 
+                    styles.deleteConfirmButtonDisabled
+                  ]}
+                  onPress={confirmAccountDeletion}
+                  disabled={deletionConfirmationText.toLowerCase() !== 'delete my account' || isDeletingAccount}
+                >
+                  {isDeletingAccount ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <Text style={styles.deleteConfirmButtonText}>
+                      Delete My Account Permanently
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -2441,6 +2938,10 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1, 
     backgroundColor: '#F8F9FA' 
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
   },
   content: { 
     padding: 16, 
@@ -3171,44 +3672,254 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   
-  // AchievementBadge component styles
+  // Enhanced AchievementBadge component styles with tier system
   badge: {
     width: '30%',
     alignItems: 'center',
-    padding: 12,
+    padding: 14,
     marginBottom: 16,
+    borderRadius: 16,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  badgeSmall: {
+    width: '28%',
+    alignItems: 'center',
+    padding: 10,
+    marginBottom: 12,
     borderRadius: 12,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  badgeLarge: {
+    width: '45%',
+    alignItems: 'center',
+    padding: 18,
+    marginBottom: 20,
+    borderRadius: 20,
+    position: 'relative',
+    overflow: 'hidden',
   },
   badgeEarned: {
-    backgroundColor: '#E8F5E8',
-    borderWidth: 2,
-    borderColor: Colors.primary,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
   },
   badgeLocked: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F8F9FA',
     borderWidth: 2,
     borderColor: '#E0E0E0',
+    opacity: 0.7,
+  },
+  
+  // Tier indicator styles
+  tierIndicator: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    zIndex: 10,
+  },
+  tierText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  
+  // Badge icon container with effects
+  badgeIconContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
   badgeIcon: {
-    fontSize: 28,
-    marginBottom: 6,
+    fontSize: 32,
     textAlign: 'center',
-    minHeight: 32,
-    lineHeight: 32,
+    minHeight: 36,
+    lineHeight: 36,
+    zIndex: 2,
   },
+  badgeIconSmall: {
+    fontSize: 24,
+    minHeight: 28,
+    lineHeight: 28,
+  },
+  badgeIconLarge: {
+    fontSize: 40,
+    minHeight: 44,
+    lineHeight: 44,
+  },
+  
+  // Glow effect for earned achievements
+  glowEffect: {
+    position: 'absolute',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    zIndex: 1,
+  },
+  
+  // Shine effect for high-tier achievements
+  shineEffect: {
+    position: 'absolute',
+    top: 0,
+    left: -100,
+    width: 30,
+    height: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    transform: [{ skewX: '-20deg' }],
+    zIndex: 5,
+  },
+  
   badgeTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     textAlign: 'center',
     marginBottom: 4,
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
-  badgeDescription: {
+  badgeTitleSmall: {
     fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  badgeTitleLarge: {
+    fontSize: 15,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  
+  badgeDescription: {
+    fontSize: 10,
     color: '#666',
     textAlign: 'center',
+    lineHeight: 14,
+    paddingHorizontal: 2,
+  },
+  badgeDescriptionSmall: {
+    fontSize: 9,
+    lineHeight: 12,
+  },
+  badgeDescriptionLarge: {
+    fontSize: 12,
     lineHeight: 16,
     paddingHorizontal: 4,
+  },
+  
+  // Tier summary styles
+  tierSummary: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  tierSummaryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  tierDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  tierSummaryText: {
+    fontSize: 10,
+    color: '#666',
+    fontWeight: '600',
+  },
+  
+  // Achievement tier styles (for expanded view)
+  achievementTier: {
+    marginBottom: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  tierHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  tierHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  tierIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  tierIconText: {
+    fontSize: 20,
+  },
+  tierTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  tierSubtitle: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  tierProgress: {
+    alignItems: 'flex-end',
+  },
+  tierProgressBar: {
+    width: 80,
+    height: 6,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  tierProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  
+  // Category chips for tier view
+  tierCategories: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  categoryChip: {
+    backgroundColor: '#F8F9FA',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  categoryChipText: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '600',
   },
   
   // File attachment styles
@@ -3865,6 +4576,128 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 24,
     gap: 12,
+  },
+  
+  // Account Deletion Styles
+  deletionWarningContainer: {
+    backgroundColor: '#fff5f5',
+    borderColor: '#feb2b2',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 16,
+    marginVertical: 16,
+  },
+  deletionWarningIcon: {
+    fontSize: 32,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  deletionWarningTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#c53030',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  deletionWarningText: {
+    fontSize: 14,
+    color: '#2d3748',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  deletionItemsList: {
+    marginVertical: 12,
+    paddingLeft: 8,
+  },
+  deletionItem: {
+    fontSize: 14,
+    color: '#4a5568',
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  deletionProcessText: {
+    fontSize: 13,
+    color: '#718096',
+    fontStyle: 'italic',
+    marginTop: 12,
+    lineHeight: 18,
+  },
+  deletionRecoveryText: {
+    fontSize: 13,
+    color: '#2b6cb0',
+    fontWeight: '500',
+    marginTop: 8,
+    lineHeight: 18,
+  },
+  confirmationContainer: {
+    marginVertical: 20,
+  },
+  confirmationLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2d3748',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  confirmationInput: {
+    borderWidth: 2,
+    borderColor: '#dc3545',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    backgroundColor: 'white',
+    color: '#dc3545',
+  },
+  deleteConfirmButton: {
+    backgroundColor: '#dc3545',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 50,
+  },
+  deleteConfirmButtonDisabled: {
+    backgroundColor: '#a0a0a0',
+    opacity: 0.6,
+  },
+  deleteConfirmButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  
+  // Missing modal styles
+  modalScrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCloseText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#666',
+  },
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

@@ -82,7 +82,22 @@ export default function SignupScreen() {
       const phoneNum = parseInt(phoneNumber);
       const uidNum = parseInt(uid);      // Check if conversion was successful
       if (isNaN(phoneNum) || isNaN(uidNum)) {
-        throw new Error('Please enter valid numbers for phone number and UID.');
+        Alert.alert(
+          'Invalid Input',
+          'Please enter valid numbers for phone number and UID.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Basic validation for phone number length
+      if (phoneNumber.length < 10 || phoneNumber.length > 15) {
+        Alert.alert(
+          'Invalid Phone Number',
+          'Please enter a valid phone number (10-15 digits).',
+          [{ text: 'OK' }]
+        );
+        return;
       }
       
       // Check if user already exists in the users table
@@ -97,16 +112,220 @@ export default function SignupScreen() {
       }
 
       if (existingUserData) {
-        Alert.alert('Account Exists', 'You already have an account. Please try logging in instead.');
-        router.replace('/(auth)/login');
+        Alert.alert(
+          'Account Already Exists', 
+          'An account with this information already exists. Would you like to sign in instead?',
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel'
+            },
+            {
+              text: 'Sign In',
+              onPress: () => router.replace('/(auth)/login')
+            }
+          ]
+        );
         return;
       }
 
-      // No existing user account - proceed with signup
-      setStep(3);
+      // Check the appropriate table based on role
+      if (role === 'pledge') {
+        // Check pledge table for pledges
+        const { data: pledgeData, error: pledgeError } = await supabase
+          .from('pledge')
+          .select('*')
+          .eq('phone_number', phoneNum)
+          .eq('UID', uidNum)
+          .single();
+
+        if (pledgeError && pledgeError.code !== 'PGRST116') {
+          console.error('Pledge query error:', pledgeError);
+          Alert.alert(
+            'Verification Error',
+            'We encountered an issue while verifying your information. Please try again later or contact support.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+
+        if (!pledgeData) {
+          Alert.alert(
+            'Verification Required',
+            'We couldn\'t verify your information. Please ensure your phone number and UID are correct, or contact chapter leadership for assistance.',
+            [
+              {
+                text: 'Try Again',
+                onPress: () => {
+                  setPhoneNumber('');
+                  setUid('');
+                }
+              },
+              {
+                text: 'Contact Support',
+                onPress: () => {
+                  Alert.alert(
+                    'Contact Information',
+                    'Please reach out to chapter leadership or officers for assistance with account verification.',
+                    [{ text: 'OK' }]
+                  );
+                }
+              }
+            ]
+          );
+          return;
+        }
+
+        // Show confirmation with pledge information (without exposing sensitive data)
+        const displayName = `${pledgeData.first_name || ''} ${pledgeData.last_name || ''}`.trim() || 'N/A';
+        const maskedPhone = pledgeData.phone_number ? `***-***-${pledgeData.phone_number.toString().slice(-4)}` : 'N/A';
+        
+        Alert.alert(
+          'Account Found',
+          `We found a matching record for:\n\nName: ${displayName}\nPhone: ${maskedPhone}\nPledge Class: ${pledgeData.pledge_class || 'Not specified'}\n\nIs this you?`,
+          [
+            {
+              text: 'Not Me',
+              style: 'cancel',
+              onPress: () => {
+                Alert.alert(
+                  'Verification Failed',
+                  'If this information doesn\'t match, please double-check your phone number and UID, or contact chapter leadership for assistance.',
+                  [
+                    {
+                      text: 'Try Again',
+                      onPress: () => {
+                        setPhoneNumber('');
+                        setUid('');
+                      }
+                    }
+                  ]
+                );
+              }
+            },
+            {
+              text: 'Yes, That\'s Me',
+              onPress: () => {
+                setExistingUser(pledgeData);
+                // Pre-fill name fields if available
+                if (pledgeData.first_name) setFirstName(pledgeData.first_name);
+                if (pledgeData.last_name) setLastName(pledgeData.last_name);
+                if (pledgeData.email) setEmail(pledgeData.email);
+                if (pledgeData.pledge_class) setPledgeClass(pledgeData.pledge_class);
+                setStep(3);
+              }
+            }
+          ]
+        );
+      } else if (role === 'brother') {
+        // Check brother table for brothers
+        const { data: brotherData, error: brotherError } = await supabase
+          .from('brother')
+          .select('*')
+          .eq('phone_number', phoneNum)
+          .eq('uid', uidNum)
+          .single();
+
+        if (brotherError && brotherError.code !== 'PGRST116') {
+          console.error('Brother query error:', brotherError);
+          Alert.alert(
+            'Verification Error',
+            'We encountered an issue while verifying your information. Please try again later or contact support.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+
+        if (!brotherData) {
+          Alert.alert(
+            'Verification Required',
+            'We couldn\'t verify your information. Please ensure your phone number and UID are correct, or contact chapter leadership for assistance.',
+            [
+              {
+                text: 'Try Again',
+                onPress: () => {
+                  setPhoneNumber('');
+                  setUid('');
+                }
+              },
+              {
+                text: 'Contact Support',
+                onPress: () => {
+                  Alert.alert(
+                    'Contact Information',
+                    'Please reach out to chapter leadership or officers for assistance with account verification.',
+                    [{ text: 'OK' }]
+                  );
+                }
+              }
+            ]
+          );
+          return;
+        }
+
+        // Show confirmation with brother information (without exposing sensitive data)
+        const displayName = `${brotherData.first_name || ''} ${brotherData.last_name || ''}`.trim() || 'N/A';
+        const maskedPhone = brotherData.phone_number ? `***-***-${brotherData.phone_number.toString().slice(-4)}` : 'N/A';
+        
+        Alert.alert(
+          'Account Found',
+          `We found a matching record for:\n\nName: ${displayName}\nPhone: ${maskedPhone}\nPledge Class: ${brotherData.pledge_class || 'Not specified'}\n\nIs this you?`,
+          [
+            {
+              text: 'Not Me',
+              style: 'cancel',
+              onPress: () => {
+                Alert.alert(
+                  'Verification Failed',
+                  'If this information doesn\'t match, please double-check your phone number and UID, or contact chapter leadership for assistance.',
+                  [
+                    {
+                      text: 'Try Again',
+                      onPress: () => {
+                        setPhoneNumber('');
+                        setUid('');
+                      }
+                    }
+                  ]
+                );
+              }
+            },
+            {
+              text: 'Yes, That\'s Me',
+              onPress: () => {
+                setExistingUser(brotherData);
+                // Pre-fill name fields if available
+                if (brotherData.first_name) setFirstName(brotherData.first_name);
+                if (brotherData.last_name) setLastName(brotherData.last_name);
+                if (brotherData.email) setEmail(brotherData.email);
+                if (brotherData.pledge_class) setPledgeClass(brotherData.pledge_class);
+                setStep(3);
+              }
+            }
+          ]
+        );
+      } else {
+        // No existing user account - proceed with signup
+        setStep(3);
+      }
     } catch (error: any) {
       console.error('User verification error:', error);
-      Alert.alert('Error', `Failed to check user information: ${error.message || 'Unknown error'}`);
+      Alert.alert(
+        'Verification Error', 
+        'We encountered an issue while verifying your information. Please try again or contact support if the problem persists.',
+        [
+          {
+            text: 'Try Again',
+            onPress: () => {
+              setPhoneNumber('');
+              setUid('');
+            }
+          },
+          {
+            text: 'OK'
+          }
+        ]
+      );
     } finally {
       setLoading(false);
     }
@@ -184,7 +403,10 @@ export default function SignupScreen() {
             { email: email }
           );
 
-          if (updateError) {          }
+          if (updateError) {
+            console.warn('Email update warning:', updateError);
+            // Continue with signup process even if email update fails
+          }
         } else {
           throw new Error(signUpError.message);
         }
@@ -211,7 +433,9 @@ export default function SignupScreen() {
         .delete()
         .eq('id', existingUser.id);
 
-      if (deleteError) {        // Don't throw error here as the main operation succeeded
+      if (deleteError) {
+        console.warn('Cleanup warning:', deleteError);
+        // Don't throw error here as the main operation succeeded
       }
 
       // Sign out after successful operations
@@ -277,7 +501,12 @@ export default function SignupScreen() {
     Alert.alert('Success!', successMessage);
     router.replace('/(auth)/login');
   } catch (error: any) {
-    Alert.alert('Signup Error', error.message || 'Something went wrong.');
+    console.error('Signup error:', error);
+    Alert.alert(
+      'Registration Error', 
+      'We encountered an issue creating your account. Please try again or contact support if the problem persists.',
+      [{ text: 'OK' }]
+    );
   } finally {
     setLoading(false);
   }

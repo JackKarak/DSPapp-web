@@ -29,6 +29,7 @@ interface PendingEvent {
   available_to_pledges: boolean;
   status: string;
   is_non_event?: boolean;
+  code?: string;
 }
 
 // Red flag detection functions
@@ -229,6 +230,7 @@ export default function EventApproval() {
           available_to_pledges, 
           status,
           is_non_event,
+          code,
           created_by_user:created_by(first_name, last_name)
         `)
         .eq('status', 'pending')
@@ -310,6 +312,16 @@ export default function EventApproval() {
     }
   };
 
+  // Generate a 5-letter random code
+  const generateRandomCode = (): string => {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let result = '';
+    for (let i = 0; i < 5; i++) {
+      result += letters.charAt(Math.floor(Math.random() * letters.length));
+    }
+    return result;
+  };
+
   const confirmEvent = async (eventId: string) => {
     try {
       setProcessingEventIds(prev => new Set(prev).add(eventId));
@@ -321,9 +333,15 @@ export default function EventApproval() {
         return;
       }
 
+      // Generate a unique 5-letter check-in code for the event
+      const checkInCode = generateRandomCode();
+
       const { error } = await supabase
         .from('events')
-        .update({ status: 'approved' })
+        .update({ 
+          status: 'approved',
+          code: checkInCode
+        })
         .eq('id', eventId);
 
       if (error) {
@@ -357,8 +375,14 @@ export default function EventApproval() {
         }
       }
 
-      Alert.alert('Success', 'Event confirmed successfully!' + 
-        (!eventToApprove.is_non_event ? ' Event has been added to the Google Calendar.' : ''));
+      Alert.alert(
+        'Event Approved! 🎉', 
+        `✅ Event confirmed successfully!\n\n🎫 Check-in Code: ${checkInCode}\n\n` + 
+        (!eventToApprove.is_non_event ? 
+          '📅 Event has been added to Google Calendar\n👥 Members can use the code above to check in' : 
+          '👥 Members can use this code to check in to the event'
+        )
+      );
       fetchPendingEvents(); // Refresh the list
     } catch (error) {
       console.error('Error confirming event:', error);

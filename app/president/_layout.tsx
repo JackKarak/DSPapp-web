@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
 import { Alert, TouchableOpacity } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { ErrorBoundary } from '../../components/ErrorBoundary';
 
 export default function PresidentLayout() {
   const router = useRouter();
@@ -16,8 +17,9 @@ export default function PresidentLayout() {
   };
 
   return (
-    <Tabs
-      screenOptions={{
+    <ErrorBoundary>
+      <Tabs
+        screenOptions={{
         tabBarStyle: { backgroundColor: '#330066' },
         tabBarActiveTintColor: '#F7B910',
         tabBarInactiveTintColor: '#ADAFAA',
@@ -59,15 +61,6 @@ export default function PresidentLayout() {
         }}
       />
       <Tabs.Screen
-        name="confirm"
-        options={{
-          title: 'Confirm',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="checkmark-done-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="override"
         options={{
           title: 'Appeals',
@@ -86,5 +79,6 @@ export default function PresidentLayout() {
         }}
       />
     </Tabs>
+    </ErrorBoundary>
   );
 }

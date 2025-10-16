@@ -5,6 +5,7 @@ import React from 'react';
 import { ActivityIndicator, ImageBackground, StyleSheet, View } from 'react-native';
 import { MD3LightTheme, PaperProvider } from 'react-native-paper';
 import backgroundImage from '../assets/images/background.png'; // Adjust if path differs
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 const paperTheme = {
   ...MD3LightTheme,
@@ -31,14 +32,16 @@ export default function RootLayout() {
   }
 
   return (
-    <PaperProvider theme={paperTheme}>
-      <ImageBackground source={backgroundImage} style={styles.background} resizeMode="cover">
-        <View style={styles.overlay}>
-          <Slot />
-          <StatusBar style="auto" />
-        </View>
-      </ImageBackground>
-    </PaperProvider>
+    <ErrorBoundary>
+      <PaperProvider theme={paperTheme}>
+        <ImageBackground source={backgroundImage} style={styles.background} resizeMode="cover">
+          <View style={styles.overlay}>
+            <Slot />
+            <StatusBar style="auto" />
+          </View>
+        </ImageBackground>
+      </PaperProvider>
+    </ErrorBoundary>
   );
 }
 

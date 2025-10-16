@@ -37,19 +37,77 @@ export default function EventDetail() {
 
   useEffect(() => {
     const fetchEvent = async () => {
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('id', id)
-        .single();
+      // Parallelize: check user permissions and fetch event data simultaneously
+      const [userResult, profileResult, eventResult] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.auth.getUser().then(async ({ data: { user }, error: userError }) => {
+          if (userError || !user) return { data: null, error: userError };
+          return supabase
+            .from('users')
+            .select('role')
+            .eq('user_id', user.id)
+            .single();
+        }),
+        supabase
+          .from('events')
+          .select('*')
+          .eq('id', id)
+          .single()
+      ]);
 
+      const {
+        data: { user },
+        error: userError,
+      } = userResult;
+
+      if (userError || !user) {
+        Alert.alert('Authentication Error', 'Please log in again.');
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      const { data: profile, error: profileError } = profileResult;
+      if (profileError || !profile) {
+        Alert.alert('Profile Error', 'Unable to load your profile.');
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = eventResult;
       if (error) {
         console.error(error);
         Alert.alert('Error', 'Could not load event.');
-      } else {
-        setEvent(data);
+        setLoading(false);
+        return;
       }
 
+      // Check pledge restrictions
+      if (profile.role === 'pledge') {
+        const eventEndDate = new Date(data.end_time);
+        const isPastEvent = eventEndDate < new Date();
+
+        // Pledges cannot access past events
+        if (isPastEvent) {
+          Alert.alert(
+            'Access Restricted', 
+            'Pledges cannot access past events.',
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
+          return;
+        }
+
+        // Pledges cannot access events where available_to_pledges is false
+        if (!data.available_to_pledges) {
+          Alert.alert(
+            'Access Restricted', 
+            'This event is not available to pledges.',
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
+          return;
+        }
+      }
+
+      setEvent(data);
       setLoading(false);
     };
 
