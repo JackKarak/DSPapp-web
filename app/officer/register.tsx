@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -16,6 +16,18 @@ import {
 import { combineDateAndTime, getESTISOString, roundToNearestMinute } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
 
+// Memoized point type options - defined once outside component
+const POINT_TYPE_OPTIONS: { label: string; value: string }[] = [
+  { label: 'Select point type', value: 'none' },
+  { label: 'Brotherhood', value: 'brotherhood' },
+  { label: 'Professional', value: 'professional' },
+  { label: 'Service', value: 'service' },
+  { label: 'Scholarship', value: 'scholarship' },
+  { label: 'Health & Wellness', value: 'h&w' },
+  { label: 'Fundraising', value: 'fundraising' },
+  { label: 'DEI', value: 'dei' }
+];
+
 // Custom Dropdown Component for Point Types
 interface DropdownProps {
   label: string;
@@ -25,17 +37,33 @@ interface DropdownProps {
   disabled?: boolean;
 }
 
-const CustomDropdown: React.FC<DropdownProps> = ({ label, value, options, onValueChange, disabled = false }) => {
+const CustomDropdown: React.FC<DropdownProps> = React.memo(({ label, value, options, onValueChange, disabled = false }) => {
   const [isVisible, setIsVisible] = useState(false);
 
-  const selectedOption = options.find(option => option.value === value);
+  const selectedOption = useMemo(
+    () => options.find(option => option.value === value),
+    [options, value]
+  );
+
+  const handlePress = useCallback(() => {
+    if (!disabled) setIsVisible(true);
+  }, [disabled]);
+
+  const handleClose = useCallback(() => {
+    setIsVisible(false);
+  }, []);
+
+  const handleSelect = useCallback((optionValue: string) => {
+    onValueChange(optionValue);
+    setIsVisible(false);
+  }, [onValueChange]);
 
   return (
     <View style={styles.dropdownContainer}>
       <Text style={styles.label}>{label}</Text>
       <TouchableOpacity
         style={[styles.dropdownButton, disabled && styles.dropdownButtonDisabled]}
-        onPress={() => !disabled && setIsVisible(true)}
+        onPress={handlePress}
         activeOpacity={disabled ? 1 : 0.7}
       >
         <Text style={[styles.dropdownButtonText, disabled && styles.dropdownButtonTextDisabled]} numberOfLines={1}>
@@ -48,12 +76,12 @@ const CustomDropdown: React.FC<DropdownProps> = ({ label, value, options, onValu
         visible={isVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setIsVisible(false)}
+        onRequestClose={handleClose}
       >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setIsVisible(false)}
+          onPress={handleClose}
         >
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{label}</Text>
@@ -65,10 +93,7 @@ const CustomDropdown: React.FC<DropdownProps> = ({ label, value, options, onValu
                     styles.optionItem,
                     option.value === value && styles.selectedOption
                   ]}
-                  onPress={() => {
-                    onValueChange(option.value);
-                    setIsVisible(false);
-                  }}
+                  onPress={() => handleSelect(option.value)}
                 >
                   <Text style={[
                     styles.optionText,
@@ -87,36 +112,66 @@ const CustomDropdown: React.FC<DropdownProps> = ({ label, value, options, onValu
       </Modal>
     </View>
   );
+});
+
+interface FormData {
+  title: string;
+  description: string;
+  location: string;
+  pointType: string;
+  startDate: Date;
+  startTime: Date;
+  endDate: Date;
+  endTime: Date;
+  isRegisterable: boolean;
+  availableToPledges: boolean;
+  isMultiDay: boolean;
+  isNoPoint: boolean;
+  isNonEvent: boolean;
+}
+
+const INITIAL_FORM_STATE: FormData = {
+  title: '',
+  description: '',
+  location: '',
+  pointType: 'none',
+  startDate: new Date(),
+  startTime: new Date(),
+  endDate: new Date(),
+  endTime: new Date(),
+  isRegisterable: true,
+  availableToPledges: true,
+  isMultiDay: false,
+  isNoPoint: false,
+  isNonEvent: false,
 };
 
 export default function OfficerRegisterEvent() {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [location, setLocation] = useState('');
-  const [pointType, setPointType] = useState('none');
-  const [startDate, setStartDate] = useState(new Date());
-  const [startTime, setStartTime] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
-  const [endTime, setEndTime] = useState(new Date());
-
+  const [formData, setFormData] = useState<FormData>(INITIAL_FORM_STATE);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
-
-  const [isRegisterable, setIsRegisterable] = useState(true);
-  const [availableToPledges, setAvailableToPledges] = useState(true);
-  const [isMultiDay, setIsMultiDay] = useState(false);
-  const [isNoPoint, setIsNoPoint] = useState(false);
-  const [isNonEvent, setIsNonEvent] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleSubmit = async () => {
-    // For non-events: only need title and point type
-    // For regular events: need title, location, and either point type or no-point flag
-    if (!title || (!isNonEvent && !location) || (!isNonEvent && !pointType && !isNoPoint) || (isNonEvent && !pointType)) {
-      Alert.alert('Validation Error', 'Please fill out all required fields');
+  // Memoized validation function
+  const validateForm = useCallback(() => {
+    const { title, location, pointType, isNonEvent, isNoPoint } = formData;
+    
+    if (!title) return 'Please enter an event title';
+    if (!isNonEvent && !location) return 'Please enter a location';
+    if (!isNonEvent && !pointType && !isNoPoint) return 'Please select a point type or mark as no-point event';
+    if (isNonEvent && !pointType) return 'Please select a point type';
+    
+    return null;
+  }, [formData]);
+
+  const handleSubmit = useCallback(async () => {
+    // Validate form
+    const validationError = validateForm();
+    if (validationError) {
+      Alert.alert('Validation Error', validationError);
       return;
     }
 
@@ -129,95 +184,67 @@ export default function OfficerRegisterEvent() {
       } = await supabase.auth.getUser();
 
       if (userError || !user) {
+        setLoading(false); // Reset loading before navigation
         Alert.alert('Authentication Error', 'User not authenticated. Please log in again.');
         router.replace('/(auth)/login');
         return;
       }
 
+      const { startDate, startTime, endDate, endTime, isMultiDay, title, description, location, pointType, isNonEvent, isNoPoint, isRegisterable, availableToPledges } = formData;
+
       // Validate dates before processing
       if (isNaN(startDate.getTime()) || isNaN(startTime.getTime()) || 
           isNaN(endDate.getTime()) || isNaN(endTime.getTime())) {
         Alert.alert('Date Error', 'Invalid date or time selected. Please check your date and time selections.');
+        setLoading(false);
         return;
       }
 
-      // Combine date and time properly using the utility function with error handling
-      let combinedStart: Date;
-      let combinedEnd: Date;
-      
+      // Consolidated date processing with single try-catch
       try {
-        combinedStart = combineDateAndTime(startDate, startTime);
+        const combinedStart = combineDateAndTime(startDate, startTime);
         const finalEndDate = isMultiDay ? endDate : startDate;
-        combinedEnd = combineDateAndTime(finalEndDate, endTime);
+        const combinedEnd = combineDateAndTime(finalEndDate, endTime);
         
-        // Additional validation: end time should be after start time
+        // Validate end time is after start time
         if (combinedEnd <= combinedStart) {
           Alert.alert('Time Error', 'End time must be after start time.');
+          setLoading(false);
           return;
         }
+
+        // Round and format in one flow
+        const roundedStart = roundToNearestMinute(combinedStart);
+        const roundedEnd = roundToNearestMinute(combinedEnd);
+        const startTimeString = getESTISOString(roundedStart);
+        const endTimeString = getESTISOString(roundedEnd);
+
+        const { error } = await supabase.from('events').insert({
+          title,
+          description,
+          location: isNonEvent ? '' : location,
+          point_type: isNonEvent ? pointType : (isNoPoint ? 'No Point' : pointType),
+          point_value: isNonEvent ? 1 : (isNoPoint ? 0 : 1),
+          start_time: startTimeString,
+          end_time: endTimeString,
+          created_by: user.id,
+          is_registerable: isNonEvent ? false : isRegisterable,
+          available_to_pledges: availableToPledges,
+          is_non_event: isNonEvent,
+          status: 'pending',
+        });
+
+        if (error) {
+          console.error('Event creation error:', error);
+          Alert.alert('Submission Error', `Failed to create event: ${error.message}\n\nDetails: ${error.details || 'None'}\nHint: ${error.hint || 'None'}`);
+        } else {
+          Alert.alert('Success', 'Event created successfully and is pending approval');
+          // Single state update instead of 13 separate calls
+          setFormData(INITIAL_FORM_STATE);
+        }
       } catch (dateError) {
-        console.error('Date combination error:', dateError);
-        Alert.alert('Date Error', 'Failed to process the selected dates and times. Please try again.');
-        return;
-      }
-
-      let roundedStart: Date;
-      let roundedEnd: Date;
-      
-      try {
-        roundedStart = roundToNearestMinute(combinedStart);
-        roundedEnd = roundToNearestMinute(combinedEnd);
-      } catch (roundError) {
-        console.error('Date rounding error:', roundError);
-        Alert.alert('Date Error', 'Failed to process the event times. Please try again.');
-        return;
-      }
-
-      let startTimeString: string;
-      let endTimeString: string;
-      
-      try {
-        startTimeString = getESTISOString(roundedStart);
-        endTimeString = getESTISOString(roundedEnd);
-      } catch (formatError) {
-        console.error('Date formatting error:', formatError);
-        Alert.alert('Date Error', 'Failed to format the event times. Please try again.');
-        return;
-      }
-
-      const { error } = await supabase.from('events').insert({
-        title,
-        description,
-        location: isNonEvent ? '' : location,
-        point_type: isNonEvent ? pointType : (isNoPoint ? 'No Point' : pointType),
-        point_value: isNonEvent ? 1 : (isNoPoint ? 0 : 1),
-        start_time: startTimeString,
-        end_time: endTimeString,
-        created_by: user.id, // Using user.id from auth, which maps to user_id in users table
-        is_registerable: isNonEvent ? false : isRegisterable,
-        available_to_pledges: availableToPledges,
-        is_non_event: isNonEvent,
-        status: 'pending',
-      });
-
-      if (error) {
-        console.error('Event creation error:', error);
-        Alert.alert('Submission Error', `Failed to create event: ${error.message}\n\nDetails: ${error.details || 'None'}\nHint: ${error.hint || 'None'}`);
-      } else {
-        Alert.alert('Success', 'Event created successfully and is pending approval');
-        setTitle('');
-        setDescription('');
-        setLocation('');
-        setPointType('none');
-        setStartDate(new Date());
-        setStartTime(new Date());
-        setEndDate(new Date());
-        setEndTime(new Date());
-        setIsRegisterable(true);
-        setAvailableToPledges(true);
-        setIsMultiDay(false);
-        setIsNoPoint(false);
-        setIsNonEvent(false);
+        console.error('Date processing error:', dateError);
+        Alert.alert('Date Error', 'Failed to process the event dates and times. Please try again.');
       }
     } catch (error) {
       console.error('Error creating event:', error);
@@ -225,10 +252,10 @@ export default function OfficerRegisterEvent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [formData, validateForm, router]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.wrapper}>
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.header}>Register New Event</Text>
         <Text style={styles.subtitle}>Create a new event for member participation</Text>
@@ -236,9 +263,9 @@ export default function OfficerRegisterEvent() {
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Is this a Non-Event? (Points only)</Text>
           <Switch 
-            value={isNonEvent} 
-            onValueChange={setIsNonEvent}
-            thumbColor={isNonEvent ? '#8b5cf6' : '#f4f3f4'}
+            value={formData.isNonEvent} 
+            onValueChange={(value) => setFormData(prev => ({ ...prev, isNonEvent: value }))}
+            thumbColor={formData.isNonEvent ? '#8b5cf6' : '#f4f3f4'}
             trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
           />
         </View>
@@ -248,19 +275,19 @@ export default function OfficerRegisterEvent() {
           style={styles.input}
           placeholder="Enter event title"
           placeholderTextColor="#9ca3af"
-          value={title}
-          onChangeText={setTitle}
+          value={formData.title}
+          onChangeText={(value) => setFormData(prev => ({ ...prev, title: value }))}
         />
 
-        {!isNonEvent && (
+        {!formData.isNonEvent && (
           <>
             <Text style={styles.label}>Location *</Text>
             <TextInput
               style={styles.input}
               placeholder="Enter event location"
               placeholderTextColor="#9ca3af"
-              value={location}
-              onChangeText={setLocation}
+              value={formData.location}
+              onChangeText={(value) => setFormData(prev => ({ ...prev, location: value }))}
             />
           </>
         )}
@@ -270,37 +297,28 @@ export default function OfficerRegisterEvent() {
           style={[styles.input, styles.textArea]}
           placeholder="Enter event description"
           placeholderTextColor="#9ca3af"
-          value={description}
+          value={formData.description}
           multiline
           numberOfLines={3}
-          onChangeText={setDescription}
+          onChangeText={(value) => setFormData(prev => ({ ...prev, description: value }))}
         />
 
-        {isNonEvent ? (
+        {formData.isNonEvent ? (
           <>
             {/* Non-Event: Only show Point Type and Available to Pledges */}
             <CustomDropdown
               label="Point Type *"
-              value={pointType}
-              options={[
-                { label: 'Select point type', value: 'none' },
-                { label: 'Brotherhood', value: 'brotherhood' },
-                { label: 'Professional', value: 'professional' },
-                { label: 'Service', value: 'service' },
-                { label: 'Scholarship', value: 'scholarship' },
-                { label: 'Health & Wellness', value: 'h&w' },
-                { label: 'Fundraising', value: 'fundraising' },
-                { label: 'DEI', value: 'dei' }
-              ]}
-              onValueChange={(value) => setPointType(value)}
+              value={formData.pointType}
+              options={POINT_TYPE_OPTIONS}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, pointType: value }))}
             />
 
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>Available to Pledges?</Text>
               <Switch 
-                value={availableToPledges} 
-                onValueChange={setAvailableToPledges}
-                thumbColor={availableToPledges ? '#8b5cf6' : '#f4f3f4'}
+                value={formData.availableToPledges} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, availableToPledges: value }))}
+                thumbColor={formData.availableToPledges ? '#8b5cf6' : '#f4f3f4'}
                 trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
               />
             </View>
@@ -311,38 +329,29 @@ export default function OfficerRegisterEvent() {
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>No Point Event?</Text>
               <Switch 
-                value={isNoPoint} 
-                onValueChange={setIsNoPoint}
-                thumbColor={isNoPoint ? '#8b5cf6' : '#f4f3f4'}
+                value={formData.isNoPoint} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, isNoPoint: value }))}
+                thumbColor={formData.isNoPoint ? '#8b5cf6' : '#f4f3f4'}
                 trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
               />
             </View>
 
-            {!isNoPoint && (
+            {!formData.isNoPoint && (
               <CustomDropdown
                 label="Point Type *"
-                value={pointType}
-                options={[
-                  { label: 'Select point type', value: 'none' },
-                  { label: 'Brotherhood', value: 'brotherhood' },
-                  { label: 'Professional', value: 'professional' },
-                  { label: 'Service', value: 'service' },
-                  { label: 'Scholarship', value: 'scholarship' },
-                  { label: 'Health & Wellness', value: 'h&w' },
-                  { label: 'Fundraising', value: 'fundraising' },
-                  { label: 'DEI', value: 'dei' }
-                ]}
-                onValueChange={(value) => setPointType(value)}
-                disabled={isNoPoint}
+                value={formData.pointType}
+                options={POINT_TYPE_OPTIONS}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, pointType: value }))}
+                disabled={formData.isNoPoint}
               />
             )}
 
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>Registerable Event?</Text>
               <Switch 
-                value={isRegisterable} 
-                onValueChange={setIsRegisterable}
-                thumbColor={isRegisterable ? '#8b5cf6' : '#f4f3f4'}
+                value={formData.isRegisterable} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, isRegisterable: value }))}
+                thumbColor={formData.isRegisterable ? '#8b5cf6' : '#f4f3f4'}
                 trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
               />
             </View>
@@ -350,9 +359,9 @@ export default function OfficerRegisterEvent() {
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>Available to Pledges?</Text>
               <Switch 
-                value={availableToPledges} 
-                onValueChange={setAvailableToPledges}
-                thumbColor={availableToPledges ? '#8b5cf6' : '#f4f3f4'}
+                value={formData.availableToPledges} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, availableToPledges: value }))}
+                thumbColor={formData.availableToPledges ? '#8b5cf6' : '#f4f3f4'}
                 trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
               />
             </View>
@@ -360,48 +369,48 @@ export default function OfficerRegisterEvent() {
             <View style={styles.switchRow}>
               <Text style={styles.switchLabel}>Is this a multi-day event?</Text>
               <Switch 
-                value={isMultiDay} 
-                onValueChange={setIsMultiDay}
-                thumbColor={isMultiDay ? '#8b5cf6' : '#f4f3f4'}
+                value={formData.isMultiDay} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, isMultiDay: value }))}
+                thumbColor={formData.isMultiDay ? '#8b5cf6' : '#f4f3f4'}
                 trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
               />
             </View>
           </>
         )}
 
-        {!isNonEvent ? (
+        {!formData.isNonEvent ? (
           <>
             {/* Regular Event Date/Time Fields */}
             <Text style={styles.label}>Start Date</Text>
             <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.pickerButton}>
-              <Text style={styles.pickerButtonText}>{startDate.toDateString()}</Text>
+              <Text style={styles.pickerButtonText}>{formData.startDate.toDateString()}</Text>
             </TouchableOpacity>
             {showStartDatePicker && (
               <DateTimePicker
-                value={startDate}
+                value={formData.startDate}
                 mode="date"
                 display={Platform.OS === 'ios' ? 'compact' : 'default'}
                 onChange={(_, date) => {
                   setShowStartDatePicker(false);
-                  if (date) setStartDate(date);
+                  if (date) setFormData(prev => ({ ...prev, startDate: date }));
                 }}
               />
             )}
 
-            {isMultiDay && (
+            {formData.isMultiDay && (
               <>
                 <Text style={styles.label}>End Date</Text>
                 <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.pickerButton}>
-                  <Text style={styles.pickerButtonText}>{endDate.toDateString()}</Text>
+                  <Text style={styles.pickerButtonText}>{formData.endDate.toDateString()}</Text>
                 </TouchableOpacity>
                 {showEndDatePicker && (
                   <DateTimePicker
-                    value={endDate}
+                    value={formData.endDate}
                     mode="date"
                     display={Platform.OS === 'ios' ? 'compact' : 'default'}
                     onChange={(_, date) => {
                       setShowEndDatePicker(false);
-                      if (date) setEndDate(date);
+                      if (date) setFormData(prev => ({ ...prev, endDate: date }));
                     }}
                   />
                 )}
@@ -410,32 +419,32 @@ export default function OfficerRegisterEvent() {
 
             <Text style={styles.label}>Start Time</Text>
             <TouchableOpacity onPress={() => setShowStartTimePicker(true)} style={styles.pickerButton}>
-              <Text style={styles.pickerButtonText}>{startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+              <Text style={styles.pickerButtonText}>{formData.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
             </TouchableOpacity>
             {showStartTimePicker && (
               <DateTimePicker
-                value={startTime}
+                value={formData.startTime}
                 mode="time"
                 display={Platform.OS === 'ios' ? 'compact' : 'default'}
                 onChange={(_, time) => {
                   setShowStartTimePicker(false);
-                  if (time) setStartTime(time);
+                  if (time) setFormData(prev => ({ ...prev, startTime: time }));
                 }}
               />
             )}
 
             <Text style={styles.label}>End Time</Text>
             <TouchableOpacity onPress={() => setShowEndTimePicker(true)} style={styles.pickerButton}>
-              <Text style={styles.pickerButtonText}>{endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+              <Text style={styles.pickerButtonText}>{formData.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
             </TouchableOpacity>
             {showEndTimePicker && (
               <DateTimePicker
-                value={endTime}
+                value={formData.endTime}
                 mode="time"
                 display={Platform.OS === 'ios' ? 'compact' : 'default'}
                 onChange={(_, time) => {
                   setShowEndTimePicker(false);
-                  if (time) setEndTime(time);
+                  if (time) setFormData(prev => ({ ...prev, endTime: time }));
                 }}
               />
             )}
@@ -445,16 +454,16 @@ export default function OfficerRegisterEvent() {
             {/* Non-Event: Only show Deadline */}
             <Text style={styles.label}>Deadline</Text>
             <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.pickerButton}>
-              <Text style={styles.pickerButtonText}>{endDate.toDateString()}</Text>
+              <Text style={styles.pickerButtonText}>{formData.endDate.toDateString()}</Text>
             </TouchableOpacity>
             {showEndDatePicker && (
               <DateTimePicker
-                value={endDate}
+                value={formData.endDate}
                 mode="date"
                 display={Platform.OS === 'ios' ? 'compact' : 'default'}
                 onChange={(_, date) => {
                   setShowEndDatePicker(false);
-                  if (date) setEndDate(date);
+                  if (date) setFormData(prev => ({ ...prev, endDate: date }));
                 }}
               />
             )}
@@ -477,6 +486,9 @@ export default function OfficerRegisterEvent() {
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
   container: {
     flexGrow: 1,
     padding: 20,

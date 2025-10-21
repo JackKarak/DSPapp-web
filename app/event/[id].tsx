@@ -1,9 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     Platform,
+    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
@@ -12,81 +13,94 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
+import { formatDateTimeInEST } from '../../lib/dateUtils';
+import { EventDetail } from '../../types/account';
 
-// EST timezone helper
-const formatDateTimeInEST = (dateString: string) => {
-  const date = new Date(dateString);
-  return date.toLocaleString('en-US', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
+// Type for component state
+type EventState = {
+  event: EventDetail | null;
+  isRegistered: boolean;
+  loading: boolean;
+  error: string | null;
+  refreshing: boolean;
 };
 
-export default function EventDetail() {
+export default function EventDetailScreen() {
   const { id, is_registerable } = useLocalSearchParams<{ id: string; is_registerable: string }>();
-  const [event, setEvent] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [registering, setRegistering] = useState(false);
-  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
   const router = useRouter();
+  
+  const [state, setState] = useState<EventState>({
+    event: null,
+    isRegistered: false,
+    loading: true,
+    error: null,
+    refreshing: false,
+  });
+  const [registering, setRegistering] = useState(false);
 
-  useEffect(() => {
-    const fetchEvent = async () => {
-      // Parallelize: check user permissions and fetch event data simultaneously
-      const [userResult, profileResult, eventResult] = await Promise.all([
-        supabase.auth.getUser(),
-        supabase.auth.getUser().then(async ({ data: { user }, error: userError }) => {
-          if (userError || !user) return { data: null, error: userError };
-          return supabase
-            .from('users')
-            .select('role')
-            .eq('user_id', user.id)
-            .single();
-        }),
-        supabase
-          .from('events')
-          .select('*')
-          .eq('id', id)
-          .single()
-      ]);
+  // Memoize registerable status
+  const isRegisterable = useMemo(() => is_registerable === '1', [is_registerable]);
 
-      const {
-        data: { user },
-        error: userError,
-      } = userResult;
+  // Fetch event data and registration status in parallel
+  const fetchEventData = useCallback(async (isRefresh = false) => {
+    if (!id) {
+      setState(prev => ({ ...prev, loading: false, error: 'No event ID provided' }));
+      return;
+    }
 
-      if (userError || !user) {
+    try {
+      if (isRefresh) {
+        setState(prev => ({ ...prev, refreshing: true, error: null }));
+      } else {
+        setState(prev => ({ ...prev, loading: true, error: null }));
+      }
+
+      // Get user info once and reuse
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
         Alert.alert('Authentication Error', 'Please log in again.');
         router.replace('/(auth)/login');
         return;
       }
 
-      const { data: profile, error: profileError } = profileResult;
-      if (profileError || !profile) {
-        Alert.alert('Profile Error', 'Unable to load your profile.');
-        setLoading(false);
-        return;
+      // Parallel fetch: event, profile, and registration status
+      const [eventResult, profileResult, registrationResult] = await Promise.all([
+        supabase
+          .from('events')
+          .select('*')
+          .eq('id', id)
+          .single(),
+        supabase
+          .from('users')
+          .select('role')
+          .eq('user_id', user.id)
+          .single(),
+        supabase
+          .from('event_registration')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('event_id', id)
+          .maybeSingle()
+      ]);
+
+      // Handle errors
+      if (eventResult.error) {
+        throw new Error(eventResult.error.message || 'Could not load event');
+      }
+      
+      if (profileResult.error) {
+        throw new Error(profileResult.error.message || 'Unable to load your profile');
       }
 
-      const { data, error } = eventResult;
-      if (error) {
-        console.error(error);
-        Alert.alert('Error', 'Could not load event.');
-        setLoading(false);
-        return;
-      }
+      const eventData = eventResult.data;
+      const userRole = profileResult.data.role;
 
       // Check pledge restrictions
-      if (profile.role === 'pledge') {
-        const eventEndDate = new Date(data.end_time);
+      if (userRole === 'pledge') {
+        const eventEndDate = new Date(eventData.end_time);
         const isPastEvent = eventEndDate < new Date();
 
-        // Pledges cannot access past events
         if (isPastEvent) {
           Alert.alert(
             'Access Restricted', 
@@ -96,8 +110,7 @@ export default function EventDetail() {
           return;
         }
 
-        // Pledges cannot access events where available_to_pledges is false
-        if (!data.available_to_pledges) {
+        if (!eventData.available_to_pledges) {
           Alert.alert(
             'Access Restricted', 
             'This event is not available to pledges.',
@@ -107,81 +120,112 @@ export default function EventDetail() {
         }
       }
 
-      setEvent(data);
-      setLoading(false);
-    };
+      setState({
+        event: eventData,
+        isRegistered: !!registrationResult.data,
+        loading: false,
+        error: null,
+        refreshing: false,
+      });
 
-    const checkRegistration = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    } catch (error: any) {
+      console.error('Event fetch error:', error);
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        refreshing: false,
+        error: error.message || 'An unexpected error occurred',
+      }));
+    }
+  }, [id, router]);
 
-      if (!user || !id) return;
+  // Initial load
+  useEffect(() => {
+    fetchEventData();
+  }, [fetchEventData]);
 
-      const { data, error } = await supabase
-        .from('event_registration')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('event_id', id)
-        .maybeSingle();
+  // Handle pull to refresh
+  const onRefresh = useCallback(() => {
+    fetchEventData(true);
+  }, [fetchEventData]);
+
+  // Handle registration with optimistic updates
+  const handleRegister = useCallback(async () => {
+    if (!id) return;
+
+    setRegistering(true);
+    
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+      if (!user || authError) {
+        Alert.alert('Auth Error', 'Please log in again.');
+        return;
+      }
+
+      const { error } = await supabase.from('event_registration').insert({
+        user_id: user.id,
+        event_id: id,
+      });
 
       if (error) {
-        console.error('Check registration error:', error.message);
-      } else if (data) {
-        setAlreadyRegistered(true);
+        throw new Error(error.message);
       }
-    };
 
-    if (id) {
-      fetchEvent();
-      checkRegistration();
+      setState(prev => ({ ...prev, isRegistered: true }));
+      Alert.alert('Success', 'You are registered for this event!');
+
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      Alert.alert('Error', error.message || 'Registration failed. Please try again.');
+    } finally {
+      setRegistering(false);
     }
   }, [id]);
 
-  const handleRegister = async () => {
-    setRegistering(true);
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (!user || authError) {
-      Alert.alert('Auth Error', 'Please log in again.');
-      setRegistering(false);
-      return;
-    }
-
-    const { error } = await supabase.from('event_registration').insert({
-      user_id: user.id,
-      event_id: id,
-    });
-
-    if (error) {
-      Alert.alert('Error', 'Registration failed.');
-      console.error(error.message);
-    } else {
-      Alert.alert('Success', 'You are registered for this event!');
-      setAlreadyRegistered(true);
-    }
-
-    setRegistering(false);
-  };
-
-  if (loading) {
+  // Loading state
+  if (state.loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#330066" />
+          <Text style={styles.loadingText}>Loading event details...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (!event) {
+  // Error state with retry
+  if (state.error) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.messageContainer}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorMessage}>{state.error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => fetchEventData()}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Event not found
+  if (!state.event) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.messageContainer}>
+          <Text style={styles.errorIcon}>🔍</Text>
           <Text style={styles.message}>Event not found</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.retryButtonText}>Go Back</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -202,41 +246,55 @@ export default function EventDetail() {
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.container}
+        refreshControl={
+          <RefreshControl 
+            refreshing={state.refreshing}
+            onRefresh={onRefresh}
+            tintColor="#330066"
+            colors={['#330066']}
+          />
+        }
         bounces={true}
-        showsVerticalScrollIndicator={true}
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>{event.title}</Text>
+        <Text style={styles.title}>{state.event.title}</Text>
         
         <View style={styles.detailsContainer}>
-          <Text style={styles.detail}>
-            <Text style={styles.icon}>🗓 </Text>
-            {formatDateTimeInEST(event.start_time)}
-          </Text>
-          <Text style={styles.detail}>
-            <Text style={styles.icon}>⏱ </Text>
-            {formatDateTimeInEST(event.end_time)}
-          </Text>
-          <Text style={styles.detail}>
-            <Text style={styles.icon}>📍 </Text>
-            {event.location}
-          </Text>
-          <Text style={styles.detail}>
-            <Text style={styles.icon}>🎯 </Text>
-            Points: {event.point_type}
-          </Text>
+          <View style={styles.detailRow}>
+            <Text style={styles.icon}>🗓</Text>
+            <Text style={styles.detail}>
+              {formatDateTimeInEST(state.event.start_time)}
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.icon}>⏱</Text>
+            <Text style={styles.detail}>
+              {formatDateTimeInEST(state.event.end_time)}
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.icon}>📍</Text>
+            <Text style={styles.detail}>{state.event.location}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.icon}>🎯</Text>
+            <Text style={styles.detail}>
+              {state.event.point_type} ({state.event.point_value} pts)
+            </Text>
+          </View>
         </View>
 
-        {event.description && (
+        {state.event.description && (
           <View style={styles.descriptionContainer}>
             <Text style={styles.descriptionTitle}>Description</Text>
-            <Text style={styles.description}>{event.description}</Text>
+            <Text style={styles.description}>{state.event.description}</Text>
           </View>
         )}
       </ScrollView>
 
       <View style={styles.footer}>
-        {is_registerable === '1' ? (
-          alreadyRegistered ? (
+        {isRegisterable ? (
+          state.isRegistered ? (
             <View style={styles.registeredContainer}>
               <Text style={styles.registered}>✅ You&apos;re registered for this event</Text>
             </View>
@@ -245,6 +303,7 @@ export default function EventDetail() {
               style={[styles.registerButton, registering && styles.registeringButton]}
               onPress={handleRegister}
               disabled={registering}
+              activeOpacity={0.8}
             >
               <Text style={styles.registerButtonText}>
                 {registering ? 'Registering...' : 'Register for Event'}
@@ -252,13 +311,14 @@ export default function EventDetail() {
             </TouchableOpacity>
           )
         ) : (
-          <View style={styles.registeredContainer}>
-            <Text style={styles.registered}>⚠️ Registration not available for this event</Text>
+          <View style={styles.notAvailableContainer}>
+            <Text style={styles.notAvailable}>⚠️ Registration not available for this event</Text>
           </View>
         )}
       </View>
     </SafeAreaView>
-)}
+  );
+}
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -269,11 +329,48 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
   },
   messageContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  errorIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: '#D32F2F',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 24,
+  },
+  message: {
+    fontSize: 18,
+    textAlign: 'center',
+    color: '#666',
+    marginTop: 16,
+  },
+  retryButton: {
+    backgroundColor: '#330066',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   header: {
     paddingHorizontal: 16,
@@ -284,6 +381,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  backButtonText: {
+    fontSize: 17,
+    color: '#0038A8',
+    fontWeight: '600',
+  },
   scrollView: {
     flex: 1,
   },
@@ -292,37 +398,48 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 100 : 80,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#330066',
-    marginBottom: 16,
+    marginBottom: 20,
+    lineHeight: 34,
   },
   detailsContainer: {
-    backgroundColor: '#f8f8f8',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
+    backgroundColor: '#F8F9FA',
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  icon: {
+    fontSize: 20,
+    marginRight: 12,
+    width: 28,
   },
   detail: {
     fontSize: 16,
-    marginBottom: 12,
     color: '#333',
-  },
-  icon: {
-    marginRight: 8,
+    flex: 1,
+    lineHeight: 22,
   },
   descriptionContainer: {
-    marginTop: 8,
+    marginTop: 4,
   },
   descriptionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 12,
     color: '#330066',
   },
   description: {
     fontSize: 16,
-    lineHeight: 24,
+    lineHeight: 26,
     color: '#444',
   },
   footer: {
@@ -342,19 +459,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-  backButton: {
-    padding: 8,
-    marginLeft: -8,
-  },
-  backButtonText: {
-    fontSize: 17,
-    color: '#0038A8',
-    fontWeight: '600',
-  },
   registeredContainer: {
     backgroundColor: '#E8F5E9',
-    padding: 12,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
   },
   registered: {
@@ -362,25 +470,34 @@ const styles = StyleSheet.create({
     color: '#2E7D32',
     fontWeight: '600',
   },
-  registerButton: {
-    backgroundColor: '#0038A8',
+  notAvailableContainer: {
+    backgroundColor: '#FFF3E0',
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
   },
+  notAvailable: {
+    fontSize: 16,
+    color: '#E65100',
+    fontWeight: '600',
+  },
+  registerButton: {
+    backgroundColor: '#0038A8',
+    padding: 18,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#0038A8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   registeringButton: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   registerButtonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  message: {
-    padding: 20,
-    fontSize: 18,
-    textAlign: 'center',
-    color: '#666',
+    fontSize: 17,
+    fontWeight: '700',
   },
 });
-

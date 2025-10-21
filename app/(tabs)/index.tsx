@@ -1,124 +1,22 @@
-import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useReducer, useMemo, useCallback } from 'react';
 import {
-  ActivityIndicator,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
   Alert,
+  StyleSheet,
+  ActivityIndicator,
   Dimensions,
   Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+  FlatList
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { Colors } from '../../constants/colors';
-import { formatDateInEST, getDateInEST } from '../../lib/dateUtils';
+import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { getDateInEST, formatDateInEST } from '../../lib/dateUtils';
 
-// Custom Dropdown Component
-interface DropdownProps {
-  label: string;
-  value: string;
-  options: { label: string; value: string }[];
-  onValueChange: (value: string) => void;
-}
-
-const CustomDropdown: React.FC<DropdownProps> = ({ label, value, options, onValueChange }) => {
-  const [isVisible, setIsVisible] = useState(false);
-
-  const selectedOption = options.find(option => option.value === value);
-
-  return (
-    <View style={styles.dropdownContainer}>
-      <Text style={styles.filterLabel}>{label}</Text>
-      <TouchableOpacity
-        style={styles.dropdownButton}
-        onPress={() => setIsVisible(true)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.dropdownButtonText} numberOfLines={1}>
-          {selectedOption?.label || 'Select...'}
-        </Text>
-        <Text style={styles.dropdownArrow}>▼</Text>
-      </TouchableOpacity>
-
-      <Modal
-        visible={isVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setIsVisible(false)}
-        >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{label}</Text>
-            <ScrollView style={styles.optionsList}>
-              {options.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.optionItem,
-                    option.value === value && styles.selectedOption
-                  ]}
-                  onPress={() => {
-                    onValueChange(option.value);
-                    setIsVisible(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.optionText,
-                    option.value === value && styles.selectedOptionText
-                  ]}>
-                    {option.label}
-                  </Text>
-                  {option.value === value && (
-                    <Text style={styles.checkmark}>✓</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </View>
-  );
-};
-
-// Move style functions outside component to prevent recreation on every render
-const getTypeTagStyle = (type: string) => {
-  const colors = {
-    brotherhood: { backgroundColor: '#f3e8ff' },
-    service: { backgroundColor: '#fffbeb' },
-    scholarship: { backgroundColor: '#fffbeb' },
-    professional: { backgroundColor: '#f3e8ff' },
-    professionalism: { backgroundColor: '#f3e8ff' },
-    dei: { backgroundColor: '#f9f1ff' },
-    fundraising: { backgroundColor: '#fffbeb' },
-    health: { backgroundColor: '#fffbeb' },
-    'h&w': { backgroundColor: '#fffbeb' },
-  };
-  return colors[type.toLowerCase() as keyof typeof colors] || { backgroundColor: '#F5F5F5' };
-};
-
-const getTypeTagTextStyle = (type: string) => {
-  const colors = {
-    brotherhood: { color: Colors.primary },
-    service: { color: Colors.secondary },
-    scholarship: { color: Colors.secondary },
-    professional: { color: Colors.primary },
-    professionalism: { color: Colors.primary },
-    dei: { color: Colors.primary },
-    fundraising: { color: Colors.secondary },
-    health: { color: Colors.secondary },
-    'h&w': { color: Colors.secondary },
-  };
-  return colors[type.toLowerCase() as keyof typeof colors] || { color: '#666' };
-};
-
+// Type definitions
 type Event = {
   id: string;
   title: string;
@@ -128,40 +26,202 @@ type Event = {
   point_value: number;
   point_type: string;
   created_by: string;
-  host_name?: string;
+  host_name: string;
   is_registerable: boolean;
   available_to_pledges: boolean;
-  startDate?: Date; // Pre-computed date
-  endDate?: Date; // Pre-computed date
+  startDate: Date; // Pre-computed
+  endDate: Date;   // Pre-computed
+};
+
+// State type - CONSOLIDATED into single object
+type State = {
+  events: Event[];
+  registeredEventIds: string[];
+  brotherName: string;
+  pendingFeedbacks: number;
+  userRole: string;
+  userId: string | null; // Cache user ID for registration mutations
+  loading: boolean;
+  calendarView: boolean;
+  selectedType: string;
+  filterRegisterable: string;
+  filterPastEvents: string;
+  error: string | null;
+};
+
+// Action types
+type Action =
+  | { type: 'SET_LOADING'; loading: boolean }
+  | { type: 'SET_DATA'; data: Partial<State> }
+  | { type: 'SET_CALENDAR_VIEW'; calendarView: boolean }
+  | { type: 'SET_FILTER_TYPE'; selectedType: string }
+  | { type: 'SET_FILTER_REGISTERABLE'; filterRegisterable: string }
+  | { type: 'SET_FILTER_PAST_EVENTS'; filterPastEvents: string }
+  | { type: 'ADD_REGISTRATION'; eventId: string }
+  | { type: 'REMOVE_REGISTRATION'; eventId: string }
+  | { type: 'SET_ERROR'; error: string };
+
+// Reducer - single state update point
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'SET_LOADING':
+      return { ...state, loading: action.loading };
+    case 'SET_DATA':
+      return { ...state, ...action.data, loading: false, error: null };
+    case 'SET_CALENDAR_VIEW':
+      return { ...state, calendarView: action.calendarView };
+    case 'SET_FILTER_TYPE':
+      return { ...state, selectedType: action.selectedType };
+    case 'SET_FILTER_REGISTERABLE':
+      return { ...state, filterRegisterable: action.filterRegisterable };
+    case 'SET_FILTER_PAST_EVENTS':
+      return { ...state, filterPastEvents: action.filterPastEvents };
+    case 'ADD_REGISTRATION':
+      return {
+        ...state,
+        registeredEventIds: [...state.registeredEventIds, action.eventId],
+      };
+    case 'REMOVE_REGISTRATION':
+      return {
+        ...state,
+        registeredEventIds: state.registeredEventIds.filter(id => id !== action.eventId),
+      };
+    case 'SET_ERROR':
+      return { ...state, error: action.error, loading: false };
+    default:
+      return state;
+  }
+}
+
+// Initial state
+const initialState: State = {
+  events: [],
+  registeredEventIds: [],
+  brotherName: 'Brother',
+  pendingFeedbacks: 0,
+  userRole: '',
+  userId: null,
+  loading: true,
+  calendarView: false,
+  selectedType: 'All',
+  filterRegisterable: 'All',
+  filterPastEvents: 'All',
+  error: null,
+};
+
+// Utility functions for tag styling
+function getTypeTagStyle(type: string) {
+  const styles: Record<string, any> = {
+    service: { backgroundColor: '#dbeafe', borderColor: '#3b82f6' },
+    social: { backgroundColor: '#fce7f3', borderColor: '#ec4899' },
+    dei: { backgroundColor: '#e0e7ff', borderColor: '#6366f1' },
+    professional: { backgroundColor: '#d1fae5', borderColor: '#10b981' },
+    'h&w': { backgroundColor: '#fef3c7', borderColor: '#f59e0b' },
+  };
+  return styles[type] || { backgroundColor: '#f3f4f6', borderColor: '#9ca3af' };
+}
+
+function getTypeTagTextStyle(type: string) {
+  const styles: Record<string, any> = {
+    service: { color: '#1e40af' },
+    social: { color: '#9f1239' },
+    dei: { color: '#4338ca' },
+    professional: { color: '#047857' },
+    'h&w': { color: '#b45309' },
+  };
+  return styles[type] || { color: '#374151' };
+}
+
+// CustomDropdown component (same as before)
+const CustomDropdown = ({
+  label,
+  value,
+  options,
+  onValueChange
+}: {
+  label: string;
+  value: string;
+  options: { label: string; value: string }[];
+  onValueChange: (value: string) => void;
+}) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  return (
+    <View style={styles.dropdownContainer}>
+      <Text style={styles.filterLabel}>{label}</Text>
+      <TouchableOpacity
+        style={styles.dropdownButton}
+        onPress={() => setIsOpen(true)}
+      >
+        <Text style={styles.dropdownButtonText} numberOfLines={1}>
+          {options.find(opt => opt.value === value)?.label || value}
+        </Text>
+        <Text style={styles.dropdownArrow}>▼</Text>
+      </TouchableOpacity>
+
+      <Modal
+        visible={isOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setIsOpen(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{label}</Text>
+            <FlatList
+              data={options}
+              keyExtractor={(item) => item.value}
+              style={styles.optionsList}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.optionItem,
+                    item.value === value && styles.selectedOption
+                  ]}
+                  onPress={() => {
+                    onValueChange(item.value);
+                    setIsOpen(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      item.value === value && styles.selectedOptionText
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  {item.value === value && (
+                    <Text style={styles.checkmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
 };
 
 export default function CalendarTab() {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [registeredEventIds, setRegisteredEventIds] = useState<string[]>([]);
-  const [brotherName, setBrotherName] = useState<string | null>(null);
-  const [pendingFeedbacks, setPendingFeedbacks] = useState<number>(0);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [calendarView, setCalendarView] = useState(false);
-  const [selectedType, setSelectedType] = useState<string>('All');
-  const [filterRegisterable, setFilterRegisterable] = useState<string>('All');
-  const [filterPastEvents, setFilterPastEvents] = useState<string>('All');
-  const router = useRouter();
+  const [state, dispatch] = useReducer(reducer, initialState);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  // Set default filter for pledges to only show upcoming events
-  useEffect(() => {
-    if (userRole === 'pledge') {
-      setFilterPastEvents('Upcoming');
-      setCalendarView(false); // Ensure calendar view is disabled for pledges
+  // Set default filter for pledges when role loads
+  React.useEffect(() => {
+    if (state.userRole === 'pledge') {
+      dispatch({ type: 'SET_FILTER_PAST_EVENTS', filterPastEvents: 'Upcoming' });
+      dispatch({ type: 'SET_CALENDAR_VIEW', calendarView: false });
     }
-  }, [userRole]);
+  }, [state.userRole]);
 
-  const fetchData = async () => {
-    setLoading(true);
+  // FOCUS-AWARE DATA LOADING - refreshes on tab focus
+  const fetchData = useCallback(async () => {
+    dispatch({ type: 'SET_LOADING', loading: true });
 
     try {
       const {
@@ -175,80 +235,65 @@ export default function CalendarTab() {
         return;
       }
 
-      // Fetch user profile
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('first_name, last_name, role, officer_position, approved')
-        .eq('user_id', user.id)
-        .single();
-
-      if (profileError || !profile) {
-        Alert.alert('Profile Error', 'Unable to load your profile. Please contact support.');
-        setLoading(false);
-        return;
-      }
-
-      const fullName = profile.first_name && profile.last_name 
-        ? `${profile.first_name} ${profile.last_name}` 
-        : 'Brother';
-      setBrotherName(fullName);
-      setUserRole(profile.role);
-
-      // Parallelize: fetch events, registrations, and optionally feedback count
-      const eventsPromise = supabase
-        .from('events')
-        .select('id, title, start_time, end_time, location, point_value, point_type, created_by, is_registerable, available_to_pledges')
-        .eq('is_non_event', false)
-        .eq('status', 'approved')
-        .order('start_time', { ascending: true });
-
-      const registrationsPromise = supabase
-        .from('event_registration')
-        .select('event_id')
-        .eq('user_id', user.id);
-
-      // Add feedback count query if user is admin/officer
-      let feedbackPromise = null;
-      if ((profile.role === 'admin' || profile.officer_position === 'president') || 
-          (profile.approved && profile.officer_position)) {
-        feedbackPromise = supabase
-          .from('admin_feedback')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'pending');
-      }
-
-      // Execute all queries in parallel
-      const [eventsResult, registrationsResult, feedbackResult] = await Promise.all([
-        eventsPromise,
-        registrationsPromise,
-        feedbackPromise
+      // PARALLEL QUERY 1: Fetch user profile, events, registrations, feedback all at once
+      const [profileResult, eventsResult, registrationsResult, feedbackResult] = await Promise.all([
+        // Profile
+        supabase
+          .from('users')
+          .select('first_name, last_name, role, officer_position, approved')
+          .eq('user_id', user.id)
+          .single(),
+        
+        // Events
+        supabase
+          .from('events')
+          .select('id, title, start_time, end_time, location, point_value, point_type, created_by, is_registerable, available_to_pledges')
+          .eq('is_non_event', false)
+          .eq('status', 'approved')
+          .order('start_time', { ascending: true }),
+        
+        // Registrations
+        supabase
+          .from('event_registration')
+          .select('event_id')
+          .eq('user_id', user.id),
+        
+        // Feedback count (conditional)
+        (async () => {
+          // Pre-fetch profile to check role
+          const { data: profile } = await supabase
+            .from('users')
+            .select('role, officer_position, approved')
+            .eq('user_id', user.id)
+            .single();
+          
+          if (profile && ((profile.role === 'admin' || profile.officer_position === 'president') || 
+              (profile.approved && profile.officer_position))) {
+            return supabase
+              .from('admin_feedback')
+              .select('*', { count: 'exact', head: true })
+              .eq('status', 'pending');
+          }
+          return null;
+        })()
       ]);
 
+      const { data: profile, error: profileError } = profileResult;
       const { data: eventsData, error: eventsError } = eventsResult;
       const { data: registrations, error: registrationError } = registrationsResult;
 
+      // Error handling
+      if (profileError || !profile) {
+        throw new Error('Unable to load profile. Please contact support.');
+      }
       if (eventsError) {
-        console.error('Events Error:', eventsError);
-        Alert.alert('Events Error', `Unable to load events: ${eventsError.message}`);
-        setLoading(false);
-        return;
+        throw new Error(`Unable to load events: ${eventsError.message}`);
       }
-
       if (!eventsData) {
-        Alert.alert('Events Error', 'No events data received');
-        setLoading(false);
-        return;
+        throw new Error('No events data received');
       }
 
-      // Handle feedback count if query was executed
-      if (feedbackResult) {
-        const { count, error: feedbackError } = feedbackResult;
-        if (!feedbackError && count !== null) {
-          setPendingFeedbacks(count);
-        }
-      }
-
-      // Fetch event creators info
+      // PARALLEL QUERY 2: Fetch event creators (only for unique created_by IDs)
       const createdByIds = [...new Set(eventsData.map((e: any) => e.created_by))];
       const { data: usersData, error: usersError } = await supabase
         .from('users')
@@ -257,9 +302,9 @@ export default function CalendarTab() {
 
       if (usersError) {
         console.error('Users fetch error:', usersError);
-        // Continue with empty map if user data fails to load
       }
 
+      // Build users map
       const usersMap = usersData?.reduce((acc, user) => {
         const fullName = user.first_name && user.last_name 
           ? `${user.first_name} ${user.last_name}` 
@@ -268,154 +313,185 @@ export default function CalendarTab() {
         return acc;
       }, {} as Record<string, string>) || {};
 
+      // PRE-COMPUTE dates for all events (performance optimization)
       const enrichedEvents = eventsData.map((event: any) => ({
         ...event,
         host_name: usersMap[event.created_by] || 'Unknown',
-        is_registerable: event.is_registerable ?? true, // default to true for backward compatibility
-        available_to_pledges: event.available_to_pledges ?? true, // default to true for backward compatibility
-        startDate: getDateInEST(event.start_time), // Pre-compute date
-        endDate: getDateInEST(event.end_time), // Pre-compute date
+        is_registerable: event.is_registerable ?? true,
+        available_to_pledges: event.available_to_pledges ?? true,
+        startDate: getDateInEST(event.start_time),
+        endDate: getDateInEST(event.end_time),
       }));
 
-      setEvents(enrichedEvents);
-
-      if (registrationError) {
-        console.error('Registration fetch error:', registrationError);
-        // Continue with empty registration list if fetch fails
+      // Handle feedback count
+      let pendingFeedbacks = 0;
+      if (feedbackResult) {
+        const { count, error: feedbackError } = feedbackResult;
+        if (!feedbackError && count !== null) {
+          pendingFeedbacks = count;
+        }
       }
 
-      setRegisteredEventIds(registrations?.map((r: any) => r.event_id) || []);
+      // SINGLE STATE UPDATE - all data loaded at once
+      dispatch({
+        type: 'SET_DATA',
+        data: {
+          events: enrichedEvents,
+          registeredEventIds: registrations?.map((r: any) => r.event_id) || [],
+          brotherName: profile.first_name && profile.last_name 
+            ? `${profile.first_name} ${profile.last_name}` 
+            : 'Brother',
+          userRole: profile.role,
+          userId: user.id, // Cache user ID for later mutations
+          pendingFeedbacks,
+        },
+      });
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in fetchData:', error);
-      Alert.alert('Unexpected Error', 'Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
+      dispatch({ type: 'SET_ERROR', error: error.message || 'Something went wrong. Please try again.' });
+      Alert.alert('Error', error.message || 'Something went wrong. Please try again.');
     }
-  };
+  }, []);
 
-  // Memoize filtered events to prevent recalculation on every render
+  // Use focus effect instead of useEffect - refreshes on tab focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
+
+  // MEMOIZED FILTER OPTIONS - compute once, reuse
+  const filterTypeOptions = useMemo(() => {
+    const uniqueTypes = [...new Set(state.events.map(e => e.point_type))];
+    return [
+      { label: 'All Types', value: 'All' },
+      ...uniqueTypes.map((type) => ({
+        label: type === 'dei' ? 'DEI' : 
+               type === 'h&w' ? 'H&W' : 
+               type.charAt(0).toUpperCase() + type.slice(1).toLowerCase(),
+        value: type
+      }))
+    ];
+  }, [state.events]);
+
+  // MEMOIZED FILTERED EVENTS - only recalculates when dependencies change
   const filteredEvents = useMemo(() => {
     const now = new Date();
     
-    return events.filter(e => {
-      // Use pre-computed dates for better performance
-      const eventDate = e.startDate || getDateInEST(e.start_time);
-      const endDate = e.endDate || getDateInEST(e.end_time);
+    return state.events.filter(e => {
+      const eventDate = e.startDate;
+      const endDate = e.endDate;
       const isUpcoming = eventDate > now;
       const isPast = endDate < now;
       
       // Pledge restrictions
-      if (userRole === 'pledge') {
-        // Pledges cannot access past events
-        if (isPast) {
-          return false;
-        }
-        
-        // Pledges cannot access events where available_to_pledges is false
-        if (!e.available_to_pledges) {
+      if (state.userRole === 'pledge') {
+        if (isPast || !e.available_to_pledges) {
           return false;
         }
       }
       
       // Filter by point type
-      if (selectedType !== 'All' && e.point_type !== selectedType) {
+      if (state.selectedType !== 'All' && e.point_type !== state.selectedType) {
         return false;
       }
       
       // Filter by registerable status
-      if (filterRegisterable === 'Registerable' && !e.is_registerable) {
+      if (state.filterRegisterable === 'Registerable' && !e.is_registerable) {
         return false;
       }
-      if (filterRegisterable === 'Non-Registerable' && e.is_registerable) {
+      if (state.filterRegisterable === 'Non-Registerable' && e.is_registerable) {
         return false;
       }
       
       // Filter by past/upcoming status
-      if (filterPastEvents === 'Upcoming' && !isUpcoming) {
+      if (state.filterPastEvents === 'Upcoming' && !isUpcoming) {
         return false;
       }
-      if (filterPastEvents === 'Past' && isUpcoming) {
+      if (state.filterPastEvents === 'Past' && isUpcoming) {
         return false;
       }
       
       return true;
     }).sort((a, b) => {
-      // Sort by date, with upcoming events first
-      // Use pre-computed dates for better performance
-      const dateA = a.startDate || getDateInEST(a.start_time);
-      const dateB = b.startDate || getDateInEST(b.start_time);
+      const dateA = a.startDate;
+      const dateB = b.startDate;
       
       const aIsUpcoming = dateA > now;
       const bIsUpcoming = dateB > now;
       
-      // If one is upcoming and other is past, upcoming comes first
       if (aIsUpcoming && !bIsUpcoming) return -1;
       if (!aIsUpcoming && bIsUpcoming) return 1;
       
-      // If both are upcoming or both are past, sort by date
       return dateA.getTime() - dateB.getTime();
     });
-  }, [events, selectedType, filterRegisterable, filterPastEvents, userRole]);
+  }, [state.events, state.selectedType, state.filterRegisterable, state.filterPastEvents, state.userRole]);
 
+  // OPTIMIZED REGISTRATION - no duplicate getUser() calls
   const handleRegister = useCallback(async (eventId: string) => {
+    if (!state.userId) {
+      Alert.alert('Authentication Error', 'Please log in again.');
+      return;
+    }
+
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user) {
-        Alert.alert('Authentication Error', 'Please log in again.');
-        return;
-      }
-
       const { error } = await supabase.from('event_registration').insert({
-        user_id: user.id,
+        user_id: state.userId,
         event_id: eventId,
       });
 
       if (error) {
         Alert.alert('Registration Failed', error.message);
       } else {
-        setRegisteredEventIds((prev) => [...prev, eventId]);
+        dispatch({ type: 'ADD_REGISTRATION', eventId });
         Alert.alert('Success', 'You have been registered for this event!');
       }
     } catch (error) {
       console.error('Registration error:', error);
       Alert.alert('Error', 'Failed to register. Please try again.');
     }
-  }, []);
+  }, [state.userId]);
 
   const handleUnregister = useCallback(async (eventId: string) => {
+    if (!state.userId) {
+      Alert.alert('Authentication Error', 'Please log in again.');
+      return;
+    }
+
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user) {
-        Alert.alert('Authentication Error', 'Please log in again.');
-        return;
-      }
-
       const { error } = await supabase
         .from('event_registration')
         .delete()
         .eq('event_id', eventId)
-        .eq('user_id', user.id);
+        .eq('user_id', state.userId);
 
       if (error) {
         Alert.alert('Unregistration Failed', error.message);
       } else {
-        setRegisteredEventIds((prev) => prev.filter((id) => id !== eventId));
+        dispatch({ type: 'REMOVE_REGISTRATION', eventId });
         Alert.alert('Success', 'You have been unregistered from this event.');
       }
     } catch (error) {
       console.error('Unregistration error:', error);
       Alert.alert('Error', 'Failed to unregister. Please try again.');
     }
-  }, []);
+  }, [state.userId]);
+
+  // Error UI
+  if (state.error) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>⚠️ Error Loading Events</Text>
+          <Text style={styles.errorSubtext}>{state.error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchData}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -424,13 +500,13 @@ export default function CalendarTab() {
       showsVerticalScrollIndicator={true}
     >
       <Text style={styles.header} numberOfLines={1} adjustsFontSizeToFit={true}>
-        Welcome, {brotherName || 'Brother'}
+        Welcome, {state.brotherName}
       </Text>
 
       {/* Feedback Notifications for Presidents/Admins */}
-      {((userRole === 'admin') || (userRole === 'officer')) && (
+      {((state.userRole === 'admin') || (state.userRole === 'officer')) && (
         <TouchableOpacity 
-          style={[styles.feedbackNotification, pendingFeedbacks > 0 && styles.feedbackNotificationActive]}
+          style={[styles.feedbackNotification, state.pendingFeedbacks > 0 && styles.feedbackNotificationActive]}
           onPress={() => router.push('/president/presidentindex' as any)}
         >
           <View style={styles.feedbackContent}>
@@ -438,14 +514,14 @@ export default function CalendarTab() {
             <View style={styles.feedbackTextContainer}>
               <Text style={styles.feedbackTitle}>Member Feedback</Text>
               <Text style={styles.feedbackCount}>
-                {pendingFeedbacks > 0 
-                  ? `${pendingFeedbacks} pending message${pendingFeedbacks > 1 ? 's' : ''}` 
+                {state.pendingFeedbacks > 0 
+                  ? `${state.pendingFeedbacks} pending message${state.pendingFeedbacks > 1 ? 's' : ''}` 
                   : 'No pending messages'}
               </Text>
             </View>
-            {pendingFeedbacks > 0 && (
+            {state.pendingFeedbacks > 0 && (
               <View style={styles.feedbackBadge}>
-                <Text style={styles.feedbackBadgeText}>{pendingFeedbacks}</Text>
+                <Text style={styles.feedbackBadgeText}>{state.pendingFeedbacks}</Text>
               </View>
             )}
           </View>
@@ -453,16 +529,19 @@ export default function CalendarTab() {
       )}
 
       {/* Hide calendar toggle for pledges */}
-      {userRole !== 'pledge' && (
-        <TouchableOpacity onPress={() => setCalendarView(!calendarView)} style={styles.toggleBtn}>
+      {state.userRole !== 'pledge' && (
+        <TouchableOpacity 
+          onPress={() => dispatch({ type: 'SET_CALENDAR_VIEW', calendarView: !state.calendarView })} 
+          style={styles.toggleBtn}
+        >
           <Text style={styles.toggleText}>
-            {calendarView ? 'Switch to List View' : 'Switch to Calendar View'}
+            {state.calendarView ? 'Switch to List View' : 'Switch to Calendar View'}
           </Text>
         </TouchableOpacity>
       )}
 
       {/* Hide calendar view for pledges */}
-      {calendarView && userRole !== 'pledge' && (
+      {state.calendarView && state.userRole !== 'pledge' && (
         <View style={styles.calendarContainer}>
           <WebView
             style={styles.calendar}
@@ -481,54 +560,46 @@ export default function CalendarTab() {
         </View>
       )}
 
-      {!calendarView && (
+      {!state.calendarView && (
         <View style={styles.filterBar}>
           <Text style={styles.filterBarTitle}>Filters</Text>
           
           <View style={styles.filterRow}>
             <CustomDropdown
               label="Type"
-              value={selectedType}
-              options={[
-                { label: 'All Types', value: 'All' },
-                ...[...new Set(events.map(e => e.point_type))].map((type) => ({
-                  label: type === 'dei' ? 'DEI' : 
-                         type === 'h&w' ? 'H&W' : 
-                         type.charAt(0).toUpperCase() + type.slice(1).toLowerCase(),
-                  value: type
-                }))
-              ]}
-              onValueChange={(value) => setSelectedType(value)}
+              value={state.selectedType}
+              options={filterTypeOptions}
+              onValueChange={(value) => dispatch({ type: 'SET_FILTER_TYPE', selectedType: value })}
             />
 
             <CustomDropdown
               label="Registration"
-              value={filterRegisterable}
+              value={state.filterRegisterable}
               options={[
                 { label: 'All Events', value: 'All' },
                 { label: 'Registerable', value: 'Registerable' },
                 { label: 'Non-Registerable', value: 'Non-Registerable' }
               ]}
-              onValueChange={(value) => setFilterRegisterable(value)}
+              onValueChange={(value) => dispatch({ type: 'SET_FILTER_REGISTERABLE', filterRegisterable: value })}
             />
 
             <CustomDropdown
               label="Status"
-              value={filterPastEvents}
-              options={userRole === 'pledge' ? [
+              value={state.filterPastEvents}
+              options={state.userRole === 'pledge' ? [
                 { label: 'Upcoming', value: 'Upcoming' }
               ] : [
                 { label: 'All Events', value: 'All' },
                 { label: 'Upcoming', value: 'Upcoming' },
                 { label: 'Past Events', value: 'Past' }
               ]}
-              onValueChange={(value) => setFilterPastEvents(value)}
+              onValueChange={(value) => dispatch({ type: 'SET_FILTER_PAST_EVENTS', filterPastEvents: value })}
             />
           </View>
         </View>
       )}
 
-      {loading ? (
+      {state.loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#8b5cf6" />
           <Text style={styles.loadingText}>Loading events...</Text>
@@ -541,9 +612,8 @@ export default function CalendarTab() {
       ) : (
         <View style={styles.eventsContainer}>
           {filteredEvents.map(item => {
-            const isRegistered = registeredEventIds.includes(item.id);
-            // Use pre-computed date for better performance
-            const eventDate = item.startDate || getDateInEST(item.start_time);
+            const isRegistered = state.registeredEventIds.includes(item.id);
+            const eventDate = item.startDate;
             const isUpcoming = eventDate > new Date();
             
             return (
@@ -842,6 +912,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#9ca3af',
     textAlign: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  errorText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#ef4444',
+    marginBottom: 8,
+  },
+  errorSubtext: {
+    fontSize: 16,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#8b5cf6',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
   },
   eventsContainer: {
     gap: 16,

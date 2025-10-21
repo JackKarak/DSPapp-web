@@ -8,6 +8,21 @@ export type Event = {
   is_non_event?: boolean;
 };
 
+export type EventDetail = {
+  id: string;
+  title: string;
+  description?: string;
+  location: string;
+  start_time: string;
+  end_time: string;
+  point_type: string;
+  point_value: number;
+  is_registerable: boolean;
+  available_to_pledges: boolean;
+  created_by?: string;
+  created_at?: string;
+};
+
 export type Profile = {
   name: string | null;
   pledge_class: string | null;

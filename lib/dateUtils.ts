@@ -132,3 +132,20 @@ export const formatLocalDateTime = (dateString: string, options?: Intl.DateTimeF
     ...options
   });
 };
+
+/**
+ * Formats a date and time for display in EST timezone
+ * Returns format: "Mon, Jan 15, 2025, 7:30 PM"
+ */
+export const formatDateTimeInEST = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+};

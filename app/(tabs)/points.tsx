@@ -1,6 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useReducer, useMemo } from 'react';
 import { ActivityIndicator, Platform, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
@@ -43,213 +44,154 @@ const POINT_REQUIREMENTS: Record<string, { required: number; name: string; descr
   },
 };
 
+// State type - CONSOLIDATED into single object
+type State = {
+  pointsByCategory: Record<string, number>;
+  pillarsMet: number;
+  previousPillarsMet: number;
+  loading: boolean;
+  refreshing: boolean;
+  leaderboard: Array<{
+    name: string;
+    totalPoints: number;
+    rank: number;
+  }>;
+  userRank: {
+    name: string;
+    totalPoints: number;
+    rank: number;
+  } | null;
+  error: string | null;
+};
+
+// Action types
+type Action =
+  | { type: 'SET_LOADING'; loading: boolean }
+  | { type: 'SET_REFRESHING'; refreshing: boolean }
+  | { type: 'SET_DATA'; data: Partial<State> }
+  | { type: 'SET_ERROR'; error: string };
+
+// Reducer - single state update point
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'SET_LOADING':
+      return { ...state, loading: action.loading };
+    case 'SET_REFRESHING':
+      return { ...state, refreshing: action.refreshing };
+    case 'SET_DATA':
+      return { 
+        ...state, 
+        ...action.data, 
+        loading: false, 
+        refreshing: false,
+        error: null 
+      };
+    case 'SET_ERROR':
+      return { 
+        ...state, 
+        error: action.error, 
+        loading: false, 
+        refreshing: false 
+      };
+    default:
+      return state;
+  }
+}
+
+// Initial state
+const initialState: State = {
+  pointsByCategory: {},
+  pillarsMet: 0,
+  previousPillarsMet: 0,
+  loading: true,
+  refreshing: false,
+  leaderboard: [],
+  userRank: null,
+  error: null,
+};
+
 export default function PointsScreen() {
   const colors = Colors['light'];
-  
-  const [pointsByCategory, setPointsByCategory] = useState<Record<string, number>>({});
-  const [pillarsMet, setPillarsMet] = useState(0);
-  const [previousPillarsMet, setPreviousPillarsMet] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [leaderboard, setLeaderboard] = useState<{
-    name: string;
-    totalPoints: number;
-    rank: number;
-  }[]>([]);
-  const [userRank, setUserRank] = useState<{
-    name: string;
-    totalPoints: number;
-    rank: number;
-  } | null>(null);
+  const [state, dispatch] = useReducer(reducer, initialState);
 
-  // Calculate confetti trigger - must be before early return to maintain hook order
-  const totalPillars = Object.keys(POINT_REQUIREMENTS).length;
-  const triggerConfetti = useMemo(() => {
-    return previousPillarsMet < totalPillars && pillarsMet >= totalPillars;
-  }, [previousPillarsMet, pillarsMet, totalPillars]);
-
-  useEffect(() => {
-    fetchAllData();
-  }, []);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchAllData();
-    setRefreshing(false);
-  };
-
-  const fetchAllData = async () => {
-    if (!refreshing) setLoading(true);
-
+  // Fetch data using SINGLE RPC call
+  const fetchAllData = useCallback(async () => {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError || !user) {
-        setLoading(false);
+        dispatch({ type: 'SET_ERROR', error: 'Authentication failed. Please log in again.' });
         return;
       }
 
-      // Fetch ALL data in parallel - only once!
-      const [attendanceResult, appealsResult, registrationsResult, eventsResult, profilesResult] = await Promise.all([
-        supabase.from('event_attendance').select('*'),
-        supabase.from('point_appeal').select('event_id, user_id').eq('status', 'approved'),
-        supabase.from('event_registration').select('*'),
-        supabase.from('events').select('id, point_type, point_value'),
-        supabase.from('users').select('user_id, first_name, last_name, role, officer_position').eq('approved', true)
-      ]);
+      // SINGLE RPC CALL - Get everything at once!
+      const { data: dashboardData, error: dashboardError } = await supabase
+        .rpc('get_points_dashboard', {
+          p_user_id: user.id
+        });
 
-      const { data: allAttendance } = attendanceResult;
-      const { data: allApprovedAppeals } = appealsResult;
-      let { data: allRegistrations } = registrationsResult;
-      const { data: allEvents } = eventsResult;
-      const { data: profiles } = profilesResult;
-
-      // Fallback for registrations if primary table failed
-      if (!allRegistrations) {
-        const { data: registrations2 } = await supabase.from('event_register').select('*');
-        allRegistrations = registrations2;
+      if (dashboardError) {
+        console.error('Dashboard fetch error:', dashboardError);
+        dispatch({ type: 'SET_ERROR', error: `Failed to load points data: ${dashboardError.message}` });
+        return;
       }
 
-      // Pre-index data into Maps for O(1) lookups instead of O(N) filters
-      const attendanceByUser = new Map<string, Set<string>>();
-      const appealsByUser = new Map<string, Set<string>>();
-      const registrationsByUser = new Map<string, Set<string>>();
-      const eventsMap = new Map<string, any>();
+      if (!dashboardData) {
+        dispatch({ type: 'SET_ERROR', error: 'No points data received. Please contact support.' });
+        return;
+      }
 
-      allAttendance?.forEach(a => {
-        if (!attendanceByUser.has(a.user_id)) {
-          attendanceByUser.set(a.user_id, new Set());
-        }
-        attendanceByUser.get(a.user_id)!.add(a.event_id);
-      });
+      // Parse the returned JSON
+      const categoryPoints = dashboardData.categoryPoints || {};
+      const userRank = dashboardData.userRank || null;
+      const leaderboard = dashboardData.leaderboard || [];
 
-      allApprovedAppeals?.forEach(a => {
-        if (!appealsByUser.has(a.user_id)) {
-          appealsByUser.set(a.user_id, new Set());
-        }
-        appealsByUser.get(a.user_id)!.add(a.event_id);
-      });
-
-      allRegistrations?.forEach(r => {
-        if (!registrationsByUser.has(r.user_id)) {
-          registrationsByUser.set(r.user_id, new Set());
-        }
-        registrationsByUser.get(r.user_id)!.add(r.event_id);
-      });
-
-      allEvents?.forEach(e => {
-        eventsMap.set(e.id, e);
-      });
-
-      // Calculate current user's points
-      const userAttendedIds = attendanceByUser.get(user.id) || new Set();
-      const userAppealIds = appealsByUser.get(user.id) || new Set();
-      const userRegisteredIds = registrationsByUser.get(user.id) || new Set();
-      
-      const allUserEventIds = new Set([...userAttendedIds, ...userAppealIds]);
-
-      const categoryPoints: Record<string, number> = {};
-
-      allUserEventIds.forEach(eventId => {
-        const event = eventsMap.get(eventId);
-        if (event?.point_type) {
-          const wasRegistered = userRegisteredIds.has(eventId);
-          const pointsEarned = wasRegistered ? 1.5 : 1;
-          categoryPoints[event.point_type] = (categoryPoints[event.point_type] || 0) + pointsEarned;
-        }
-      });
-
+      // Calculate pillars met
       const metCount = Object.entries(POINT_REQUIREMENTS).reduce((count, [cat, config]) => {
         return (categoryPoints[cat] || 0) >= config.required ? count + 1 : count;
       }, 0);
 
-      setPointsByCategory(categoryPoints);
-      setPreviousPillarsMet(pillarsMet);
-      setPillarsMet(metCount);
-
-      // Try to use database aggregation for leaderboard (10x faster!)
-      const userIds = profiles?.map(p => p.user_id) || [];
-      const { data: dbPoints, error: rpcError } = await supabase.rpc('calculate_user_points', {
-        user_ids: userIds
+      // SINGLE STATE UPDATE - all data loaded at once
+      dispatch({
+        type: 'SET_DATA',
+        data: {
+          pointsByCategory: categoryPoints,
+          previousPillarsMet: state.pillarsMet, // Save previous for confetti
+          pillarsMet: metCount,
+          leaderboard,
+          userRank,
+        },
       });
 
-      let leaderboardData;
-
-      if (!rpcError && dbPoints) {
-        // ✅ SUCCESS! Using database aggregation
-        console.log('✅ Using database aggregation for leaderboard calculation');
-        
-        // Map database points to profiles
-        const pointsMap = dbPoints.reduce((acc: any, item: any) => {
-          acc[item.user_id] = item.total_points;
-          return acc;
-        }, {});
-
-        leaderboardData = profiles?.map(profile => ({
-          id: profile.user_id,
-          name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown',
-          totalPoints: pointsMap[profile.user_id] || 0,
-        })) || [];
-      } else {
-        // ⚠️ FALLBACK: Database aggregation not available, use client-side
-        console.log('⚠️ Using client-side leaderboard calculation (fallback)');
-        
-        const userPointsMap = new Map<string, number>();
-
-        profiles?.forEach(profile => {
-          const userId = profile.user_id;
-          const userAttended = attendanceByUser.get(userId) || new Set();
-          const userAppeals = appealsByUser.get(userId) || new Set();
-          const userRegistrations = registrationsByUser.get(userId) || new Set();
-          
-          const allUserEvents = new Set([...userAttended, ...userAppeals]);
-          let totalPoints = 0;
-
-          allUserEvents.forEach(eventId => {
-            const event = eventsMap.get(eventId);
-            if (event) {
-              const wasRegistered = userRegistrations.has(eventId);
-              totalPoints += wasRegistered ? 1.5 : 1;
-            }
-          });
-
-          userPointsMap.set(userId, totalPoints);
-        });
-
-        leaderboardData = profiles?.map(profile => ({
-          id: profile.user_id,
-          name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown',
-          totalPoints: userPointsMap.get(profile.user_id) || 0,
-        })) || [];
-      }
-
-      // Sort and rank leaderboard
-      leaderboardData.sort((a, b) => b.totalPoints - a.totalPoints);
-
-      const rankedData = leaderboardData.map((user, index) => ({
-        ...user,
-        rank: index + 1,
-      }));
-
-      setLeaderboard(rankedData.slice(0, 5));
-
-      const currentUserData = rankedData.find(u => u.id === user.id);
-      if (currentUserData) {
-        setUserRank({
-          name: currentUserData.name,
-          totalPoints: currentUserData.totalPoints,
-          rank: currentUserData.rank,
-        });
-      }
-
-    } catch (error) {
-      // Error loading data
-    } finally {
-      setLoading(false);
+    } catch (error: any) {
+      console.error('Error in fetchAllData:', error);
+      dispatch({ 
+        type: 'SET_ERROR', 
+        error: error.message || 'An unexpected error occurred. Please try again.' 
+      });
     }
-  };
+  }, [state.pillarsMet]);
 
-  if (loading) {
+  // Use focus-aware loading instead of useEffect
+  useFocusEffect(
+    useCallback(() => {
+      dispatch({ type: 'SET_LOADING', loading: true });
+      fetchAllData();
+    }, [fetchAllData])
+  );
+
+  const onRefresh = useCallback(async () => {
+    dispatch({ type: 'SET_REFRESHING', refreshing: true });
+    await fetchAllData();
+  }, [fetchAllData]);
+
+  // Calculate confetti trigger - must be memoized
+  const totalPillars = Object.keys(POINT_REQUIREMENTS).length;
+  const triggerConfetti = useMemo(() => {
+    return state.previousPillarsMet < totalPillars && state.pillarsMet >= totalPillars;
+  }, [state.previousPillarsMet, state.pillarsMet, totalPillars]);
+
+  if (state.loading && !state.refreshing) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <StatusBar 
@@ -266,7 +208,28 @@ export default function PointsScreen() {
     );
   }
 
-  const completionPercentage = (pillarsMet / totalPillars) * 100;
+  // Error state
+  if (state.error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <StatusBar 
+          barStyle="dark-content" 
+          backgroundColor={colors.background} 
+        />
+        <View style={styles.centered}>
+          <MaterialIcons name="error-outline" size={64} color={colors.icon} />
+          <Text style={[styles.errorText, { color: colors.text }]}>
+            {state.error}
+          </Text>
+          <Text style={[styles.errorSubtext, { color: colors.icon }]}>
+            Pull down to retry
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  const completionPercentage = (state.pillarsMet / totalPillars) * 100;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -280,7 +243,7 @@ export default function PointsScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl 
-            refreshing={refreshing} 
+            refreshing={state.refreshing} 
             onRefresh={onRefresh}
             colors={[colors.primary]}
             tintColor={colors.primary}
@@ -304,7 +267,7 @@ export default function PointsScreen() {
               <View style={styles.progressStats}>
                 <View style={styles.statItem}>
                   <Text style={[styles.statNumber, { color: colors.primary }]}>
-                    {pillarsMet}
+                    {state.pillarsMet}
                   </Text>
                   <Text style={[styles.statLabel, { color: colors.icon }]}>
                     Completed
@@ -357,7 +320,7 @@ export default function PointsScreen() {
           </Text>
           
           {Object.entries(POINT_REQUIREMENTS).map(([category, config]) => {
-            const earned = pointsByCategory[category] || 0;
+            const earned = state.pointsByCategory[category] || 0;
             const met = earned >= config.required;
             const progress = Math.min((earned / config.required) * 100, 100);
 
@@ -455,9 +418,9 @@ export default function PointsScreen() {
             </Text>
           </View>
           
-          {leaderboard.map((user, index) => (
+          {state.leaderboard.map((user, index) => (
             <View
-              key={user.name}
+              key={user.name + user.rank}
               style={[
                 styles.leaderboardRow,
                 { backgroundColor: colors.background },
@@ -500,7 +463,7 @@ export default function PointsScreen() {
           ))}
 
           {/* Current User's Rank (if not in top 5) */}
-          {userRank && userRank.rank > 5 && (
+          {state.userRank && state.userRank.rank > 5 && (
             <View style={styles.userRankSection}>
               <Text style={[styles.userRankLabel, { color: colors.icon }]}>
                 Your Ranking:
@@ -514,7 +477,7 @@ export default function PointsScreen() {
               ]}>
                 <View style={styles.rankContainer}>
                   <Text style={[styles.userRankText, { color: colors.primary }]}>
-                    #{userRank.rank}
+                    #{state.userRank.rank}
                   </Text>
                 </View>
                 <Text 
@@ -522,11 +485,11 @@ export default function PointsScreen() {
                   numberOfLines={1} 
                   ellipsizeMode="tail"
                 >
-                  {userRank.name}
+                  {state.userRank.name}
                 </Text>
                 <View style={styles.pointsContainer}>
                   <Text style={[styles.userRankPoints, { color: colors.primary }]}>
-                    {userRank.totalPoints.toFixed(1)}
+                    {state.userRank.totalPoints.toFixed(1)}
                   </Text>
                   <Text style={[styles.pointsLabel, { color: colors.icon }]}>pts</Text>
                 </View>
@@ -557,11 +520,23 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 40,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
     fontWeight: '500',
+  },
+  errorText: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  errorSubtext: {
+    marginTop: 8,
+    fontSize: 14,
+    textAlign: 'center',
   },
   
   // Header Section

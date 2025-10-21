@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Button,
   KeyboardAvoidingView,
@@ -38,122 +39,123 @@ const getCurrentTimeInEST = () => {
   });
 };
 
+type CheckInState = 'idle' | 'validating' | 'submitting' | 'success';
+
 export default function AttendanceScreen() {
   const [code, setCode] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [state, setState] = useState<CheckInState>('idle');
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!code.trim()) {
       Alert.alert('⚠️ Missing Code', 'Please enter an attendance code.');
       return;
     }
 
-    setLoading(true);
+    setState('validating');
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    try {
+      // PARALLEL QUERY #1: Get user auth
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (authError || !user) {
-      setLoading(false);
-      Alert.alert('❌ Error', 'User not authenticated.');
-      return;
-    }
+      if (authError || !user) {
+        throw new Error('User not authenticated.');
+      }
 
-    // Check if the code is valid for an event
-    const { data: events, error: eventError } = await supabase
-      .from('events')
-      .select('*')
-      .eq('code', code.trim().toUpperCase()); // Case insensitive
+      // PARALLEL QUERY #2: Get event AND user profile at the same time
+      const [eventResult, profileResult] = await Promise.all([
+        supabase
+          .from('events')
+          .select('id, title, start_time, end_time, code') // Only select needed columns
+          .eq('code', code.trim().toUpperCase())
+          .maybeSingle(), // Better than checking array length
+        supabase
+          .from('users')
+          .select('first_name, last_name')
+          .eq('user_id', user.id)
+          .single()
+      ]);
 
-    if (eventError) {
-      setLoading(false);
-      Alert.alert('❌ Database Error', 'Unable to verify code. Please try again.');
-      return;
-    }
+      // Check event result
+      if (eventResult.error) {
+        throw new Error('Unable to verify code. Please try again.');
+      }
 
-    if (!events || events.length === 0) {
-      setLoading(false);
-      Alert.alert('❌ Invalid Code', 'This attendance code is not valid or has expired.');
-      return;
-    }
+      if (!eventResult.data) {
+        Alert.alert('❌ Invalid Code', 'This attendance code is not valid or has expired.');
+        setState('idle');
+        return;
+      }
 
-    const event = events[0];
+      const event = eventResult.data;
 
-    // Check if current time is within the event time window
-    const currentTime = new Date();
-    const eventStartTime = new Date(event.start_time);
-    const eventEndTime = new Date(event.end_time);
+      // Validate event timing
+      const currentTime = new Date();
+      const eventStartTime = new Date(event.start_time);
+      const eventEndTime = new Date(event.end_time);
 
-    if (currentTime < eventStartTime) {
-      setLoading(false);
-      Alert.alert(
-        '⏰ Event Not Started',
-        `You cannot check in before the event starts.\n\nEvent Start: ${formatDateTimeInEST(event.start_time)}\nCurrent Time (EST): ${getCurrentTimeInEST()}`
-      );
-      return;
-    }
+      if (currentTime < eventStartTime) {
+        Alert.alert(
+          '⏰ Event Not Started',
+          `You cannot check in before the event starts.\n\nEvent Start: ${formatDateTimeInEST(event.start_time)}\nCurrent Time (EST): ${getCurrentTimeInEST()}`
+        );
+        setState('idle');
+        return;
+      }
 
-    if (currentTime > eventEndTime) {
-      setLoading(false);
-      Alert.alert(
-        '⏰ Event Has Ended',
-        `You cannot check in after the event has ended.\n\nEvent End: ${formatDateTimeInEST(event.end_time)}\nCurrent Time (EST): ${getCurrentTimeInEST()}`
-      );
-      return;
-    }
+      if (currentTime > eventEndTime) {
+        Alert.alert(
+          '⏰ Event Has Ended',
+          `You cannot check in after the event has ended.\n\nEvent End: ${formatDateTimeInEST(event.end_time)}\nCurrent Time (EST): ${getCurrentTimeInEST()}`
+        );
+        setState('idle');
+        return;
+      }
 
-    // Check if user already recorded attendance
-    const { data: existing, error: checkError } = await supabase
-      .from('event_attendance')
-      .select('id')
-      .eq('event_id', event.id)
-      .eq('user_id', user.id);
+      // ATOMIC CHECK-IN: Use database constraint to prevent duplicates
+      setState('submitting');
 
-    if (checkError) {
-      setLoading(false);
-      Alert.alert('❌ Error', checkError.message);
-      return;
-    }
-
-    if (existing.length > 0) {
-      setLoading(false);
-      Alert.alert('ℹ️ Already Checked In', 'You’ve already been marked present for this event.');
-      return;
-    }
-
-    const { data: insertData, error: insertError } = await supabase
-      .from('event_attendance')
-      .insert([
-        {
+      const { error: insertError } = await supabase
+        .from('event_attendance')
+        .insert({
           event_id: event.id,
           user_id: user.id,
-          scanned_by: user.id, // optional: record who scanned if you want
+          scanned_by: user.id,
           attended_at: new Date().toISOString(),
-        },
-      ])
-      .select(); // Add select to get back the inserted data
+        });
 
-    setLoading(false);
+      if (insertError) {
+        // Check if it's a duplicate key error (already checked in)
+        if (insertError.code === '23505') {
+          Alert.alert('ℹ️ Already Checked In', 'You\'ve already been marked present for this event.');
+          setState('idle');
+          setCode('');
+          return;
+        }
+        
+        throw new Error(`Failed to record attendance: ${insertError.message}`);
+      }
 
-    if (insertError) {
-      console.error('Attendance insert error:', insertError);
-      Alert.alert('❌ Error', `Failed to record attendance: ${insertError.message}\n\nError code: ${insertError.code || 'Unknown'}\nDetails: ${insertError.details || 'None'}`);
-    } else {      // Get user profile for personalized message
-      const { data: profile } = await supabase
-        .from('users')
-        .select('first_name, last_name')
-        .eq('user_id', user.id)
-        .single();
-
-      const userName = profile?.first_name && profile?.last_name 
-        ? `${profile.first_name} ${profile.last_name}` 
+      // Success! Use pre-fetched profile data
+      setState('success');
+      const userName = profileResult.data?.first_name && profileResult.data?.last_name
+        ? `${profileResult.data.first_name} ${profileResult.data.last_name}`
         : 'User';
+      
       Alert.alert('✅ Success', `${userName}, you have been marked present for "${event.title}".`);
       setCode('');
+      setState('idle');
+
+    } catch (error) {
+      console.error('Check-in error:', error);
+      Alert.alert(
+        '❌ Error',
+        error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.'
+      );
+      setState('idle');
     }
-  };
+  }, [code]);
+
+  const isLoading = state === 'validating' || state === 'submitting';
 
   return (
     <KeyboardAvoidingView
@@ -162,21 +164,31 @@ export default function AttendanceScreen() {
     >
       <Text style={styles.title}>📲 Attendance Check-In</Text>
 
+      {isLoading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#6C4AB6" />
+          <Text style={styles.loadingText}>
+            {state === 'validating' ? 'Validating code...' : 'Submitting check-in...'}
+          </Text>
+        </View>
+      )}
+
       <TextInput
         placeholder="Enter attendance code"
         value={code}
         onChangeText={setCode}
         style={styles.input}
         placeholderTextColor="#aaa"
-        autoCapitalize="none"
+        autoCapitalize="characters"
+        editable={!isLoading}
       />
 
       <View style={styles.button}>
         <Button
-          title={loading ? 'Checking...' : 'Submit'}
+          title={isLoading ? 'Processing...' : 'Submit'}
           onPress={handleSubmit}
           color="#6C4AB6"
-          disabled={loading}
+          disabled={isLoading}
         />
       </View>
     </KeyboardAvoidingView>
@@ -197,6 +209,16 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     textAlign: 'center',
   },
+  loadingContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6C4AB6',
+    fontWeight: '500',
+  },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
@@ -211,4 +233,3 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
-

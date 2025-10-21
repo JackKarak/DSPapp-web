@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Alert, TouchableOpacity, View } from 'react-native';
 import { useOfficerRole } from '../../hooks/useOfficerRole';
 import { supabase } from '../../lib/supabase';
@@ -19,12 +19,45 @@ export default function OfficerLayout() {
     }
   };
 
+  // Memoize accessible tabs - MUST be before any conditional returns
+  const accessibleTabs = useMemo(() => {
+    const position = role?.position?.toLowerCase() ?? '';
+    const baseTabs = ['index', 'analytics', 'events', 'register'];
+    
+    // Define additional tabs for specific roles
+    switch (position) {
+      // VP Scholarship gets additional scholarship tab
+      case 'vp_scholarship':
+        return new Set([...baseTabs, 'scholarship']);
+        
+      // Historian gets additional historian tab
+      case 'historian':
+        return new Set([...baseTabs, 'historian']);
+        
+      // All other officers get base tabs
+      default:
+        return new Set(baseTabs);
+    }
+  }, [role?.position]);
+
+  // Define tab configuration once
+  const tabConfig = useMemo(() => [
+    { name: 'index', title: 'Home', icon: 'home-outline' },
+    { name: 'analytics', title: 'Analytics', icon: 'bar-chart-outline' },
+    { name: 'events', title: 'Events', icon: 'calendar-outline' },
+    { name: 'register', title: 'Register', icon: 'person-add-outline' },
+    { name: 'scholarship', title: 'Testbank', icon: 'library-outline', path: '/officer/scholarship' },
+    { name: 'historian', title: 'Marketing', icon: 'megaphone-outline', path: '/officer/historian' },
+    { name: 'officerspecs', title: 'Officer Control', icon: 'settings-outline', hidden: true },
+  ], []);
+
   useEffect(() => {
     if (!loading && (!role?.is_officer || !role?.position)) {
       router.replace('/');
     }
   }, [role, loading, router]);
 
+  // Conditional render AFTER all hooks
   if (loading || !role?.is_officer || !role?.position) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -32,31 +65,6 @@ export default function OfficerLayout() {
       </View>
     );
   }
-
-  // Define which tabs each officer role can access
-  const getAccessibleTabs = () => {
-    const position = role?.position?.toLowerCase() ?? '';
-    
-    // Base tabs that ALL officers get
-    const baseTabs = ['index', 'analytics', 'events', 'register'];
-    
-    // Define additional tabs for specific roles
-    switch (position) {
-      // VP Scholarship gets additional scholarship tab
-      case 'vp_scholarship':
-        return [...baseTabs, 'scholarship'];
-        
-      // Historian gets additional historian tab
-      case 'historian':
-        return [...baseTabs, 'historian'];
-        
-      // All other officers get base tabs
-      default:
-        return baseTabs;
-    }
-  };
-
-  const accessibleTabs = getAccessibleTabs();
   
   return (
     <ErrorBoundary>
@@ -75,76 +83,19 @@ export default function OfficerLayout() {
         ),
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
-          ),
-          href: accessibleTabs.includes('index') ? undefined : null,
-        }}
-      />
-      <Tabs.Screen
-        name="analytics"
-        options={{
-          title: 'Analytics',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart-outline" size={size} color={color} />
-          ),
-          href: accessibleTabs.includes('analytics') ? undefined : null,
-        }}
-      />
-      <Tabs.Screen
-        name="events"
-        options={{
-          title: 'Events',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
-          ),
-          href: accessibleTabs.includes('events') ? undefined : null,
-        }}
-      />
-      <Tabs.Screen
-        name="register"
-        options={{
-          title: 'Register',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-add-outline" size={size} color={color} />
-          ),
-          href: accessibleTabs.includes('register') ? undefined : null,
-        }}
-      />
-      <Tabs.Screen
-        name="scholarship"
-        options={{
-          title: 'Testbank',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="library-outline" size={size} color={color} />
-          ),
-          href: accessibleTabs.includes('scholarship') ? '/officer/scholarship' : null,
-        }}
-      />
-      <Tabs.Screen
-        name="historian"
-        options={{
-          title: 'Marketing',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="megaphone-outline" size={size} color={color} />
-          ),
-          href: accessibleTabs.includes('historian') ? '/officer/historian' : null,
-        }}
-      />
-      <Tabs.Screen
-        name="officerspecs"
-        options={{
-          title: 'Officer Control',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings-outline" size={size} color={color} />
-          ),
-          href: null, // Hidden tab - used for routing only
-        }}
-      />
+      {tabConfig.map((tab) => (
+        <Tabs.Screen
+          key={tab.name}
+          name={tab.name}
+          options={{
+            title: tab.title,
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name={tab.icon as any} size={size} color={color} />
+            ),
+            href: tab.hidden ? null : (accessibleTabs.has(tab.name) ? (tab.path ?? undefined) : null),
+          }}
+        />
+      ))}
     </Tabs>
     </ErrorBoundary>
   );

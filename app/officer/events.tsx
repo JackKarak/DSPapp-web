@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Button, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../lib/supabase';
 
@@ -27,6 +27,9 @@ type Event = {
   is_registerable?: boolean;
   registrationCount?: number;
   registrations?: Registration[];
+  formattedStartTime?: string;
+  formattedEndTime?: string;
+  isPast?: boolean;
 };
 
 type Registration = {
@@ -46,10 +49,7 @@ type Attendance = {
 };
 
 export default function OfficerEventsManagement() {
-  const [approvedEvents, setApprovedEvents] = useState<Event[]>([]);
-  const [deniedEvents, setDeniedEvents] = useState<Event[]>([]);
-  const [pendingEvents, setPendingEvents] = useState<Event[]>([]);
-  const [pastEvents, setPastEvents] = useState<Event[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Modal state for showing registrations/attendance
@@ -58,14 +58,54 @@ export default function OfficerEventsManagement() {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
 
+  // Memoized categorized events - compute once per events change
+  const categorizedEvents = useMemo(() => {
+    const approved = events.filter(e => !e.isPast && e.status === 'approved');
+    const denied = events.filter(e => !e.isPast && e.status === 'denied');
+    const pending = events.filter(e => !e.isPast && e.status === 'pending');
+    const past = events.filter(e => e.isPast);
+    
+    return { approved, denied, pending, past };
+  }, [events]);
+
+  // Race condition prevention
   useEffect(() => {
-    fetchEvents();
+    let isMounted = true;
+    
+    const loadData = async () => {
+      await fetchEvents();
+      if (!isMounted) return;
+    };
+    
+    loadData();
+    return () => { isMounted = false; };
   }, []);
 
-  const fetchEvents = async () => {
-    setLoading(true);
+  // Shared helper to fetch user details
+  const fetchUsersDetails = useCallback(async (userIds: string[]) => {
+    if (userIds.length === 0) return new Map();
+    
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('user_id, first_name, last_name, email')
+      .in('user_id', userIds);
 
+    if (error) {
+      console.error('Error fetching user details:', error);
+      return new Map();
+    }
+
+    const usersMap = new Map();
+    users?.forEach(user => {
+      usersMap.set(user.user_id, user);
+    });
+    return usersMap;
+  }, []);
+
+  const fetchEvents = useCallback(async () => {
     try {
+      setLoading(true);
+
       const {
         data: authData,
         error: authError,
@@ -73,11 +113,12 @@ export default function OfficerEventsManagement() {
 
       const user = authData?.user;
 
-      if (authError || !user) {
-        console.error('Authentication error in officer events:', authError);
-        Alert.alert('Authentication Error', authError?.message || 'User not authenticated');
-        setLoading(false);
-        return;
+      if (authError) {
+        throw new Error(`Authentication error: ${authError.message}`);
+      }
+      
+      if (!user) {
+        throw new Error('User not authenticated');
       }
 
       const { data: events, error } = await supabase
@@ -90,7 +131,11 @@ export default function OfficerEventsManagement() {
         throw error;
       }
 
-      if (events) {
+      if (!events) {
+        setEvents([]);
+        return;
+      }
+
       // Fetch registration details for registerable events
       const registerableEventIds = events
         .filter(event => event.is_registerable)
@@ -105,84 +150,70 @@ export default function OfficerEventsManagement() {
           .select('id, event_id, user_id, registered_at')
           .in('event_id', registerableEventIds);
 
-        if (!regError && registrations) {
-          // Get all unique user IDs from registrations
-          const registrationUserIds = [...new Set(registrations.map(reg => reg.user_id))];
+        if (regError) {
+          console.error('Error fetching registrations:', regError);
+        } else if (registrations && registrations.length > 0) {
+          // Get unique user IDs efficiently
+          const seenIds = new Set<string>();
+          registrations.forEach(reg => seenIds.add(reg.user_id));
+          const registrationUserIds = Array.from(seenIds);
           
-          // Parallelize: Fetch user details while processing registrations
-          const { data: registrationUsers, error: regUsersError } = registrationUserIds.length > 0
-            ? await supabase
-                .from('users')
-                .select('user_id, first_name, last_name, email')
-                .in('user_id', registrationUserIds)
-            : { data: null, error: null };
+          // Fetch user details using shared helper
+          const regUsersMap = await fetchUsersDetails(registrationUserIds);
 
-          if (!regUsersError && registrationUsers) {
-            // Create a map of user_id to user details
-            const regUsersMap = new Map();
-            registrationUsers.forEach(user => {
-              regUsersMap.set(user.user_id, user);
+          // Count registrations per event and organize details
+          registrations.forEach(reg => {
+            const eventId = reg.event_id;
+            
+            // Count
+            registrationCounts[eventId] = (registrationCounts[eventId] || 0) + 1;
+            
+            // Details
+            if (!registrationDetails[eventId]) {
+              registrationDetails[eventId] = [];
+            }
+            
+            const user = regUsersMap.get(reg.user_id);
+            const fullName = user?.first_name && user?.last_name 
+              ? `${user.first_name} ${user.last_name}` 
+              : 'Unknown User';
+              
+            registrationDetails[eventId].push({
+              id: reg.id,
+              user_id: reg.user_id,
+              full_name: fullName,
+              email: user?.email || 'Unknown Email',
+              registered_at: reg.registered_at
             });
-
-            // Count registrations per event and organize details
-            registrations.forEach(reg => {
-              const eventId = reg.event_id;
-              
-              // Count
-              registrationCounts[eventId] = (registrationCounts[eventId] || 0) + 1;
-              
-              // Details
-              if (!registrationDetails[eventId]) {
-                registrationDetails[eventId] = [];
-              }
-              
-              const user = regUsersMap.get(reg.user_id);
-              const fullName = user?.first_name && user?.last_name 
-                ? `${user.first_name} ${user.last_name}` 
-                : 'Unknown User';
-                
-              registrationDetails[eventId].push({
-                id: reg.id,
-                user_id: reg.user_id,
-                full_name: fullName,
-                email: user?.email || 'Unknown Email',
-                registered_at: reg.registered_at
-              });
-            });
-          }
+          });
         }
       }
 
-      // Add registration counts and details to events
-      const eventsWithCounts = events.map(event => ({
-        ...event,
-        registrationCount: event.is_registerable ? (registrationCounts[event.id] || 0) : undefined,
-        registrations: event.is_registerable ? (registrationDetails[event.id] || []) : undefined
-      }));
-
+      // Pre-compute ALL display values once
       const now = new Date();
-      
-      // Separate events into current and past based on end_time
-      const currentEvents = eventsWithCounts.filter((e) => new Date(e.end_time) >= now);
-      const pastEventsList = eventsWithCounts.filter((e) => new Date(e.end_time) < now);
-      
-      // Filter current events by status
-      setApprovedEvents(currentEvents.filter((e) => e.status === 'approved'));
-      setDeniedEvents(currentEvents.filter((e) => e.status === 'denied'));
-      setPendingEvents(currentEvents.filter((e) => e.status === 'pending'));
-      
-      // Past events (regardless of status)
-      setPastEvents(pastEventsList);
-      }
+      const enrichedEvents: Event[] = events.map(event => {
+        const isPast = new Date(event.end_time) < now;
+        
+        return {
+          ...event,
+          registrationCount: event.is_registerable ? (registrationCounts[event.id] || 0) : undefined,
+          registrations: event.is_registerable ? (registrationDetails[event.id] || []) : undefined,
+          formattedStartTime: formatDateTimeInEST(event.start_time),
+          formattedEndTime: formatDateTimeInEST(event.end_time),
+          isPast
+        };
+      });
+
+      setEvents(enrichedEvents);
     } catch (error) {
       console.error('Error in fetchEvents:', error);
-      Alert.alert('Error', 'Failed to load events. Please try again.');
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to load events. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchUsersDetails]);
 
-  const cancelEvent = async (eventId: number) => {
+  const cancelEvent = useCallback(async (eventId: number) => {
     Alert.alert('Cancel Event', 'Are you sure you want to cancel this event?', [
       { text: 'No', style: 'cancel' },
       {
@@ -198,9 +229,9 @@ export default function OfficerEventsManagement() {
         },
       },
     ]);
-  };
+  }, [fetchEvents]);
 
-  const fetchAttendance = async (eventId: number) => {
+  const fetchAttendance = useCallback(async (eventId: number) => {
     setModalLoading(true);
     
     try {
@@ -216,28 +247,16 @@ export default function OfficerEventsManagement() {
 
       if (!attendance || attendance.length === 0) {
         setAttendanceList([]);
-        setModalLoading(false);
         return;
       }
 
-      // Get user IDs from attendance records
-      const userIds = attendance.map(record => record.user_id);
+      // Get unique user IDs efficiently
+      const seenIds = new Set<string>();
+      attendance.forEach(record => seenIds.add(record.user_id));
+      const userIds = Array.from(seenIds);
 
-      // Fetch user details for those users
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('user_id, first_name, last_name, email')
-        .in('user_id', userIds);
-
-      if (usersError) {
-        throw usersError;
-      }
-
-      // Create a map of user_id to user details
-      const usersMap = new Map();
-      users?.forEach(user => {
-        usersMap.set(user.user_id, user);
-      });
+      // Fetch user details using shared helper
+      const usersMap = await fetchUsersDetails(userIds);
 
       // Combine attendance with user details
       const attendanceList: Attendance[] = attendance.map(record => {
@@ -258,39 +277,40 @@ export default function OfficerEventsManagement() {
       setAttendanceList(attendanceList);
     } catch (error) {
       console.error('Error fetching attendance:', error);
-      Alert.alert('Error', 'Failed to fetch attendance data');
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to fetch attendance data');
     } finally {
       setModalLoading(false);
     }
-  };
+  }, [fetchUsersDetails]);
 
-  const showRegistrations = (event: Event) => {
+  const showRegistrations = useCallback((event: Event) => {
     setSelectedEvent(event);
     setAttendanceList([]); // Clear attendance data
     setModalVisible(true);
-  };
+  }, []);
 
-  const showAttendance = async (event: Event) => {
+  const showAttendance = useCallback(async (event: Event) => {
     setSelectedEvent(event);
     setModalVisible(true);
     await fetchAttendance(event.id);
-  };
+  }, [fetchAttendance]);
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setModalVisible(false);
     setSelectedEvent(null);
     setAttendanceList([]);
-  };
+  }, []);
 
-  const renderEvent = (event: Event) => (
+  // Memoized render functions - use pre-computed values
+  const renderEvent = useCallback((event: Event) => (
     <View key={event.id} style={styles.eventCard}>
       <Text style={styles.eventTitle}>{event.title}</Text>
       <Text style={styles.eventDetail}>Location: {event.location}</Text>
       <Text style={styles.eventDetail}>
-        Start: {formatDateTimeInEST(event.start_time)}
+        Start: {event.formattedStartTime}
       </Text>
       <Text style={styles.eventDetail}>
-        End: {formatDateTimeInEST(event.end_time)}
+        End: {event.formattedEndTime}
       </Text>
       {event.is_registerable && typeof event.registrationCount === 'number' && (
         <TouchableOpacity onPress={() => showRegistrations(event)} style={styles.registrationButton}>
@@ -313,17 +333,17 @@ export default function OfficerEventsManagement() {
         <Button title="Cancel Event" onPress={() => cancelEvent(event.id)} color="#DC3545" />
       </View>
     </View>
-  );
+  ), [showRegistrations, cancelEvent]);
 
-  const renderPastEvent = (event: Event) => (
+  const renderPastEvent = useCallback((event: Event) => (
     <TouchableOpacity key={event.id} style={styles.eventCard} onPress={() => showAttendance(event)}>
       <Text style={styles.eventTitle}>{event.title}</Text>
       <Text style={styles.eventDetail}>Location: {event.location}</Text>
       <Text style={styles.eventDetail}>
-        Start: {formatDateTimeInEST(event.start_time)}
+        Start: {event.formattedStartTime}
       </Text>
       <Text style={styles.eventDetail}>
-        End: {formatDateTimeInEST(event.end_time)}
+        End: {event.formattedEndTime}
       </Text>
       <Text style={[styles.eventDetail, styles.statusText]}>
         Status: {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
@@ -347,7 +367,7 @@ export default function OfficerEventsManagement() {
         📋 Tap to view attendance
       </Text>
     </TouchableOpacity>
-  );
+  ), [showAttendance]);
 
   if (loading) {
     return (
@@ -365,32 +385,32 @@ export default function OfficerEventsManagement() {
         <Text style={styles.subtitle}>Manage your created events</Text>
       </View>
 
-      <Text style={styles.sectionHeader}>Pending Approval ({pendingEvents.length})</Text>
-      {pendingEvents.length === 0 ? (
+      <Text style={styles.sectionHeader}>Pending Approval ({categorizedEvents.pending.length})</Text>
+      {categorizedEvents.pending.length === 0 ? (
         <Text style={styles.noEvents}>No pending events.</Text>
       ) : (
-        pendingEvents.map(renderEvent)
+        categorizedEvents.pending.map(renderEvent)
       )}
 
-      <Text style={styles.sectionHeader}>Approved Events ({approvedEvents.length})</Text>
-      {approvedEvents.length === 0 ? (
+      <Text style={styles.sectionHeader}>Approved Events ({categorizedEvents.approved.length})</Text>
+      {categorizedEvents.approved.length === 0 ? (
         <Text style={styles.noEvents}>No approved events.</Text>
       ) : (
-        approvedEvents.map(renderEvent)
+        categorizedEvents.approved.map(renderEvent)
       )}
 
-      <Text style={styles.sectionHeader}>Denied Events ({deniedEvents.length})</Text>
-      {deniedEvents.length === 0 ? (
+      <Text style={styles.sectionHeader}>Denied Events ({categorizedEvents.denied.length})</Text>
+      {categorizedEvents.denied.length === 0 ? (
         <Text style={styles.noEvents}>No denied events.</Text>
       ) : (
-        deniedEvents.map(renderEvent)
+        categorizedEvents.denied.map(renderEvent)
       )}
 
-      <Text style={styles.sectionHeader}>Past Events ({pastEvents.length})</Text>
-      {pastEvents.length === 0 ? (
+      <Text style={styles.sectionHeader}>Past Events ({categorizedEvents.past.length})</Text>
+      {categorizedEvents.past.length === 0 ? (
         <Text style={styles.noEvents}>No past events.</Text>
       ) : (
-        pastEvents.map(renderPastEvent)
+        categorizedEvents.past.map(renderPastEvent)
       )}
 
       {/* Modal for showing registrations/attendance */}

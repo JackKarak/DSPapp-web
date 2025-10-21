@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -13,67 +13,95 @@ import {
 import { Colors } from '../../constants/colors';
 import { formatDateInEST } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
+import { useOfficerRole } from '../../hooks/useOfficerRole';
+
+// Proper type definitions
+interface TestBankItem {
+  id: string;
+  class_code: string;
+  file_type: string;
+  file_name: string;
+  uploaded_at: string;
+  submitted_by: string;
+  status: 'pending' | 'approved' | 'rejected';
+  users?: {
+    first_name: string;
+    last_name: string;
+  } | {
+    first_name: string;
+    last_name: string;
+  }[];
+}
+
+type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
+
+// Memoized Item Component
+const TestBankItem = React.memo(({ 
+  item, 
+  onPress,
+  getStatusColor,
+  getStatusBgColor
+}: { 
+  item: TestBankItem; 
+  onPress: (item: TestBankItem) => void;
+  getStatusColor: (status: string) => string;
+  getStatusBgColor: (status: string) => string;
+}) => (
+  <TouchableOpacity
+    style={styles.itemCard}
+    onPress={() => onPress(item)}
+    activeOpacity={0.7}
+  >
+    <View style={styles.itemHeader}>
+      <Text style={styles.classCode}>{item.class_code}</Text>
+      <View style={styles.tagContainer}>
+        <Text style={styles.fileType}>{item.file_type}</Text>
+        <View style={[styles.statusTag, { backgroundColor: getStatusBgColor(item.status) }]}>
+          <Text style={[styles.statusTagText, { color: getStatusColor(item.status) }]}>
+            {item.status.toUpperCase()}
+          </Text>
+        </View>
+      </View>
+    </View>
+    <Text style={styles.fileName}>{item.file_name}</Text>
+    <View style={styles.itemFooter}>
+      <Text style={styles.uploadedBy}>
+        Uploaded by: {Array.isArray(item.users) ? item.users[0]?.first_name : item.users?.first_name} {Array.isArray(item.users) ? item.users[0]?.last_name : item.users?.last_name}
+      </Text>
+      <Text style={styles.uploadDate}>
+        {formatDateInEST(item.uploaded_at, { year: 'numeric', month: 'short', day: 'numeric' })}
+      </Text>
+    </View>
+    <Text style={styles.tapHint}>Tap to review →</Text>
+  </TouchableOpacity>
+));
 
 export default function ScholarshipTab() {
+  const router = useRouter();
+  const { role, loading: roleLoading } = useOfficerRole();
+  
   const [loading, setLoading] = useState(true);
-  const [testBankItems, setTestBankItems] = useState<any[]>([]);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [testBankItems, setTestBankItems] = useState<TestBankItem[]>([]);
+  const [selectedItem, setSelectedItem] = useState<TestBankItem | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [processingAction, setProcessingAction] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const router = useRouter();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
-  useEffect(() => {
-    checkAuthentication();
-  }, []);
-
-  const checkAuthentication = async () => {
-    try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError || !user) {        Alert.alert('Authentication Error', 'Please log in again.');
-        router.replace('/(auth)/login');
-        return;
-      }      // Check if user is VP Scholarship
-      const { data: userData, error: roleError } = await supabase
-        .from('users')
-        .select('officer_position')
-        .eq('user_id', user.id)
-        .single();      if (roleError) {
-        console.error('Role check error:', roleError);
-        Alert.alert('Error', 'Failed to verify your permissions. Please try again.');
-        setLoading(false);
-        return;
-      }
-
-      if (!userData) {
-        Alert.alert('Error', 'User data not found. Please contact support.');
-        setLoading(false);
-        return;
-      }
-
-      if (!userData.officer_position) {
-        Alert.alert('Access Denied', 'You do not have officer permissions.');
-        router.replace('/officer/' as any);
-        return;
-      }
-
-      // Allow access for VP Scholarship or scholarship officers
-      const validPositions = ['scholarship', 'vp_scholarship', 'president'];
-      if (!validPositions.includes(userData.officer_position)) {
-        Alert.alert('Access Denied', 'You do not have permission to access the scholarship test bank.');
-        router.replace('/officer/' as any);
-        return;
-      }      fetchTestBankItems();
-    } catch (error) {
-      console.error('Authentication check failed:', error);
-      Alert.alert('Error', 'Authentication check failed. Please try again.');
-      setLoading(false);
+  // Check access permissions - memoized
+  const checkAccess = useCallback(() => {
+    const validPositions = ['scholarship', 'vp_scholarship', 'president'];
+    if (!validPositions.includes(role.position?.toLowerCase() || '')) {
+      Alert.alert('Access Denied', 'You do not have permission to access the scholarship test bank.');
+      router.replace('/officer/' as any);
+      return false;
     }
-  };
+    return true;
+  }, [role.position, router]);
 
-  const fetchTestBankItems = async () => {
-    try {      const { data, error } = await supabase
+  // Memoized fetch function
+  const fetchTestBankItems = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
         .from('test_bank')
         .select(`
           id,
@@ -91,29 +119,75 @@ export default function ScholarshipTab() {
         console.error('Error fetching test bank:', error);
         
         // Check if it's a table not found error
-        if (error.message?.includes('test_bank') && error.message?.includes('does not exist')) {          // Set mock data for development/testing
+        if (error.message?.includes('test_bank') && error.message?.includes('does not exist')) {
           setTestBankItems([]);
         } else {
-          Alert.alert('Database Error', `Failed to load test bank items: ${error.message}\n\nThis feature requires database setup. Contact your system administrator.`);
-          setTestBankItems([]);
+          throw error;
         }
-      } else {        setTestBankItems(data || []);
+      } else {
+        setTestBankItems((data || []) as TestBankItem[]);
       }
     } catch (error: any) {
-      console.error('Unexpected error:', error);
-      Alert.alert('Error', 'An unexpected error occurred while loading test bank items.');
+      console.error('Error fetching test bank:', error);
+      Alert.alert('Error', 'Failed to load test bank items. Please try again.');
       setTestBankItems([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleItemPress = (item: any) => {
+  // Race condition protection
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadData = async () => {
+      if (roleLoading) return;
+      
+      if (!checkAccess()) {
+        if (isMounted) setLoading(false);
+        return;
+      }
+
+      await fetchTestBankItems();
+    };
+
+    loadData();
+    return () => { isMounted = false; };
+  }, [roleLoading, checkAccess, fetchTestBankItems]);
+
+  // Memoized status counts - SINGLE iteration instead of 5
+  const statusCounts = useMemo(() => {
+    const counts = { all: 0, pending: 0, approved: 0, rejected: 0 };
+    testBankItems.forEach(item => {
+      counts.all++;
+      if (item.status in counts) {
+        counts[item.status as keyof typeof counts]++;
+      }
+    });
+    return counts;
+  }, [testBankItems]);
+
+  // Memoized filter options
+  const filterOptions = useMemo(() => [
+    { key: 'all' as StatusFilter, label: 'All', count: statusCounts.all },
+    { key: 'pending' as StatusFilter, label: 'Pending', count: statusCounts.pending },
+    { key: 'approved' as StatusFilter, label: 'Approved', count: statusCounts.approved },
+    { key: 'rejected' as StatusFilter, label: 'Rejected', count: statusCounts.rejected }
+  ], [statusCounts]);
+
+  // Memoized filtered items
+  const filteredItems = useMemo(() => {
+    if (statusFilter === 'all') return testBankItems;
+    return testBankItems.filter(item => item.status === statusFilter);
+  }, [testBankItems, statusFilter]);
+
+  // Memoized handlers
+  const handleItemPress = useCallback((item: TestBankItem) => {
     setSelectedItem(item);
     setDetailModalVisible(true);
-  };
+  }, []);
 
-  const handleApproveSubmission = async (item: any) => {
+  const handleApproveSubmission = useCallback((item: TestBankItem) => {
     if (processingAction) return;
     
     Alert.alert(
@@ -128,9 +202,9 @@ export default function ScholarshipTab() {
         }
       ]
     );
-  };
+  }, [processingAction]);
 
-  const handleDenySubmission = async (item: any) => {
+  const handleDenySubmission = useCallback((item: TestBankItem) => {
     if (processingAction) return;
     
     Alert.alert(
@@ -145,9 +219,9 @@ export default function ScholarshipTab() {
         }
       ]
     );
-  };
+  }, [processingAction]);
 
-  const processSubmission = async (item: any, newStatus: 'approved' | 'rejected') => {
+  const processSubmission = useCallback(async (item: TestBankItem, newStatus: 'approved' | 'rejected') => {
     setProcessingAction(true);
     
     try {
@@ -160,129 +234,146 @@ export default function ScholarshipTab() {
         })
         .eq('id', item.id);
 
-      if (updateError) {
-        throw updateError;
-      }
+      if (updateError) throw updateError;
 
       // If approved, award scholarship point
       if (newStatus === 'approved') {
-        await awardScholarshipPoint(item);
+        try {
+          await awardScholarshipPoint(item);
+        } catch (pointError) {
+          console.error('Error awarding point:', pointError);
+          Alert.alert(
+            'Partial Success',
+            'Submission approved but failed to award point. Please award manually.',
+            [
+              { text: 'OK', onPress: () => setDetailModalVisible(false) }
+            ]
+          );
+          setProcessingAction(false);
+          return;
+        }
       }
+
+      // Refresh the data
+      await fetchTestBankItems();
 
       Alert.alert(
         'Success', 
         `Submission ${newStatus === 'approved' ? 'approved' : 'denied'} successfully!${newStatus === 'approved' ? ' User has been awarded a scholarship point.' : ''}`
       );
 
-      // Refresh the data
-      fetchTestBankItems();
       setDetailModalVisible(false);
 
     } catch (error: any) {
       console.error('Error processing submission:', error);
-      Alert.alert('Error', `Failed to ${newStatus === 'approved' ? 'approve' : 'deny'} submission: ${error.message}`);
+      Alert.alert(
+        'Error', 
+        `Failed to ${newStatus === 'approved' ? 'approve' : 'deny'} submission: ${error.message}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: () => processSubmission(item, newStatus) }
+        ]
+      );
     } finally {
       setProcessingAction(false);
     }
-  };
+  }, [processingAction, fetchTestBankItems]);
 
-  const awardScholarshipPoint = async (item: any) => {
-    try {
-      // Create a scholarship point event for the user
-      const pointEventTitle = `Test Bank Submission - ${item.class_code}`;
-      
-      // Check if we already created an event for this submission
-      const { data: existingEvents } = await supabase
+  const awardScholarshipPoint = useCallback(async (item: TestBankItem) => {
+    // Create a scholarship point event for the user
+    const pointEventTitle = `Test Bank Submission - ${item.class_code}`;
+    
+    // Check if we already created an event for this submission
+    const { data: existingEvents } = await supabase
+      .from('events')
+      .select('id')
+      .eq('title', pointEventTitle)
+      .eq('created_by', item.submitted_by)
+      .limit(1);
+
+    let eventId;
+
+    if (existingEvents && existingEvents.length > 0) {
+      eventId = existingEvents[0].id;
+    } else {
+      // Create a new event for this submission
+      const { data: eventData, error: eventError } = await supabase
         .from('events')
+        .insert({
+          title: pointEventTitle,
+          description: `Approved ${item.file_type} submission for ${item.class_code}`,
+          start_time: new Date().toISOString(),
+          end_time: new Date().toISOString(),
+          location: 'Test Bank',
+          point_value: 1,
+          point_type: 'scholarship',
+          created_by: item.submitted_by,
+          is_non_event: true,
+          status: 'approved'
+        })
         .select('id')
-        .eq('title', pointEventTitle)
-        .eq('created_by', item.submitted_by)
-        .limit(1);
+        .single();
 
-      let eventId;
-
-      if (existingEvents && existingEvents.length > 0) {
-        eventId = existingEvents[0].id;
-      } else {
-        // Create a new event for this submission
-        const { data: eventData, error: eventError } = await supabase
-          .from('events')
-          .insert({
-            title: pointEventTitle,
-            description: `Approved ${item.file_type} submission for ${item.class_code}`,
-            start_time: new Date().toISOString(),
-            end_time: new Date().toISOString(),
-            location: 'Test Bank',
-            point_value: 1,
-            point_type: 'scholarship',
-            created_by: item.submitted_by,
-            is_non_event: true,
-            status: 'approved'
-          })
-          .select('id')
-          .single();
-
-        if (eventError) {
-          throw eventError;
-        }
-        
-        eventId = eventData.id;
-      }
-
-      // Check if attendance record already exists
-      const { data: existingAttendance } = await supabase
-        .from('event_attendance')
-        .select('id')
-        .eq('user_id', item.submitted_by)
-        .eq('event_id', eventId)
-        .limit(1);
-
-      if (!existingAttendance || existingAttendance.length === 0) {
-        // Add attendance record to award the point
-        const { error: attendanceError } = await supabase
-          .from('event_attendance')
-          .insert({
-            user_id: item.submitted_by,
-            event_id: eventId,
-            attended_at: new Date().toISOString()
-          });
-
-        if (attendanceError) {
-          throw attendanceError;
-        }
-      }
-
-    } catch (error) {
-      console.error('Error awarding scholarship point:', error);
-      // Don't throw here - the approval should still complete even if point award fails
-      Alert.alert('Warning', 'Submission approved but failed to award point. Please check manually.');
+      if (eventError) throw eventError;
+      
+      eventId = eventData.id;
     }
-  };
 
-  const filteredItems = testBankItems.filter(item => {
-    if (statusFilter === 'all') return true;
-    return item.status === statusFilter;
-  });
+    // Check if attendance record already exists
+    const { data: existingAttendance } = await supabase
+      .from('event_attendance')
+      .select('id')
+      .eq('user_id', item.submitted_by)
+      .eq('event_id', eventId)
+      .limit(1);
 
-  const getStatusColor = (status: string) => {
+    if (!existingAttendance || existingAttendance.length === 0) {
+      // Add attendance record to award the point
+      const { error: attendanceError } = await supabase
+        .from('event_attendance')
+        .insert({
+          user_id: item.submitted_by,
+          event_id: eventId,
+          attended_at: new Date().toISOString()
+        });
+
+      if (attendanceError) throw attendanceError;
+    }
+  }, []);
+
+  // Memoized formatted date for modal
+  const formattedUploadDate = useMemo(() => {
+    if (!selectedItem) return '';
+    return new Date(selectedItem.uploaded_at).toLocaleDateString('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }, [selectedItem]);
+
+  // Memoized status colors
+  const getStatusColor = useCallback((status: string) => {
     switch (status) {
       case 'approved': return '#16a34a';
       case 'rejected': return '#dc2626';
       case 'pending': return '#d97706';
       default: return '#6b7280';
     }
-  };
+  }, []);
 
-  const getStatusBgColor = (status: string) => {
+  const getStatusBgColor = useCallback((status: string) => {
     switch (status) {
       case 'approved': return '#dcfce7';
       case 'rejected': return '#fee2e2';
       case 'pending': return '#fef3c7';
       default: return '#f3f4f6';
     }
-  };
+  }, []);
 
-  if (loading) {
+  if (roleLoading || loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
@@ -301,19 +392,14 @@ export default function ScholarshipTab() {
         <View style={styles.filterContainer}>
           <Text style={styles.filterLabel}>Filter by Status:</Text>
           <View style={styles.filterButtons}>
-            {[
-              { key: 'all', label: 'All', count: testBankItems.length },
-              { key: 'pending', label: 'Pending', count: testBankItems.filter(item => item.status === 'pending').length },
-              { key: 'approved', label: 'Approved', count: testBankItems.filter(item => item.status === 'approved').length },
-              { key: 'rejected', label: 'Rejected', count: testBankItems.filter(item => item.status === 'rejected').length }
-            ].map(filter => (
+            {filterOptions.map(filter => (
               <TouchableOpacity
                 key={filter.key}
                 style={[
                   styles.filterButton,
                   statusFilter === filter.key && styles.activeFilterButton
                 ]}
-                onPress={() => setStatusFilter(filter.key)}
+                onPress={() => setStatusFilter(filter.key as StatusFilter)}
               >
                 <Text style={[
                   styles.filterButtonText,
@@ -346,35 +432,14 @@ export default function ScholarshipTab() {
         </View>
       ) : (
         <View style={styles.itemsContainer}>
-          {filteredItems.map((item: any) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.itemCard}
-              onPress={() => handleItemPress(item)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.itemHeader}>
-                <Text style={styles.classCode}>{item.class_code}</Text>
-                <View style={styles.tagContainer}>
-                  <Text style={styles.fileType}>{item.file_type}</Text>
-                  <View style={[styles.statusTag, { backgroundColor: getStatusBgColor(item.status) }]}>
-                    <Text style={[styles.statusTagText, { color: getStatusColor(item.status) }]}>
-                      {item.status.toUpperCase()}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              <Text style={styles.fileName}>{item.file_name}</Text>
-              <View style={styles.itemFooter}>
-                <Text style={styles.uploadedBy}>
-                  Uploaded by: {item.users?.first_name} {item.users?.last_name}
-                </Text>
-                <Text style={styles.uploadDate}>
-                  {formatDateInEST(item.uploaded_at, { year: 'numeric', month: 'short', day: 'numeric' })}
-                </Text>
-              </View>
-              <Text style={styles.tapHint}>Tap to review →</Text>
-            </TouchableOpacity>
+          {filteredItems.map(item => (
+            <TestBankItem 
+              key={item.id} 
+              item={item} 
+              onPress={handleItemPress}
+              getStatusColor={getStatusColor}
+              getStatusBgColor={getStatusBgColor}
+            />
           ))}
         </View>
       )}
@@ -418,22 +483,13 @@ export default function ScholarshipTab() {
                 <View style={styles.detailSection}>
                   <Text style={styles.detailLabel}>Submitted By</Text>
                   <Text style={styles.detailValue}>
-                    {selectedItem.users?.first_name} {selectedItem.users?.last_name}
+                    {Array.isArray(selectedItem.users) ? selectedItem.users[0]?.first_name : selectedItem.users?.first_name} {Array.isArray(selectedItem.users) ? selectedItem.users[0]?.last_name : selectedItem.users?.last_name}
                   </Text>
                 </View>
 
                 <View style={styles.detailSection}>
                   <Text style={styles.detailLabel}>Upload Date</Text>
-                  <Text style={styles.detailValue}>
-                    {new Date(selectedItem.uploaded_at).toLocaleDateString('en-US', {
-                      timeZone: 'America/New_York',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </Text>
+                  <Text style={styles.detailValue}>{formattedUploadDate}</Text>
                 </View>
 
                 <View style={styles.detailSection}>

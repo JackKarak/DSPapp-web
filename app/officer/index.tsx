@@ -1,44 +1,47 @@
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useOfficerRole } from '../../hooks/useOfficerRole';
 import { supabase } from '../../lib/supabase';
 import { AccountDeletionService } from '../../lib/accountDeletion';
-import { handleAuthenticationRedirect, checkAuthentication } from '../../lib/auth';
 
 interface DashboardStats {
   eventsCreated: number;
   eventsPending: number;
   eventsThisMonth: number;
-  avgRating: number;
+  avgRating: number | null;
 }
 
+const CONFIRMATION_TEXT = 'DELETE MY ACCOUNT';
+
 export default function OfficerDashboard() {
+  const router = useRouter();
+  const { role, loading: roleLoading } = useOfficerRole();
+  
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
     eventsCreated: 0,
     eventsPending: 0,
     eventsThisMonth: 0,
-    avgRating: 0
+    avgRating: null
   });
-  const { role, loading: roleLoading } = useOfficerRole();
-  const router = useRouter();
   
   // Account deletion state
   const [accountDeletionModalVisible, setAccountDeletionModalVisible] = useState(false);
   const [deletionConfirmationText, setDeletionConfirmationText] = useState('');
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
-  useEffect(() => {
-    if (!roleLoading && role.is_officer) {
-      fetchDashboardStats();
-    }
-  }, [roleLoading, role]);
-
-  const fetchDashboardStats = async () => {
+  // Memoized dashboard stats fetch
+  const fetchDashboardStats = useCallback(async () => {
     try {
+      setError(null);
+      
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setError('User not authenticated');
+        return;
+      }
 
       // Get events created by this officer
       const { data: events, error: eventsError } = await supabase
@@ -55,7 +58,7 @@ export default function OfficerDashboard() {
         eventsCreated: events?.length || 0,
         eventsPending: events?.filter(e => e.status === 'pending').length || 0,
         eventsThisMonth: events?.filter(e => new Date(e.created_at) >= startOfMonth).length || 0,
-        avgRating: 0
+        avgRating: null
       };
 
       // Get average rating for officer's events
@@ -74,87 +77,31 @@ export default function OfficerDashboard() {
       }
 
       setStats(dashboardStats);
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
+    } catch (err) {
+      console.error('Error fetching dashboard stats:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleAccountDeletion = () => {
-    Alert.alert(
-      'Delete Account',
-      'Are you sure you want to permanently delete your account? This action cannot be undone and will:\n\n• Delete all your personal data\n• Remove your event history\n• Cancel any pending appeals\n• Remove you from all organizations\n\nThis process may take up to 30 days to complete.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Continue',
-          style: 'destructive',
-          onPress: () => setAccountDeletionModalVisible(true),
-        },
-      ]
-    );
-  };
+  // Race condition protection
+  useEffect(() => {
+    let isMounted = true;
 
-  const confirmAccountDeletion = async () => {
-    if (deletionConfirmationText.toLowerCase() !== 'delete my account') {
-      Alert.alert('Confirmation Required', 'Please type "DELETE MY ACCOUNT" exactly to confirm deletion.');
-      return;
-    }
-
-    setIsDeletingAccount(true);
-
-    try {
-      // Check authentication
-      const authResult = await checkAuthentication();
-      if (!authResult.isAuthenticated) {
-        handleAuthenticationRedirect();
-        return;
+    const loadData = async () => {
+      if (!roleLoading && role.is_officer) {
+        await fetchDashboardStats();
+        if (!isMounted) return;
       }
+    };
 
-      const user = authResult.user;
+    loadData();
+    return () => { isMounted = false; };
+  }, [roleLoading, role.is_officer, fetchDashboardStats]);
 
-      // Call the account deletion service
-      const result = await AccountDeletionService.deleteAccount(user.id);
-
-      if (!result.success) {
-        console.error('Account deletion error:', result.error);
-        Alert.alert(
-          'Deletion Failed',
-          result.error || 'We encountered an error while processing your account deletion. Please try again or contact support.'
-        );
-        return;
-      }
-
-      // Sign out the user
-      await supabase.auth.signOut();
-
-      Alert.alert(
-        'Account Deletion Initiated',
-        'Your account deletion has been initiated. You have been logged out and your data will be permanently removed within 30 days. If you change your mind, you can contact support within 7 days to potentially recover your account.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setAccountDeletionModalVisible(false);
-              setDeletionConfirmationText('');
-              handleAuthenticationRedirect();
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      console.error('Unexpected error during account deletion:', error);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
-    } finally {
-      setIsDeletingAccount(false);
-    }
-  };
-
-  const quickActions = [
+  // Memoized quick actions
+  const quickActions = useMemo(() => [
     {
       title: 'Create Event',
       description: 'Register a new event',
@@ -173,7 +120,124 @@ export default function OfficerDashboard() {
       icon: '📊',
       onPress: () => router.push('/officer/analytics')
     }
-  ];
+  ], [router]);
+
+  // Memoized visible resources based on role
+  const visibleResources = useMemo(() => {
+    const resources = [
+      {
+        key: 'specs',
+        icon: '📖',
+        title: 'Officer Specifications',
+        description: 'View your role requirements',
+        route: '/officer/officerspecs',
+        visible: true
+      },
+      {
+        key: 'marketing',
+        icon: '📢',
+        title: 'Marketing Tools',
+        description: 'Manage marketing activities',
+        route: '/officer/historian',
+        visible: role.position === 'historian'
+      },
+      {
+        key: 'scholarship',
+        icon: '🎓',
+        title: 'Scholarship Management',
+        description: 'Track academic progress',
+        route: '/officer/scholarship',
+        visible: role.position === 'scholarship'
+      }
+    ];
+    
+    return resources.filter(r => r.visible);
+  }, [role.position]);
+
+  // Memoized account deletion handler
+  const handleAccountDeletion = useCallback(() => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to permanently delete your account? This action cannot be undone and will:\n\n• Delete all your personal data\n• Remove your event history\n• Cancel any pending appeals\n• Remove you from all organizations\n\nThis process may take up to 30 days to complete.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => setAccountDeletionModalVisible(true),
+        },
+      ]
+    );
+  }, []);
+
+  // Memoized account deletion confirmation
+  const confirmAccountDeletion = useCallback(async () => {
+    if (deletionConfirmationText !== CONFIRMATION_TEXT) {
+      Alert.alert(
+        'Confirmation Required', 
+        `Please type "${CONFIRMATION_TEXT}" exactly to confirm deletion (case sensitive).`
+      );
+      return;
+    }
+
+    setIsDeletingAccount(true);
+
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        Alert.alert('Authentication Error', 'User session expired. Please log in again.');
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      // Call the account deletion service
+      const result = await AccountDeletionService.deleteAccount(user.id);
+
+      if (!result.success) {
+        console.error('Account deletion error:', result.error);
+        Alert.alert(
+          'Deletion Failed',
+          `${result.error || 'An error occurred'}. Please try again or contact support if the problem persists.`,
+          [
+            { text: 'Cancel', onPress: () => setAccountDeletionModalVisible(false) },
+            { text: 'Retry', onPress: confirmAccountDeletion }
+          ]
+        );
+        setIsDeletingAccount(false);
+        return;
+      }
+
+      // Set state before navigation
+      setIsDeletingAccount(false);
+      setAccountDeletionModalVisible(false);
+      setDeletionConfirmationText('');
+
+      // Sign out the user
+      await supabase.auth.signOut();
+
+      Alert.alert(
+        'Account Deletion Initiated',
+        'Your account deletion has been initiated. You have been logged out and your data will be permanently removed within 30 days. If you change your mind, you can contact support within 7 days to potentially recover your account.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              router.replace('/(auth)/login');
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Unexpected error during account deletion:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      setIsDeletingAccount(false);
+    }
+  }, [deletionConfirmationText, router]);
 
   if (roleLoading || loading) {
     return (
@@ -193,6 +257,16 @@ export default function OfficerDashboard() {
         <Text style={styles.roleText}>{role.position?.replace('_', ' ').toUpperCase()}</Text>
       </View>
 
+      {/* Error State */}
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>❌ {error}</Text>
+          <TouchableOpacity onPress={fetchDashboardStats} style={styles.retryButton}>
+            <Text style={styles.retryText}>Tap to retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Stats Overview */}
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
@@ -208,7 +282,9 @@ export default function OfficerDashboard() {
           <Text style={styles.statLabel}>This Month</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{stats.avgRating.toFixed(1)}</Text>
+          <Text style={styles.statNumber}>
+            {stats.avgRating !== null ? stats.avgRating.toFixed(1) : 'N/A'}
+          </Text>
           <Text style={styles.statLabel}>Avg Rating</Text>
         </View>
       </View>
@@ -236,42 +312,19 @@ export default function OfficerDashboard() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Officer Resources</Text>
         <View style={styles.resourcesList}>
-          <TouchableOpacity 
-            style={styles.resourceItem}
-            onPress={() => router.push('/officer/officerspecs')}
-          >
-            <Text style={styles.resourceIcon}>📖</Text>
-            <View style={styles.resourceContent}>
-              <Text style={styles.resourceTitle}>Officer Specifications</Text>
-              <Text style={styles.resourceDescription}>View your role requirements</Text>
-            </View>
-          </TouchableOpacity>
-          
-          {role.position === 'historian' && (
+          {visibleResources.map(resource => (
             <TouchableOpacity 
+              key={resource.key}
               style={styles.resourceItem}
-              onPress={() => router.push('/officer/historian')}
+              onPress={() => router.push(resource.route as any)}
             >
-              <Text style={styles.resourceIcon}>📢</Text>
+              <Text style={styles.resourceIcon}>{resource.icon}</Text>
               <View style={styles.resourceContent}>
-                <Text style={styles.resourceTitle}>Marketing Tools</Text>
-                <Text style={styles.resourceDescription}>Manage marketing activities</Text>
+                <Text style={styles.resourceTitle}>{resource.title}</Text>
+                <Text style={styles.resourceDescription}>{resource.description}</Text>
               </View>
             </TouchableOpacity>
-          )}
-          
-          {role.position === 'scholarship' && (
-            <TouchableOpacity 
-              style={styles.resourceItem}
-              onPress={() => router.push('/officer/scholarship')}
-            >
-              <Text style={styles.resourceIcon}>🎓</Text>
-              <View style={styles.resourceContent}>
-                <Text style={styles.resourceTitle}>Scholarship Management</Text>
-                <Text style={styles.resourceDescription}>Track academic progress</Text>
-              </View>
-            </TouchableOpacity>
-          )}
+          ))}
         </View>
       </View>
 
@@ -286,62 +339,64 @@ export default function OfficerDashboard() {
           <Text style={styles.deleteAccountText}>Delete Account</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+      </ScrollView>
 
-    {/* Account Deletion Modal */}
-    <Modal
-      visible={accountDeletionModalVisible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={() => setAccountDeletionModalVisible(false)}
-    >
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.modalOverlay}
+      {/* Account Deletion Modal */}
+      <Modal
+        visible={accountDeletionModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setAccountDeletionModalVisible(false)}
       >
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Delete Account</Text>
-          
-          <Text style={styles.modalText}>
-            This action is permanent and cannot be undone. All your data will be deleted within 30 days.
-          </Text>
-          
-          <Text style={styles.modalInstructions}>
-            To confirm, type "DELETE MY ACCOUNT" below:
-          </Text>
-          
-          <TextInput
-            style={styles.confirmationInput}
-            value={deletionConfirmationText}
-            onChangeText={setDeletionConfirmationText}
-            placeholder="Type here to confirm..."
-            autoCapitalize="characters"
-          />
-          
-          <View style={styles.modalButtons}>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => {
-                setAccountDeletionModalVisible(false);
-                setDeletionConfirmationText('');
-              }}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Delete Account</Text>
             
-            <TouchableOpacity
-              style={[styles.deleteButton, isDeletingAccount && styles.disabledButton]}
-              onPress={confirmAccountDeletion}
-              disabled={isDeletingAccount}
-            >
-              <Text style={styles.deleteButtonText}>
-                {isDeletingAccount ? 'Deleting...' : 'Delete Account'}
-              </Text>
-            </TouchableOpacity>
+            <Text style={styles.modalText}>
+              This action is permanent and cannot be undone. All your data will be deleted within 30 days.
+            </Text>
+            
+            <Text style={styles.modalInstructions}>
+              To confirm, type "{CONFIRMATION_TEXT}" below (case sensitive):
+            </Text>
+            
+            <TextInput
+              style={styles.confirmationInput}
+              value={deletionConfirmationText}
+              onChangeText={setDeletionConfirmationText}
+              placeholder="Type here to confirm..."
+              autoCapitalize="characters"
+              editable={!isDeletingAccount}
+            />
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => {
+                  setAccountDeletionModalVisible(false);
+                  setDeletionConfirmationText('');
+                }}
+                disabled={isDeletingAccount}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.deleteButton, isDeletingAccount && styles.disabledButton]}
+                onPress={confirmAccountDeletion}
+                disabled={isDeletingAccount}
+              >
+                <Text style={styles.deleteButtonText}>
+                  {isDeletingAccount ? 'Deleting...' : 'Delete Account'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+        </KeyboardAvoidingView>
+      </Modal>
     </>
   );
 }
@@ -362,6 +417,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#5f6368',
     fontWeight: '500',
+  },
+  errorContainer: {
+    backgroundColor: '#fee2e2',
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#4285F4',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   header: {
     backgroundColor: '#fff',

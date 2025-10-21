@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -9,7 +9,7 @@ import {
   View
 } from 'react-native';
 import { BarChart, LineChart, PieChart } from '../../components/IOSCharts';
-import { formatDateInEST, getDateInEST } from '../../lib/dateUtils';
+import { formatDateInEST } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
 
 type KPICardProps = {
@@ -20,35 +20,49 @@ type KPICardProps = {
   color?: string;
 };
 
-type UserStats = {
-  total: number;
-  by_pledge_class: Record<string, number>;
-  by_majors: Record<string, number>;
-  by_expected_graduation: Record<string, number>;
-};
-
-type EventStats = {
-  total: number;
-  by_point_type: Record<string, number>;
-  average_attendance: number;
-  by_month: Record<string, number>;
-  upcoming: number;
-  attendance_trend: { month: string; count: number }[];
-  engagement_rate: number;
-  growth_rate: number;
-};
-
-type IndividualEvent = {
-  id: string;
-  title: string;
-  start_time: string;
-  point_value: number;
-  point_type: string;
-  attendance_count: number;
-  attendance_rate: number;
-  creator_name: string;
-  location?: string;
-  is_non_event?: boolean;
+// Database response type matching the SQL function output
+type AnalyticsDashboardData = {
+  officer_position: string;
+  total_regular_users: number;
+  event_stats: {
+    total: number;
+    upcoming: number;
+    by_point_type: Record<string, number>;
+    by_month: Record<string, number>;
+    attendance_trend: { month: string; count: number }[];
+  };
+  attendance_stats: {
+    by_event: Record<string, number>;
+    unique_attendees: number;
+    total_attendances: number;
+  };
+  user_demographics: {
+    total: number;
+    by_pledge_class: Record<string, number>;
+    by_majors: Record<string, number>;
+    by_expected_graduation: Record<string, number>;
+  };
+  feedback_stats: {
+    avg_rating: number;
+    would_attend_again_pct: number;
+    well_organized_pct: number;
+    recent_comments: Array<{
+      rating: number;
+      comments: string;
+      created_at: string;
+      event_id: string;
+    }>;
+  };
+  individual_events: Array<{
+    id: string;
+    title: string;
+    start_time: string;
+    location: string;
+    point_value: number;
+    point_type: string;
+    creator_name: string;
+    attendance_count: number;
+  }>;
 };
 
 const screenWidth = Dimensions.get('window').width;
@@ -69,8 +83,8 @@ const chartConfig = {
   },
 };
 
-// KPI Card Component
-const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, trend, color = '#4285F4' }) => {
+// Memoized KPI Card Component
+const KPICard: React.FC<KPICardProps> = React.memo(({ title, value, subtitle, trend, color = '#4285F4' }) => {
   const trendColor = trend ? (trend >= 0 ? '#34A853' : '#EA4335') : '#80868b';
   const trendSymbol = trend ? (trend >= 0 ? '↑' : '↓') : '';
   
@@ -86,417 +100,127 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, trend, color 
       )}
     </View>
   );
-};
+});
 
 export default function OfficerAnalytics() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [officerPosition, setOfficerPosition] = useState<string | null>(null);
-  const [userStats, setUserStats] = useState<UserStats>({
-    total: 0,
-    by_pledge_class: {},
-    by_majors: {},
-    by_expected_graduation: {},
-  });
-  const [eventStats, setEventStats] = useState<EventStats>({
-    total: 0,
-    by_point_type: {},
-    average_attendance: 0,
-    by_month: {},
-    upcoming: 0,
-    attendance_trend: [],
-    engagement_rate: 0,
-    growth_rate: 0,
-  });
-  const [pointDistribution, setPointDistribution] = useState<
-    { name: string; points: number; color: string; legendFontColor: string; legendFontSize: number }[]
-  >([]);
-  const [feedbackStats, setFeedbackStats] = useState<{
-    avgRating: number;
-    wouldAttendAgainPct: number;
-    wellOrganizedPct: number;
-    recentComments: { rating: number; comments: string; created_at: string; event_id: string }[];
-  }>({
-    avgRating: 0,
-    wouldAttendAgainPct: 0,
-    wellOrganizedPct: 0,
-    recentComments: [],
-  });
-  const [individualEvents, setIndividualEvents] = useState<IndividualEvent[]>([]);
+  const [dashboardData, setDashboardData] = useState<AnalyticsDashboardData | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchAnalytics = async () => {
-    setLoading(true);
+  // Memoized function to fetch analytics - SINGLE DATABASE CALL
+  const fetchAnalytics = useCallback(async () => {
     try {
-      // Parallelize: Get current officer's position and regular users
-      const [userResult, officerResult] = await Promise.all([
-        supabase.auth.getUser(),
-        supabase.auth.getUser().then(async ({ data: { user }, error: userError }) => {
-          if (userError || !user) throw userError || new Error('No user');
-          return supabase
-            .from('users')
-            .select('officer_position')
-            .eq('user_id', user.id)
-            .single();
-        })
-      ]);
-
-      const { data: { user }, error: userError } = userResult;
+      setError(null);
+      
+      // Step 1: Get current user's officer position
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw userError || new Error('No user');
 
-      const { data: officerData, error: officerError } = officerResult;
-      if (officerError || !officerData?.officer_position) {
-        console.error('Role check error:', officerError);
-        throw new Error('Officer position not found');
-      }
-      
-      setOfficerPosition(officerData.officer_position);
+      const { data: officerData, error: officerError } = await supabase
+        .from('users')
+        .select('officer_position')
+        .eq('user_id', user.id)
+        .single();
 
-      // Parallelize: Get officers with same position, their events, and regular users
-      const [officersResult, regularUsersResult] = await Promise.all([
-        supabase
-          .from('users')
-          .select('user_id')
-          .eq('officer_position', officerData.officer_position)
-          .neq('officer_position', null),
-        supabase
-          .from('users')
-          .select('user_id')
-          .is('officer_position', null)
-          .neq('role', 'admin')
-      ]);
+      if (officerError) throw new Error(`Failed to fetch officer data: ${officerError.message}`);
+      if (!officerData?.officer_position) throw new Error('User is not assigned an officer position');
 
-      const { data: officersWithSamePosition, error: officersError } = officersResult;
-      const { data: regularUsers, error: regularUsersError } = regularUsersResult;
-      
-      if (officersError) throw officersError;
-      if (regularUsersError) throw regularUsersError;
-      
-      const officerIds = officersWithSamePosition.map(o => o.user_id);
-
-      // Fetch events created by all officers with this position
-      const { data: eventsData, error: eventsError } = await supabase
-        .from('events')
-        .select('id, point_value, point_type, start_time')
-        .eq('status', 'approved')
-        .in('created_by', officerIds);
-      
-      if (eventsError) throw eventsError;
-      
-      const eventIds = eventsData.map(e => e.id);
-      const now = new Date();
-      const eventStatsTemp: EventStats = {
-        total: eventsData.length,
-        by_point_type: {},
-        average_attendance: 0,
-        by_month: {},
-        upcoming: 0,
-        attendance_trend: [],
-        engagement_rate: 0,
-        growth_rate: 0,
-      };
-      
-      eventStatsTemp.upcoming = eventsData.filter(event => getDateInEST(event.start_time) > now).length;
-      
-      // Process event data for analytics
-      const monthlyData: Record<string, { events: number; attendance: number }> = {};
-      eventsData.forEach(event => {
-        eventStatsTemp.by_point_type[event.point_type] = (eventStatsTemp.by_point_type[event.point_type] || 0) + 1;
-        const month = formatDateInEST(event.start_time, { month: 'short', year: 'numeric' });
-        eventStatsTemp.by_month[month] = (eventStatsTemp.by_month[month] || 0) + 1;
-        
-        if (!monthlyData[month]) {
-          monthlyData[month] = { events: 0, attendance: 0 };
-        }
-        monthlyData[month].events += 1;
+      // Step 2: SINGLE RPC CALL to get ALL analytics data
+      const { data, error: rpcError } = await supabase.rpc('get_officer_analytics_dashboard', {
+        p_officer_position: officerData.officer_position
       });
-      
-      // Create attendance trend data (last 6 months)
-      const last6Months = [];
-      for (let i = 5; i >= 0; i--) {
-        const date = new Date();
-        date.setMonth(date.getMonth() - i);
-        const monthKey = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-        last6Months.push({
-          month: date.toLocaleString('default', { month: 'short' }),
-          count: monthlyData[monthKey]?.events || 0
-        });
-      }
-      eventStatsTemp.attendance_trend = last6Months;
-      
-      // Initialize attendance tracking variables
-      let attendanceByEvent: Record<string, number> = {};
-      let attendeeUserIds: Set<string> = new Set();
-      
-      // Use regularUsers from earlier parallel fetch
-      const regularUserIds = new Set(regularUsers?.map(u => u.user_id) || []);
-      
-      // Try to use database aggregation for attendance stats (faster!)
-      if (eventIds.length > 0) {
-        const aggregationResult = await supabase.rpc('get_event_attendance_stats', {
-          event_ids: eventIds
-        });
 
-        if (aggregationResult.error || !aggregationResult.data) {
-          // Fallback to client-side calculation
-          console.log('Using client-side attendance calculation (fallback)');
-          
-          const [attendanceResponse, approvedAppealsResponse] = await Promise.all([
-            supabase
-              .from('event_attendance')
-              .select('event_id, user_id')
-              .in('event_id', eventIds),
-            supabase
-              .from('point_appeal')
-              .select('event_id, user_id')
-              .in('event_id', eventIds)
-              .eq('status', 'approved')
-          ]);
-          
-          if (attendanceResponse.error) throw attendanceResponse.error;
-          if (approvedAppealsResponse.error) console.warn('Approved appeals error:', approvedAppealsResponse.error);
-          
-          const attendanceData = attendanceResponse.data || [];
-          const approvedAppealsData = approvedAppealsResponse.data || [];
-          
-          // Combine attendance and approved appeals
-          const combinedAttendanceData = [
-            ...attendanceData,
-            ...approvedAppealsData
-          ];
-          
-          // Filter attendance data to only include regular members (non-officers/non-admins)
-          // and deduplicate by user_id + event_id combination
-          const uniqueAttendance = new Map<string, { event_id: string; user_id: string }>();
-          
-          combinedAttendanceData.forEach(record => {
-            if (regularUserIds.has(record.user_id)) {
-              const key = `${record.user_id}_${record.event_id}`;
-              uniqueAttendance.set(key, record);
-            }
-          });
-          
-          const filteredAttendance = Array.from(uniqueAttendance.values());
-          
-          filteredAttendance.forEach(record => {
-            attendanceByEvent[record.event_id] = (attendanceByEvent[record.event_id] || 0) + 1;
-            attendeeUserIds.add(record.user_id);
-          });
-        } else {
-          // Use database aggregation results (MUCH faster!)
-          console.log('Using database aggregation for attendance stats');
-          
-          aggregationResult.data.forEach((stat: any) => {
-            attendanceByEvent[stat.event_id] = stat.attendance_count || 0;
-          });
-          
-          // Still need to fetch unique attendee user IDs for user stats
-          // This is a smaller query than before since we already have the counts
-          const [attendanceResponse, approvedAppealsResponse] = await Promise.all([
-            supabase
-              .from('event_attendance')
-              .select('user_id')
-              .in('event_id', eventIds)
-              .in('user_id', Array.from(regularUserIds)),
-            supabase
-              .from('point_appeal')
-              .select('user_id')
-              .in('event_id', eventIds)
-              .eq('status', 'approved')
-              .in('user_id', Array.from(regularUserIds))
-          ]);
-          
-          if (attendanceResponse.data) {
-            attendanceResponse.data.forEach(record => attendeeUserIds.add(record.user_id));
-          }
-          if (approvedAppealsResponse.data) {
-            approvedAppealsResponse.data.forEach(record => attendeeUserIds.add(record.user_id));
-          }
-        }
-      }
-      
-      eventStatsTemp.average_attendance = 
-        Object.values(attendanceByEvent).reduce((sum, count) => sum + count, 0) / (Object.keys(attendanceByEvent).length || 1);
-      
-      // Calculate engagement rate (unique attendees vs total registered regular members)
-      eventStatsTemp.engagement_rate = (regularUsers && regularUsers.length > 0) ? 
-        (attendeeUserIds.size / regularUsers.length) * 100 : 0;
-      
-      // Calculate growth rate (comparing last 3 months vs previous 3 months)
-      const currentQuarter = last6Months.slice(3).reduce((sum, month) => sum + month.count, 0);
-      const previousQuarter = last6Months.slice(0, 3).reduce((sum, month) => sum + month.count, 0);
-      
-      // Fixed growth rate calculation with proper edge case handling
-      if (previousQuarter > 0) {
-        eventStatsTemp.growth_rate = ((currentQuarter - previousQuarter) / previousQuarter) * 100;
-      } else if (currentQuarter > 0) {
-        // If previous quarter was 0 but current has events, that's 100% growth
-        eventStatsTemp.growth_rate = 100;
-      } else {
-        // Both quarters are 0, no growth
-        eventStatsTemp.growth_rate = 0;
-      }
-      
-      setEventStats(eventStatsTemp);
-      
-      // Format point type distribution for pie chart
-      const formattedData = Object.entries(eventStatsTemp.by_point_type).map(([name, points], i) => ({
-        name,
-        points: points as number,
-        color: pieColors[i % pieColors.length],
-        legendFontColor: '#333',
-        legendFontSize: 13,
-      }));
-      setPointDistribution(formattedData);
+      if (rpcError) throw rpcError;
+      if (!data) throw new Error('No data returned from analytics function');
 
-      // Fetch user stats for regular member attendees only (excluding officers/admins)
-      let attendeeStats: UserStats = {
-        total: 0,
-        by_pledge_class: {},
-        by_majors: {},
-        by_expected_graduation: {},
-      };
-      if (attendeeUserIds.size > 0) {
-        const { data: attendeeProfiles, error: attendeeError } = await supabase
-          .from('users')
-          .select('pledge_class, majors, expected_graduation')
-          .in('user_id', Array.from(attendeeUserIds))
-          .is('officer_position', null)
-          .neq('role', 'admin');
-        
-        if (attendeeError) {
-          console.error('Attendee profiles error:', attendeeError);
-          throw attendeeError;
-        }
-        
-        attendeeStats.total = attendeeProfiles.length;
-        attendeeProfiles.forEach(user => {
-          if (user.pledge_class) {
-            attendeeStats.by_pledge_class[user.pledge_class] = (attendeeStats.by_pledge_class[user.pledge_class] || 0) + 1;
-          }
-          if (user.majors) {
-            attendeeStats.by_majors[user.majors] = (attendeeStats.by_majors[user.majors] || 0) + 1;
-          }
-          if (user.expected_graduation) {
-            attendeeStats.by_expected_graduation[user.expected_graduation] = (attendeeStats.by_expected_graduation[user.expected_graduation] || 0) + 1;
-          }
-        });
-      }
-      setUserStats(attendeeStats);
-
-      // Fetch event feedback for events by officers with this position (from regular members only)
-      let feedbackStatsData = {
-        avgRating: 0,
-        wouldAttendAgainPct: 0,
-        wellOrganizedPct: 0,
-        recentComments: [] as { rating: number; comments: string; created_at: string; event_id: string }[],
-      };
+      // Step 3: SINGLE state update with all data
+      setDashboardData(data as AnalyticsDashboardData);
       
-      if (eventIds.length > 0) {
-        // Get feedback from regular members only
-        const { data: feedbackData, error: feedbackError } = await supabase
-          .from('event_feedback')
-          .select('id, user_id, event_id, rating, comments, would_attend_again, well_organized, created_at')
-          .in('event_id', eventIds)
-          .in('user_id', Array.from(regularUserIds));
-        
-        if (feedbackError) {
-          console.error('Feedback fetch error:', feedbackError);
-        } else if (feedbackData && feedbackData.length > 0) {
-          // Calculate average rating with proper validation
-          const validRatings = feedbackData.filter(f => f.rating && f.rating > 0);
-          feedbackStatsData.avgRating = validRatings.length > 0 ? 
-            validRatings.reduce((sum, f) => sum + f.rating, 0) / validRatings.length : 0;
-          
-          // Calculate percentages with proper validation
-          const totalResponses = feedbackData.length;
-          feedbackStatsData.wouldAttendAgainPct = totalResponses > 0 ? 
-            (feedbackData.filter(f => f.would_attend_again === true).length / totalResponses) * 100 : 0;
-          feedbackStatsData.wellOrganizedPct = totalResponses > 0 ? 
-            (feedbackData.filter(f => f.well_organized === true).length / totalResponses) * 100 : 0;
-          feedbackStatsData.recentComments = feedbackData
-            .filter(f => f.comments)
-            .slice(-10)
-            .map(f => ({
-              rating: f.rating,
-              comments: f.comments,
-              created_at: f.created_at || '',
-              event_id: f.event_id
-            }));
-        }
-      }
-      
-      setFeedbackStats(feedbackStatsData);
-
-      // Fetch individual events with detailed attendance data
-      const individualEventsData: IndividualEvent[] = [];
-      if (eventIds.length > 0) {
-        const { data: detailedEventsData, error: detailedEventsError } = await supabase
-          .from('events')
-          .select(`
-            id,
-            title,
-            start_time,
-            location,
-            point_value,
-            point_type,
-            created_by,
-            users!events_created_by_fkey(first_name, last_name)
-          `)
-          .in('id', eventIds)
-          .order('start_time', { ascending: false });
-
-        if (detailedEventsError) {
-          console.error('Detailed events fetch error:', detailedEventsError);
-        } else if (detailedEventsData) {
-          // Calculate attendance data for each event
-          for (const event of detailedEventsData) {
-            const eventAttendanceCount = attendanceByEvent[event.id] || 0;
-            const attendanceRate = regularUsers && regularUsers.length > 0 ? 
-              (eventAttendanceCount / regularUsers.length) * 100 : 0;
-            
-            const creatorName = event.users && event.users.length > 0 ? 
-              `${event.users[0].first_name} ${event.users[0].last_name}` : 
-              'Unknown Officer';
-
-            individualEventsData.push({
-              id: event.id,
-              title: event.title,
-              start_time: event.start_time,
-              location: event.location || 'TBD',
-              point_value: event.point_value,
-              point_type: event.point_type,
-              attendance_count: eventAttendanceCount,
-              attendance_rate: attendanceRate,
-              creator_name: creatorName
-            });
-          }
-        }
-      }
-      
-      setIndividualEvents(individualEventsData);
-      
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
-      // More detailed error logging
-      if (error instanceof Error) {
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-      }
-      // Set loading to false even on error so UI doesn't stay in loading state
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load analytics');
     }
-  };
-
-  useEffect(() => {
-    fetchAnalytics();
   }, []);
 
-  const onRefresh = React.useCallback(async () => {
+  useEffect(() => {
+    let isMounted = true;
+    const loadData = async () => {
+      setLoading(true);
+      await fetchAnalytics();
+      if (isMounted) setLoading(false);
+    };
+    loadData();
+    return () => { isMounted = false; };
+  }, [fetchAnalytics]);
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchAnalytics();
     setRefreshing(false);
-  }, []);
+  }, [fetchAnalytics]);
+
+  // Memoized computed values to avoid recalculation on every render
+  const computedMetrics = useMemo(() => {
+    if (!dashboardData) return null;
+
+    const { event_stats, attendance_stats, feedback_stats, user_demographics, total_regular_users } = dashboardData;
+    
+    // Calculate average attendance per event
+    const totalAttendances = attendance_stats.total_attendances;
+    const eventCount = event_stats.total || 1;
+    const averageAttendance = totalAttendances / eventCount;
+
+    // Calculate engagement rate (capped at 100% to handle data anomalies)
+    const engagementRate = total_regular_users > 0 
+      ? Math.min(100, (attendance_stats.unique_attendees / total_regular_users) * 100)
+      : 0;
+
+    // Calculate growth rate from attendance trend (only if sufficient data)
+    const trend = event_stats.attendance_trend || [];
+    let growthRate = 0;
+    if (trend.length >= 6) {
+      const currentQuarter = trend.slice(3).reduce((sum, m) => sum + m.count, 0);
+      const previousQuarter = trend.slice(0, 3).reduce((sum, m) => sum + m.count, 0);
+      growthRate = previousQuarter > 0 
+        ? ((currentQuarter - previousQuarter) / previousQuarter) * 100
+        : currentQuarter > 0 ? 100 : 0;
+    }
+
+    // Format point distribution for pie chart
+    const pointDistribution = Object.entries(event_stats.by_point_type || {}).map(([name, points], i) => ({
+      name,
+      points: points as number,
+      color: pieColors[i % pieColors.length],
+      legendFontColor: '#333',
+      legendFontSize: 13,
+    }));
+
+    // Enrich individual events with attendance rate and pre-computed display values
+    const enrichedEvents = dashboardData.individual_events.map(event => {
+      const rate = total_regular_users > 0 
+        ? Math.min(100, (event.attendance_count / total_regular_users) * 100)
+        : 0;
+      return {
+        ...event,
+        attendance_rate: rate,
+        roundedRate: Math.round(rate),
+        rateColor: rate >= 70 ? '#34a853' : rate >= 50 ? '#fbbc04' : '#ea4335'
+      };
+    });
+
+    // Pre-compute recent comments slice
+    const recentComments = feedback_stats.recent_comments.slice(0, 5);
+
+    return {
+      averageAttendance,
+      engagementRate,
+      growthRate,
+      pointDistribution,
+      enrichedEvents,
+      recentComments
+    };
+  }, [dashboardData]);
 
   if (loading) {
     return (
@@ -507,6 +231,23 @@ export default function OfficerAnalytics() {
     );
   }
 
+  if (error || !dashboardData || !computedMetrics) {
+    return (
+      <ScrollView 
+        style={styles.container}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>❌ {error || 'Failed to load analytics'}</Text>
+          <Text style={styles.errorSubtext}>Pull down to retry</Text>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  const { event_stats, feedback_stats, user_demographics } = dashboardData;
+  const { averageAttendance, engagementRate, growthRate, pointDistribution, enrichedEvents, recentComments } = computedMetrics;
+
   return (
     <ScrollView 
       style={styles.container}
@@ -516,7 +257,7 @@ export default function OfficerAnalytics() {
       <View style={styles.headerContainer}>
         <Text style={styles.title}>📊 Officer Analytics Dashboard</Text>
         <Text style={styles.subtitle}>
-          {officerPosition?.replace('_', ' ').toUpperCase() || 'Officer'} Performance & Insights
+          {dashboardData.officer_position?.replace('_', ' ').toUpperCase() || 'Officer'} Performance & Insights
         </Text>
         <Text style={styles.noteText}>
           📝 Note: Analytics exclude officers and admins to focus on regular member engagement
@@ -527,15 +268,15 @@ export default function OfficerAnalytics() {
       <View style={styles.kpiRow}>
         <KPICard
           title="Avg Rating"
-          value={feedbackStats.avgRating.toFixed(1)}
+          value={feedback_stats.avg_rating.toFixed(1)}
           subtitle="⭐ out of 5.0"
           color="#4285F4"
         />
         <KPICard
           title="Avg Attendance"
-          value={eventStats.average_attendance.toFixed(0)}
+          value={averageAttendance.toFixed(0)}
           subtitle="members per event"
-          trend={eventStats.growth_rate}
+          trend={growthRate}
           color="#34A853"
         />
       </View>
@@ -543,13 +284,13 @@ export default function OfficerAnalytics() {
       <View style={styles.kpiRow}>
         <KPICard
           title="Member Engagement"
-          value={`${eventStats.engagement_rate.toFixed(1)}%`}
+          value={`${engagementRate.toFixed(1)}%`}
           subtitle="regular member participation"
           color="#FBBC04"
         />
         <KPICard
           title="Total Events"
-          value={eventStats.total}
+          value={event_stats.total}
           subtitle="events created"
           color="#EA4335"
         />
@@ -558,12 +299,12 @@ export default function OfficerAnalytics() {
       {/* Attendance Trend Chart */}
       <View style={styles.chartCard}>
         <Text style={styles.chartTitle}>📈 Event Creation Over Time</Text>
-        {eventStats.attendance_trend.length > 0 && (
+        {event_stats.attendance_trend.length > 0 && (
           <LineChart
             data={{
-              labels: eventStats.attendance_trend.map(d => d.month),
+              labels: event_stats.attendance_trend.map((d: { month: string }) => d.month),
               datasets: [{
-                data: eventStats.attendance_trend.map(d => d.count),
+                data: event_stats.attendance_trend.map((d: { count: number }) => d.count),
                 color: () => '#4285F4',
               }]
             }}
@@ -580,12 +321,12 @@ export default function OfficerAnalytics() {
       <View style={styles.chartCard}>
         <Text style={styles.chartTitle}>👥 Regular Member Demographics by Pledge Class</Text>
         <Text style={styles.chartSubtitle}>Attendees of your events (excluding officers/admins)</Text>
-        {Object.keys(userStats.by_pledge_class).length > 0 ? (
+        {Object.keys(user_demographics.by_pledge_class).length > 0 ? (
           <BarChart
             data={{
-              labels: Object.keys(userStats.by_pledge_class).slice(0, 6),
+              labels: Object.keys(user_demographics.by_pledge_class).slice(0, 6),
               datasets: [{
-                data: Object.values(userStats.by_pledge_class).slice(0, 6)
+                data: Object.values(user_demographics.by_pledge_class).slice(0, 6) as number[]
               }]
             }}
             width={screenWidth - 48}
@@ -599,7 +340,7 @@ export default function OfficerAnalytics() {
             fromZero={true}
           />
         ) : (
-          <Text style={styles.noDataText}>No demographic data available yet.</Text>
+          <Text style={styles.noDataText}>No members found in the system yet.</Text>
         )}
       </View>
 
@@ -619,7 +360,7 @@ export default function OfficerAnalytics() {
             absolute
           />
         ) : (
-          <Text style={styles.noDataText}>No event data available yet.</Text>
+          <Text style={styles.noDataText}>No events have been created yet.</Text>
         )}
       </View>
 
@@ -639,15 +380,15 @@ export default function OfficerAnalytics() {
             <View style={styles.metricContent}>
               <Text style={styles.metricLabel}>Member Engagement Rate</Text>
               <Text style={[styles.metricValue, { color: '#4285F4' }]}>
-                {eventStats.engagement_rate.toFixed(1)}%
+                {engagementRate.toFixed(1)}%
               </Text>
               <Text style={styles.metricDescription}>
-                {eventStats.engagement_rate >= 30 ? 'Excellent member participation' : 
-                 eventStats.engagement_rate >= 15 ? 'Good member involvement' : 'Needs improvement'}
+                {engagementRate >= 30 ? 'Excellent member participation' : 
+                 engagementRate >= 15 ? 'Good member involvement' : 'Needs improvement'}
               </Text>
               <View style={styles.progressBarContainer}>
                 <View style={[styles.progressBar, { 
-                  width: `${Math.min(eventStats.engagement_rate, 100)}%`, 
+                  width: `${engagementRate}%`, 
                   backgroundColor: '#4285F4' 
                 }]} />
               </View>
@@ -662,15 +403,15 @@ export default function OfficerAnalytics() {
             <View style={styles.metricContent}>
               <Text style={styles.metricLabel}>Member Satisfaction</Text>
               <Text style={[styles.metricValue, { color: '#34A853' }]}>
-                {feedbackStats.avgRating.toFixed(1)}/5.0
+                {feedback_stats.avg_rating.toFixed(1)}/5.0
               </Text>
               <Text style={styles.metricDescription}>
-                {feedbackStats.avgRating >= 4.0 ? 'Outstanding quality' : 
-                 feedbackStats.avgRating >= 3.0 ? 'Good experience' : 'Room for improvement'}
+                {feedback_stats.avg_rating >= 4.0 ? 'Outstanding quality' : 
+                 feedback_stats.avg_rating >= 3.0 ? 'Good experience' : 'Room for improvement'}
               </Text>
               <View style={styles.progressBarContainer}>
                 <View style={[styles.progressBar, { 
-                  width: `${Math.min((feedbackStats.avgRating / 5) * 100, 100)}%`, 
+                  width: `${(feedback_stats.avg_rating / 5) * 100}%`, 
                   backgroundColor: '#34A853' 
                 }]} />
               </View>
@@ -685,15 +426,15 @@ export default function OfficerAnalytics() {
             <View style={styles.metricContent}>
               <Text style={styles.metricLabel}>Member Retention Rate</Text>
               <Text style={[styles.metricValue, { color: '#FBBC04' }]}>
-                {feedbackStats.wouldAttendAgainPct.toFixed(1)}%
+                {feedback_stats.would_attend_again_pct.toFixed(1)}%
               </Text>
               <Text style={styles.metricDescription}>
-                {feedbackStats.wouldAttendAgainPct >= 80 ? 'Exceptional loyalty' : 
-                 feedbackStats.wouldAttendAgainPct >= 60 ? 'Strong retention' : 'Engagement opportunity'}
+                {feedback_stats.would_attend_again_pct >= 80 ? 'Exceptional loyalty' : 
+                 feedback_stats.would_attend_again_pct >= 60 ? 'Strong retention' : 'Engagement opportunity'}
               </Text>
               <View style={styles.progressBarContainer}>
                 <View style={[styles.progressBar, { 
-                  width: `${Math.min(feedbackStats.wouldAttendAgainPct, 100)}%`, 
+                  width: `${feedback_stats.would_attend_again_pct}%`, 
                   backgroundColor: '#FBBC04' 
                 }]} />
               </View>
@@ -708,15 +449,15 @@ export default function OfficerAnalytics() {
             <View style={styles.metricContent}>
               <Text style={styles.metricLabel}>Organization Quality</Text>
               <Text style={[styles.metricValue, { color: '#EA4335' }]}>
-                {feedbackStats.wellOrganizedPct.toFixed(1)}%
+                {feedback_stats.well_organized_pct.toFixed(1)}%
               </Text>
               <Text style={styles.metricDescription}>
-                {feedbackStats.wellOrganizedPct >= 85 ? 'Excellently organized' : 
-                 feedbackStats.wellOrganizedPct >= 70 ? 'Well structured' : 'Organization needed'}
+                {feedback_stats.well_organized_pct >= 85 ? 'Excellently organized' : 
+                 feedback_stats.well_organized_pct >= 70 ? 'Well structured' : 'Organization needed'}
               </Text>
               <View style={styles.progressBarContainer}>
                 <View style={[styles.progressBar, { 
-                  width: `${Math.min(feedbackStats.wellOrganizedPct, 100)}%`, 
+                  width: `${feedback_stats.well_organized_pct}%`, 
                   backgroundColor: '#EA4335' 
                 }]} />
               </View>
@@ -730,21 +471,21 @@ export default function OfficerAnalytics() {
           <View style={styles.insightsList}>
             <View style={styles.insightItem}>
               <Text style={styles.insightIcon}>
-                {eventStats.engagement_rate >= 25 ? '🚀' : eventStats.engagement_rate >= 15 ? '📈' : '⚠️'}
+                {engagementRate >= 25 ? '🚀' : engagementRate >= 15 ? '📈' : '⚠️'}
               </Text>
               <Text style={styles.insightText}>
-                {eventStats.engagement_rate >= 25 ? 'Your member engagement rate is above average!' : 
-                 eventStats.engagement_rate >= 15 ? 'Solid member engagement with room to grow' : 
+                {engagementRate >= 25 ? 'Your member engagement rate is above average!' : 
+                 engagementRate >= 15 ? 'Solid member engagement with room to grow' : 
                  'Consider strategies to boost regular member participation'}
               </Text>
             </View>
             <View style={styles.insightItem}>
               <Text style={styles.insightIcon}>
-                {feedbackStats.avgRating >= 4.0 ? '✨' : feedbackStats.avgRating >= 3.0 ? '👍' : '🔧'}
+                {feedback_stats.avg_rating >= 4.0 ? '✨' : feedback_stats.avg_rating >= 3.0 ? '👍' : '🔧'}
               </Text>
               <Text style={styles.insightText}>
-                {feedbackStats.avgRating >= 4.0 ? 'Regular members love your events!' : 
-                 feedbackStats.avgRating >= 3.0 ? 'Good feedback from members overall' : 
+                {feedback_stats.avg_rating >= 4.0 ? 'Regular members love your events!' : 
+                 feedback_stats.avg_rating >= 3.0 ? 'Good feedback from members overall' : 
                  'Focus on event quality improvements for members'}
               </Text>
             </View>
@@ -756,9 +497,9 @@ export default function OfficerAnalytics() {
       <View style={styles.chartCard}>
         <Text style={styles.chartTitle}>💬 Recent Member Feedback</Text>
         <Text style={styles.chartSubtitle}>Comments from regular members only</Text>
-        {feedbackStats.recentComments.length > 0 ? (
+        {recentComments.length > 0 ? (
           <View style={styles.feedbackList}>
-            {feedbackStats.recentComments.slice(0, 5).map((feedback, index) => (
+            {recentComments.map((feedback, index) => (
               <View key={index} style={styles.feedbackItem}>
                 <View style={styles.feedbackHeader}>
                   <View style={styles.ratingContainer}>
@@ -786,11 +527,11 @@ export default function OfficerAnalytics() {
 
       {/* Individual Events Section */}
       <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>📅 Individual Events by {officerPosition?.replace('_', ' ').toUpperCase() || 'Officer'}</Text>
+        <Text style={styles.chartTitle}>📅 Individual Events by {dashboardData.officer_position?.replace('_', ' ').toUpperCase() || 'Officer'}</Text>
         <Text style={styles.chartSubtitle}>Detailed attendance data for each event</Text>
-        {individualEvents.length > 0 ? (
+        {enrichedEvents.length > 0 ? (
           <View style={styles.eventsGrid}>
-            {individualEvents.map((event) => (
+            {enrichedEvents.map((event) => (
               <View key={event.id} style={styles.eventCard}>
                 <View style={styles.eventHeader}>
                   <Text style={styles.eventTitle} numberOfLines={2}>{event.title}</Text>
@@ -868,6 +609,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#5f6368',
     fontWeight: '500',
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#EA4335',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: '#80868b',
+    textAlign: 'center',
   },
   headerContainer: {
     backgroundColor: '#fff',

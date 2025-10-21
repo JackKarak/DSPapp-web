@@ -21,6 +21,7 @@ import { checkAuthentication, handleAuthenticationRedirect } from '../../lib/aut
 import { formatDateInEST, getDateInEST } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
 import { Event, PointAppeal, PointAppealSubmission } from '../../types/account';
+import { useFocusEffect } from 'expo-router';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -395,8 +396,9 @@ export default function AccountTab() {
       const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const thisSemester = new Date(now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1, 8, 1); // Fall semester starts in August
       
-      // Fetch registrations to calculate bonus points (0.5 for registration)
-      const eventIds = userEvents.map(e => e.id).filter(id => id);
+      // Fetch registrations to calculate bonus points (1.5x multiplier for registration)
+      // BUG FIX: Ensure we filter out null/undefined event IDs
+      const eventIds = userEvents.map(e => e?.id).filter(id => id != null && id !== '');
       const { data: registrations } = await supabase
         .from('event_registration')
         .select('event_id')
@@ -406,12 +408,28 @@ export default function AccountTab() {
       const registeredEventIds = new Set(registrations?.map(r => r.event_id) || []);
       
       // Calculate total points with registration bonus
-      // Fixed point system: 1 point for attendance + 0.5 points for registration
-      const totalPoints = userEvents.reduce((sum, event) => {
+      // BUG FIX: Use actual event point_value with 1.5x multiplier if registered (not +0.5)
+      let totalPoints = userEvents.reduce((sum, event) => {
+        const basePoints = event.point_value || 1.0; // Use actual point value
         const wasRegistered = registeredEventIds.has(event.id);
-        const pointsEarned = wasRegistered ? 1.5 : 1;
+        const pointsEarned = wasRegistered ? basePoints * 1.5 : basePoints;
         return sum + pointsEarned;
       }, 0);
+      
+      // Add approved point appeals
+      const { data: approvedAppeals } = await supabase
+        .from('point_appeal')
+        .select('event_id, events(point_value)')
+        .eq('user_id', userId)
+        .eq('status', 'approved');
+      
+      if (approvedAppeals && approvedAppeals.length > 0) {
+        const appealPoints = approvedAppeals.reduce((sum, appeal) => {
+          // @ts-ignore - events is a nested object from the join
+          return sum + (appeal.events?.point_value || 0);
+        }, 0);
+        totalPoints += appealPoints;
+      }
       
       const eventsThisMonth = userEvents.filter(event => getDateInEST(event.date) >= thisMonth).length;
       const eventsThisSemester = userEvents.filter(event => getDateInEST(event.date) >= thisSemester).length;
@@ -498,10 +516,31 @@ export default function AccountTab() {
           ]);
 
           // Client-side aggregation as fallback
+          // BUG FIX: Need to account for registration bonus (1.5x multiplier)
           const memberPoints: Record<string, number> = {};
+          
+          // Get registration data for all pledge class members
+          const eventIdsForPledgeClass = pledgeClassAttendance?.map(a => (a.events as any)?.id).filter(Boolean) || [];
+          const { data: pledgeRegistrations } = await supabase
+            .from('event_registration')
+            .select('user_id, event_id')
+            .in('user_id', pledgeClassUserIds)
+            .in('event_id', eventIdsForPledgeClass);
+          
+          const registrationMap = new Map<string, Set<string>>();
+          pledgeRegistrations?.forEach(reg => {
+            if (!registrationMap.has(reg.user_id)) {
+              registrationMap.set(reg.user_id, new Set());
+            }
+            registrationMap.get(reg.user_id)!.add(reg.event_id);
+          });
+          
           pledgeClassAttendance?.forEach(record => {
             const eventData = record.events as any;
-            const points = Array.isArray(eventData) ? eventData[0]?.point_value || 0 : eventData?.point_value || 0;
+            const eventId = Array.isArray(eventData) ? eventData[0]?.id : eventData?.id;
+            const basePoints = Array.isArray(eventData) ? eventData[0]?.point_value || 0 : eventData?.point_value || 0;
+            const userRegistered = registrationMap.get(record.user_id)?.has(eventId) || false;
+            const points = userRegistered ? basePoints * 1.5 : basePoints;
             memberPoints[record.user_id] = (memberPoints[record.user_id] || 0) + points;
           });
           pledgeClassApprovedAppeals?.forEach(record => {
@@ -545,10 +584,31 @@ export default function AccountTab() {
           ]);
 
           // Client-side aggregation as fallback
+          // BUG FIX: Need to account for registration bonus (1.5x multiplier)
           const fraternityPoints: Record<string, number> = {};
+          
+          // Get registration data for all fraternity members
+          const eventIdsForFraternity = allAttendance?.map(a => (a.events as any)?.id).filter(Boolean) || [];
+          const { data: fraternityRegistrations } = await supabase
+            .from('event_registration')
+            .select('user_id, event_id')
+            .in('user_id', allMemberUserIds)
+            .in('event_id', eventIdsForFraternity);
+          
+          const fraternityRegMap = new Map<string, Set<string>>();
+          fraternityRegistrations?.forEach(reg => {
+            if (!fraternityRegMap.has(reg.user_id)) {
+              fraternityRegMap.set(reg.user_id, new Set());
+            }
+            fraternityRegMap.get(reg.user_id)!.add(reg.event_id);
+          });
+          
           allAttendance?.forEach(record => {
             const eventData = record.events as any;
-            const points = Array.isArray(eventData) ? eventData[0]?.point_value || 0 : eventData?.point_value || 0;
+            const eventId = Array.isArray(eventData) ? eventData[0]?.id : eventData?.id;
+            const basePoints = Array.isArray(eventData) ? eventData[0]?.point_value || 0 : eventData?.point_value || 0;
+            const userRegistered = fraternityRegMap.get(record.user_id)?.has(eventId) || false;
+            const points = userRegistered ? basePoints * 1.5 : basePoints;
             fraternityPoints[record.user_id] = (fraternityPoints[record.user_id] || 0) + points;
           });
           allApprovedAppeals?.forEach(record => {
@@ -657,8 +717,15 @@ export default function AccountTab() {
       const authResult = await checkAuthentication();
       if (!authResult.isAuthenticated) return;
       
+      // BUG FIX: Get user role from database instead of state to avoid race condition
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role')
+        .eq('user_id', authResult.user.id)
+        .single();
+      
       // Skip fetching user appeals for pledges
-      if (userRole === 'pledge') {
+      if (userData?.role === 'pledge') {
         setUserAppeals([]);
         return;
       }
@@ -678,9 +745,10 @@ export default function AccountTab() {
       }
 
       // Fetch reviewer information separately to avoid foreign key issues
-      let appealsWithReviewers = appeals || [];
-      if (appeals && appeals.length > 0) {
-        const reviewerIds = [...new Set(appeals.map(a => a.reviewed_by).filter(Boolean))];
+      // BUG FIX: Ensure appeals is an array before processing
+      let appealsWithReviewers = Array.isArray(appeals) ? appeals : [];
+      if (appealsWithReviewers.length > 0) {
+        const reviewerIds = [...new Set(appealsWithReviewers.map(a => a?.reviewed_by).filter(id => id != null))];
         
         if (reviewerIds.length > 0) {
           const { data: reviewers, error: reviewerError } = await supabase
@@ -688,15 +756,17 @@ export default function AccountTab() {
             .select('user_id, first_name, last_name')
             .in('user_id', reviewerIds);
 
-          if (!reviewerError && reviewers) {
+          if (!reviewerError && reviewers && Array.isArray(reviewers)) {
             const reviewerMap = reviewers.reduce((map, reviewer) => {
-              map[reviewer.user_id] = reviewer;
+              if (reviewer?.user_id) {
+                map[reviewer.user_id] = reviewer;
+              }
               return map;
             }, {} as Record<string, any>);
 
-            appealsWithReviewers = appeals.map(appeal => ({
+            appealsWithReviewers = appealsWithReviewers.map(appeal => ({
               ...appeal,
-              reviewer: appeal.reviewed_by ? reviewerMap[appeal.reviewed_by] : null
+              reviewer: appeal?.reviewed_by ? reviewerMap[appeal.reviewed_by] : null
             }));
           }
         }
@@ -713,8 +783,15 @@ export default function AccountTab() {
       const authResult = await checkAuthentication();
       if (!authResult.isAuthenticated) return;
       
+      // BUG FIX: Get user role from database instead of state to avoid race condition
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role')
+        .eq('user_id', authResult.user.id)
+        .single();
+      
       // Skip fetching appealable events for pledges
-      if (userRole === 'pledge') {
+      if (userData?.role === 'pledge') {
         setAppealableEvents([]);
         return;
       }
@@ -771,16 +848,25 @@ export default function AccountTab() {
         return;
       }
 
-      const attendedEventIds = new Set(attendedEvents?.map(a => a.event_id) || []);
-      const appealedEventIds = new Set(appealedEvents?.map(a => a.event_id) || []);
+      // BUG FIX: Ensure data is arrays before creating Sets
+      const attendedEventIds = new Set(
+        Array.isArray(attendedEvents) ? attendedEvents.map(a => a?.event_id).filter(id => id != null) : []
+      );
+      const appealedEventIds = new Set(
+        Array.isArray(appealedEvents) ? appealedEvents.map(a => a?.event_id).filter(id => id != null) : []
+      );
 
       // Filter to events that meet appeal criteria:
       // 1. Not attended by user
       // 2. Not already appealed by user  
       // 3. Past events only (end_time < current time) - filtered in query
       // 4. Exclude "No Point" events - filtered in query
-      const appealable = (allEvents || [])
+      // BUG FIX: Ensure allEvents is an array and filter out invalid events
+      const appealable = (Array.isArray(allEvents) ? allEvents : [])
         .filter(event => 
+          event?.id && 
+          event?.title && 
+          event?.start_time &&
           !attendedEventIds.has(event.id) && 
           !appealedEventIds.has(event.id)
         )
@@ -789,10 +875,10 @@ export default function AccountTab() {
           try {
             if (Array.isArray(event.creator) && event.creator.length > 0) {
               const creator = event.creator[0];
-              hostName = `${creator.first_name || ''} ${creator.last_name || ''}`.trim() || 'N/A';
+              hostName = `${creator?.first_name || ''} ${creator?.last_name || ''}`.trim() || 'N/A';
             } else if (event.creator && typeof event.creator === 'object') {
               const creator = event.creator as any;
-              hostName = `${creator.first_name || ''} ${creator.last_name || ''}`.trim() || 'N/A';
+              hostName = `${creator?.first_name || ''} ${creator?.last_name || ''}`.trim() || 'N/A';
             }
           } catch (e) {
             hostName = 'N/A';
@@ -800,7 +886,7 @@ export default function AccountTab() {
           
           return {
             id: event.id,
-            title: event.title,
+            title: event.title || 'Untitled Event',
             date: event.start_time,
             host_name: hostName,
             point_value: event.point_value || 0,
@@ -819,7 +905,7 @@ export default function AccountTab() {
       setLoading(true);
       setError(null);
       
-      // Step 1: Check authentication with improved error handling
+      // Step 1: Check authentication
       const authResult = await checkAuthentication();
       
       if (!authResult.isAuthenticated) {
@@ -828,49 +914,38 @@ export default function AccountTab() {
         return;
       }
       
-      const user = authResult.user;      // Step 2: Fetch user profile
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select(`
-          first_name, 
-          last_name, 
-          pledge_class, 
-          approved, 
-          role,
-          expected_graduation,
-          phone_number,
-          email,
-          uid,
-          majors,
-          minors,
-          house_membership,
-          race,
-          pronouns,
-          living_type,
-          gender,
-          sexual_orientation,
-          expected_graduation,
-          last_profile_update
-        `)
-        .eq('user_id', user.id)
-        .single();
+      const user = authResult.user;
 
-      if (profileError) {
-        console.error('Profile fetch error:', profileError);
-        if (profileError.code === 'PGRST116') {
-          throw new Error('User profile not found. Please contact support.');
-        }
-        throw new Error(`Profile fetch failed: ${profileError.message}`);
+      // Step 2: SINGLE RPC CALL - Get everything at once!
+      const { data: dashboardData, error: dashboardError } = await supabase
+        .rpc('get_account_dashboard', {
+          p_user_id: user.id
+        });
+
+      if (dashboardError) {
+        console.error('Dashboard fetch error:', dashboardError);
+        throw new Error(`Failed to load account data: ${dashboardError.message}`);
       }
-      
-      if (!profile) {
-        throw new Error('User profile is empty. Please contact support.');
-      }      if (!profile.approved) {
+
+      if (!dashboardData) {
+        throw new Error('No account data received. Please contact support.');
+      }
+
+      // Parse the returned JSON
+      const profile = dashboardData.profile;
+      const events = dashboardData.events || [];
+      const analytics = dashboardData.analytics || {};
+      const userAppeals = dashboardData.user_appeals || [];
+      const appealableEvents = dashboardData.appealable_events || [];
+
+      // Check if account is approved
+      if (!profile.approved) {
         Alert.alert('Pending Approval', 'Your account is awaiting approval.');
         setLoading(false);
         return;
       }
 
+      // Step 3: Update all state with received data
       const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
       setName(fullName);
       setFirstName(profile.first_name || '');
@@ -879,12 +954,13 @@ export default function AccountTab() {
       setEmail(profile.email || '');
       setUid(profile.uid || '');
       setUserRole(profile.role || null);
-      // setDateOfBirth(profile.date_of_birth || ''); // Column doesn't exist yet
       setMajors(profile.majors || '');
+      
       // Parse majors into array for multi-select
       if (profile.majors) {
         setSelectedMajors(profile.majors.split(', '));
       }
+      
       setMinors(profile.minors || '');
       setHouseMembership(profile.house_membership || '');
       setRace(profile.race || '');
@@ -894,89 +970,51 @@ export default function AccountTab() {
       setSexualOrientation(profile.sexual_orientation || '');
       setExpectedGraduation(profile.expected_graduation || '');
       setPledgeClass(profile.pledge_class);
-      setMajor(profile.majors || ''); // Use majors field for backward compatibility
+      setMajor(profile.majors || '');
       setLastProfileUpdate(profile.last_profile_update);
 
-      // Step 3: Parallelize fetching attended events and approved appeals
-      const [
-        { data: attendedEvents, error: eventError },
-        { data: approvedAppeals, error: appealError }
-      ] = await Promise.all([
-        supabase
-          .from('event_attendance')
-          .select('id, events(id, title, start_time, point_value, point_type, creator:created_by(first_name, last_name))')
-          .eq('user_id', user.id),
-        supabase
-          .from('point_appeal')
-          .select('event_id, events(id, title, start_time, point_value, point_type, creator:created_by(first_name, last_name))')
+      // Set events (already sorted and deduplicated by database)
+      setEvents(events);
+
+      // Set analytics (already calculated by database)
+      setAnalytics({
+        totalPoints: analytics.totalPoints || 0,
+        currentStreak: analytics.currentStreak || 0,
+        longestStreak: analytics.longestStreak || 0,
+        eventsThisMonth: analytics.eventsThisMonth || 0,
+        eventsThisSemester: analytics.eventsThisSemester || 0,
+        attendanceRate: analytics.attendanceRate || 0,
+        rankInPledgeClass: analytics.rankInPledgeClass || 0,
+        totalInPledgeClass: analytics.totalInPledgeClass || 0,
+        rankInFraternity: analytics.rankInFraternity || 0,
+        totalInFraternity: analytics.totalInFraternity || 0,
+        achievements: analytics.achievements || [],
+        monthlyProgress: [], // Can add this to RPC if needed
+      });
+
+      // Set appeals data
+      setUserAppeals(userAppeals);
+      setAppealableEvents(appealableEvents);
+
+      // Fetch event feedback submissions (small query, keep separate)
+      // BUG FIX: Ensure events is an array and properly filter null/undefined ids
+      const eventIds = Array.isArray(events) 
+        ? events.map((event: any) => event?.id).filter((id: any) => id != null && id !== '') 
+        : [];
+      
+      if (eventIds.length > 0) {
+        const { data: existingFeedback, error: feedbackError } = await supabase
+          .from('event_feedback')
+          .select('event_id')
           .eq('user_id', user.id)
-          .eq('status', 'approved')
-      ]);
-
-      if (eventError) {
-        console.error('Event fetch error:', eventError);
-        // Don't throw here - continue without events if profile loaded successfully
-        setEvents([]);
-        setAnalytics(prev => ({ ...prev, totalPoints: 0, eventsThisMonth: 0, eventsThisSemester: 0 }));
-        Alert.alert('Warning', 'Could not load event history, but profile loaded successfully.');
-      } else {
-        // Format regular attendance events
-        const formattedAttendance: Event[] = (attendedEvents || []).map((record: any) => ({
-          id: record.events?.id || record.id,
-          title: record.events?.title || 'Unknown Event',
-          date: record.events?.start_time || new Date().toISOString(),
-          host_name: record.events?.creator 
-            ? `${record.events.creator.first_name || ''} ${record.events.creator.last_name || ''}`.trim() || 'N/A'
-            : 'N/A',
-          point_value: record.events?.point_value || 0,
-          point_type: record.events?.point_type || 'other',
-        }));
-
-        // Format approved appeals as attendance events
-        const formattedAppeals: Event[] = (approvedAppeals || []).map((record: any) => ({
-          id: record.events?.id || record.event_id,
-          title: record.events?.title || 'Unknown Event',
-          date: record.events?.start_time || new Date().toISOString(),
-          host_name: record.events?.creator 
-            ? `${record.events.creator.first_name || ''} ${record.events.creator.last_name || ''}`.trim() || 'N/A'
-            : 'N/A',
-          point_value: record.events?.point_value || 0,
-          point_type: record.events?.point_type || 'other',
-        }));
-
-        // Combine and deduplicate events (in case someone has both attendance and approved appeal for same event)
-        const allEvents = [...formattedAttendance, ...formattedAppeals];
-        const uniqueEvents = allEvents.filter((event, index, self) => 
-          index === self.findIndex(e => e.id === event.id)
-        );
-
-        uniqueEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        setEvents(uniqueEvents);
+          .in('event_id', eventIds);
         
-        // Step 4: Fetch existing event feedback submissions
-        const eventIds = uniqueEvents.map(event => event.id).filter(id => id);
-        if (eventIds.length > 0) {
-          const { data: existingFeedback, error: feedbackError } = await supabase
-            .from('event_feedback')
-            .select('event_id')
-            .eq('user_id', user.id)
-            .in('event_id', eventIds);
-          
-          if (!feedbackError && existingFeedback) {
-            const submittedEventIds = new Set(existingFeedback.map(feedback => feedback.event_id));
-            setSubmittedFeedbackEvents(submittedEventIds);
-          }
+        if (!feedbackError && existingFeedback) {
+          const submittedEventIds = new Set(existingFeedback.map(feedback => feedback.event_id));
+          setSubmittedFeedbackEvents(submittedEventIds);
         }
-        
-        // Calculate analytics using combined events (attendance + approved appeals)
-        await calculateAnalytics(uniqueEvents, profile, user.id);
-        
-        // Step 5: Fetch user's point appeals
-        await fetchUserAppeals();
-        
-        // Step 6: Fetch appealable events
-        await fetchAppealableEvents();
       }
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       console.error('fetchAccountData error:', err);
@@ -985,11 +1023,14 @@ export default function AccountTab() {
     } finally {
       setLoading(false);
     }
-  }, [calculateAnalytics, fetchUserAppeals, fetchAppealableEvents]);
+  }, []); // No dependencies - RPC function is self-contained
 
-  useEffect(() => {
-    fetchAccountData();
-  }, [fetchAccountData]);
+  // Use focus-aware loading instead of useEffect
+  useFocusEffect(
+    useCallback(() => {
+      fetchAccountData();
+    }, [fetchAccountData])
+  );
 
   const saveProfile = async () => {
     // Check if user can edit profile (once per week restriction)
@@ -1014,31 +1055,37 @@ export default function AccountTab() {
 
       const user = authResult.user;
 
+      // BUG FIX: Validate required fields before saving
+      if (!firstName?.trim() || !lastName?.trim()) {
+        Alert.alert('Validation Error', 'First name and last name are required.');
+        return;
+      }
+
       // Combine selected majors into a comma-separated string
       const majorsString = selectedMajors.length > 0 ? selectedMajors.join(', ') : majors;
 
       const { error } = await supabase
         .from('users')
         .update({
-          first_name: firstName,
-          last_name: lastName,
-          phone_number: phoneNumber,
-          email: email,
-          uid: uid,
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          phone_number: phoneNumber?.trim() || null,
+          email: email?.trim() || null,
+          uid: uid?.trim() || null,
           // date_of_birth: dateOfBirth, // Column doesn't exist yet
-          majors: majorsString,
-          minors: minors,
-          house_membership: houseMembership,
-          race: race,
-          pronouns: pronouns,
-          living_type: livingType,
-          gender: gender,
-          sexual_orientation: sexualOrientation,
-          expected_graduation: expectedGraduation,
-          pledge_class: pledgeClass,
+          majors: majorsString || null,
+          minors: minors?.trim() || null,
+          house_membership: houseMembership || null,
+          race: race || null,
+          pronouns: pronouns || null,
+          living_type: livingType || null,
+          gender: gender || null,
+          sexual_orientation: sexualOrientation || null,
+          expected_graduation: expectedGraduation || null,
+          pledge_class: pledgeClass || null,
           last_profile_update: new Date().toISOString()
         })
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
 
       if (error) {
         console.error('Profile update error:', error);
@@ -1137,26 +1184,48 @@ export default function AccountTab() {
   };
 
   const submitEventFeedback = async () => {
-    if (!selectedEvent) return;
+    if (!selectedEvent) {
+      Alert.alert('Error', 'No event selected for feedback.');
+      return;
+    }
+
+    // BUG FIX: Validate feedback data before submitting
+    if (eventFeedbackData.rating < 1 || eventFeedbackData.rating > 5) {
+      Alert.alert('Validation Error', 'Please provide a rating between 1 and 5.');
+      return;
+    }
+
+    if (eventFeedbackData.would_attend_again === null || eventFeedbackData.well_organized === null) {
+      Alert.alert('Validation Error', 'Please answer all required questions.');
+      return;
+    }
 
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    try {      const { error } = await supabase.from('event_feedback').insert({
-        user_id: user?.id,
+    if (!user) {
+      Alert.alert('Error', 'You must be logged in to submit feedback.');
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('event_feedback').insert({
+        user_id: user.id,
         event_id: selectedEvent.id,
         rating: eventFeedbackData.rating,
         would_attend_again: eventFeedbackData.would_attend_again,
         well_organized: eventFeedbackData.well_organized,
-        comments: eventFeedbackData.comments,
+        comments: eventFeedbackData.comments?.trim() || null,
         created_at: new Date().toISOString(),
       });
 
       if (error) {
         console.error('Event feedback submission error:', error);
         throw error;
-      }      Alert.alert('Thanks!', 'Your event feedback was submitted successfully.');
+      }
+      
+      Alert.alert('Thanks!', 'Your event feedback was submitted successfully.');
       
       // Add event to submitted feedback list
       setSubmittedFeedbackEvents(prev => new Set([...prev, selectedEvent.id]));
@@ -1191,6 +1260,14 @@ export default function AccountTab() {
 
     if (!appealPictureUrl.trim()) {
       Alert.alert('Error', 'Please provide a picture URL as evidence for your appeal.');
+      return;
+    }
+
+    // BUG FIX: Validate picture URL format
+    try {
+      new URL(appealPictureUrl.trim());
+    } catch (e) {
+      Alert.alert('Invalid URL', 'Please provide a valid picture URL (must start with http:// or https://).');
       return;
     }
 

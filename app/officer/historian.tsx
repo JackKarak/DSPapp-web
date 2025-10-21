@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,31 +11,39 @@ import {
   View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import type { User } from '@supabase/supabase-js';
+
+const DEFAULT_NEWSLETTER_URL = 'https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798?e=bbc0848b47';
+
+// Proper URL validation
+const isValidUrl = (urlString: string): boolean => {
+  try {
+    const url = new URL(urlString);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
 
 export default function Historian() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [campaignTitle, setCampaignTitle] = useState('');
   const [campaignDescription, setCampaignDescription] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
-  const [newsletterUrl, setNewsletterUrl] = useState('');
+  const [newsletterUrl, setNewsletterUrl] = useState(DEFAULT_NEWSLETTER_URL);
+  const [isDefaultUrl, setIsDefaultUrl] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [updatingNewsletter, setUpdatingNewsletter] = useState(false);
 
-  useEffect(() => {
-    checkAuthentication();
-    fetchCurrentNewsletterUrl();
-  }, []);
-
-  const checkAuthentication = async () => {
+  // Memoized authentication check
+  const checkAuthentication = useCallback(async () => {
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-      if (authError || !user) {
-        Alert.alert('Authentication Error', 'Please log in again.');
-        router.replace('/(auth)/login');
-        return;
-      }
+      if (authError) throw new Error(`Auth error: ${authError.message}`);
+      if (!user) throw new Error('No user found');
 
       // Verify historian officer role
       const { data: profile, error: profileError } = await supabase
@@ -44,164 +52,164 @@ export default function Historian() {
         .eq('user_id', user.id)
         .single();
 
-      if (profileError || !profile?.officer_position || profile.officer_position?.toLowerCase() !== 'historian') {
+      if (profileError) throw new Error(`Profile error: ${profileError.message}`);
+      
+      if (!profile?.officer_position || profile.officer_position?.toLowerCase() !== 'historian') {
         Alert.alert('Access Denied', 'This page is only accessible to Historians.');
         router.replace('/');
         return;
       }
 
-      setLoading(false);
-      await fetchCurrentNewsletterUrl();
+      setCurrentUser(user);  // Cache user for reuse
+      await fetchCurrentNewsletterUrl();  // Only called once here
+      
     } catch (error) {
       console.error('Authentication error:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      Alert.alert('Error', error instanceof Error ? error.message : 'Authentication failed');
       router.replace('/(auth)/login');
     }
-  };
+  }, [router]);
 
-  const handleSubmitCampaign = async () => {
-    if (!campaignTitle.trim() || !campaignDescription.trim()) {
-      Alert.alert('Missing Information', 'Please fill in both title and description.');
-      return;
-    }
-
-    setSubmitting(true);
-
+  // Memoized newsletter fetch
+  const fetchCurrentNewsletterUrl = useCallback(async () => {
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        Alert.alert('Authentication Error', 'Please log in again.');
-        router.replace('/(auth)/login');
-        return;
-      }
-
-      const { error } = await supabase.from('marketing_campaigns').insert({
-        title: campaignTitle.trim(),
-        description: campaignDescription.trim(),
-        target_audience: targetAudience.trim() || 'General',
-        created_by: user.id,
-        created_at: new Date().toISOString(),
-        status: 'draft'
-      });
-
-      if (error) {
-        Alert.alert('Submission Error', 'Could not create campaign. Please try again.');
-        return;
-      }
-
-      Alert.alert('Success! 🎉', 'Marketing campaign created successfully.');
-      setCampaignTitle('');
-      setCampaignDescription('');
-      setTargetAudience('');
-    } catch (error) {
-      console.error('Campaign creation error:', error);
-      Alert.alert('Unexpected Error', 'Something went wrong. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const fetchCurrentNewsletterUrl = async () => {
-    try {
-      // First, try to get from app_settings table
       const { data: settingsData, error: settingsError } = await supabase
         .from('app_settings')
         .select('value')
         .eq('key', 'newsletter_url')
         .single();
 
-      if (settingsError) {        // If table doesn't exist, use default URL
-        setNewsletterUrl('https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798?e=bbc0848b47');
+      if (settingsError) {
+        if (settingsError.code === 'PGRST116') {
+          // Not found - use default
+          setIsDefaultUrl(true);
+          setNewsletterUrl(DEFAULT_NEWSLETTER_URL);
+        } else {
+          throw settingsError;
+        }
         return;
       }
 
-      setNewsletterUrl(settingsData?.value || 'https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798?e=bbc0848b47');
+      setIsDefaultUrl(false);
+      setNewsletterUrl(settingsData.value || DEFAULT_NEWSLETTER_URL);
+      
     } catch (error) {
       console.error('Error fetching newsletter URL:', error);
-      // Fallback to default URL
-      setNewsletterUrl('https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798?e=bbc0848b47');
+      Alert.alert('Warning', 'Could not load custom newsletter URL. Using default.');
+      setIsDefaultUrl(true);
+      setNewsletterUrl(DEFAULT_NEWSLETTER_URL);
     }
-  };
+  }, []);
 
-  const handleUpdateNewsletterUrl = async () => {
-    if (!newsletterUrl.trim()) {
+  // Memoized campaign submission
+  const handleSubmitCampaign = useCallback(async () => {
+    // Trim once
+    const title = campaignTitle.trim();
+    const description = campaignDescription.trim();
+    const audience = targetAudience.trim() || 'General';
+
+    if (!title || !description) {
+      Alert.alert('Missing Information', 'Please fill in both title and description.');
+      return;
+    }
+
+    if (!currentUser) {
+      Alert.alert('Authentication Error', 'Please log in again.');
+      router.replace('/(auth)/login');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const { error } = await supabase.from('marketing_campaigns').insert({
+        title,
+        description,
+        target_audience: audience,
+        created_by: currentUser.id,
+        status: 'draft'
+      });
+
+      if (error) throw error;
+
+      Alert.alert('Success! 🎉', 'Marketing campaign created successfully.');
+      
+      // Clear form
+      setCampaignTitle('');
+      setCampaignDescription('');
+      setTargetAudience('');
+      
+    } catch (error) {
+      console.error('Campaign creation error:', error);
+      Alert.alert('Error', error instanceof Error ? error.message : 'Could not create campaign');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [campaignTitle, campaignDescription, targetAudience, currentUser, router]);
+
+  // Memoized newsletter URL update with UPSERT
+  const handleUpdateNewsletterUrl = useCallback(async () => {
+    const url = newsletterUrl.trim();
+
+    if (!url) {
       Alert.alert('Missing Information', 'Please enter a newsletter URL.');
       return;
     }
 
-    // Basic URL validation
-    const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
-    if (!urlPattern.test(newsletterUrl.trim())) {
-      Alert.alert('Invalid URL', 'Please enter a valid URL.');
+    if (!isValidUrl(url)) {
+      Alert.alert('Invalid URL', 'Please enter a valid HTTP/HTTPS URL.');
+      return;
+    }
+
+    if (!currentUser) {
+      Alert.alert('Authentication Error', 'Please log in again.');
+      router.replace('/(auth)/login');
       return;
     }
 
     setUpdatingNewsletter(true);
 
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        Alert.alert('Authentication Error', 'Please log in again.');
-        router.replace('/(auth)/login');
-        return;
-      }
-
-      // Try to update existing setting
-      const { data: existingSetting, error: fetchError } = await supabase
+      // SINGLE query using upsert
+      const { error } = await supabase
         .from('app_settings')
-        .select('id')
-        .eq('key', 'newsletter_url')
-        .single();
+        .upsert({
+          key: 'newsletter_url',
+          value: url,
+          updated_by: currentUser.id,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'key',
+          ignoreDuplicates: false
+        });
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        // Error other than "not found"
-        console.error('Error fetching setting:', fetchError);
-      }
+      if (error) throw error;
 
-      let updateError;
-
-      if (existingSetting) {
-        // Update existing setting
-        const { error } = await supabase
-          .from('app_settings')
-          .update({ 
-            value: newsletterUrl.trim(),
-            updated_at: new Date().toISOString(),
-            updated_by: user.id
-          })
-          .eq('key', 'newsletter_url');
-        updateError = error;
-      } else {
-        // Create new setting
-        const { error } = await supabase
-          .from('app_settings')
-          .insert({
-            key: 'newsletter_url',
-            value: newsletterUrl.trim(),
-            created_by: user.id,
-            updated_by: user.id,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-        updateError = error;
-      }
-
-      if (updateError) {
-        console.error('Update error:', updateError);
-        Alert.alert('Update Error', 'Could not update newsletter URL. The app_settings table may not exist yet. Please contact your administrator.');
-        return;
-      }
-
-      Alert.alert('Success! 🎉', 'Newsletter URL updated successfully. The new URL will be used in the newsletter tab.');
+      setIsDefaultUrl(false);
+      Alert.alert('Success! 🎉', 'Newsletter URL updated successfully.');
+      
     } catch (error) {
       console.error('Newsletter URL update error:', error);
-      Alert.alert('Unexpected Error', 'Something went wrong. Please try again.');
+      Alert.alert('Error', error instanceof Error ? error.message : 'Could not update URL');
     } finally {
       setUpdatingNewsletter(false);
     }
-  };
+  }, [newsletterUrl, currentUser, router]);
+
+  // Race condition protection
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadData = async () => {
+      await checkAuthentication();
+      if (isMounted) {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+    return () => { isMounted = false; };
+  }, [checkAuthentication]);
 
   if (loading) {
     return (
@@ -227,6 +235,7 @@ export default function Historian() {
           placeholderTextColor="#9ca3af"
           value={campaignTitle}
           onChangeText={setCampaignTitle}
+          editable={!submitting}
         />
 
         <Text style={styles.label}>Description *</Text>
@@ -238,6 +247,7 @@ export default function Historian() {
           onChangeText={setCampaignDescription}
           multiline
           numberOfLines={4}
+          editable={!submitting}
         />
 
         <Text style={styles.label}>Target Audience</Text>
@@ -247,6 +257,7 @@ export default function Historian() {
           placeholderTextColor="#9ca3af"
           value={targetAudience}
           onChangeText={setTargetAudience}
+          editable={!submitting}
         />
 
         <TouchableOpacity
@@ -265,13 +276,18 @@ export default function Historian() {
         <Text style={styles.sectionTitle}>Newsletter URL Management</Text>
         <Text style={styles.subtitle}>Update the newsletter link that appears in the newsletter tab</Text>
         
-        <Text style={styles.label}>Current Newsletter URL *</Text>
+        <Text style={styles.label}>
+          Current Newsletter URL * {isDefaultUrl && <Text style={styles.defaultLabel}>(Default)</Text>}
+        </Text>
         <TextInput
           style={styles.input}
           placeholder="Enter new newsletter URL"
           placeholderTextColor="#9ca3af"
           value={newsletterUrl}
           onChangeText={setNewsletterUrl}
+          editable={!updatingNewsletter}
+          autoCapitalize="none"
+          autoCorrect={false}
         />
 
         <TouchableOpacity
@@ -355,6 +371,12 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginBottom: 5,
     marginTop: 15,
+  },
+  defaultLabel: {
+    color: '#f59e0b',
+    fontStyle: 'italic',
+    fontSize: 14,
+    fontWeight: '500',
   },
   input: {
     height: 50,
