@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Alert, TouchableOpacity, View } from 'react-native';
-import { useOfficerRole } from '../../hooks/useOfficerRole';
+import { useOfficerRole } from '../../hooks/shared';
 import { supabase } from '../../lib/supabase';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 

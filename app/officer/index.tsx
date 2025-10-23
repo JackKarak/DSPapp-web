@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
-import { useOfficerRole } from '../../hooks/useOfficerRole';
+import { useOfficerRole } from '../../hooks/shared';
 import { supabase } from '../../lib/supabase';
 import { AccountDeletionService } from '../../lib/accountDeletion';
 

@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -18,13 +18,93 @@ import { formatDateInEST } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
 import { PointAppeal } from '../../types/account';
 
+// Enhanced type with pre-computed fields
+interface EnrichedAppeal extends PointAppeal {
+  formattedEventDate?: string;
+  formattedSubmittedDate?: string;
+  formattedReviewDate?: string;
+  searchableText?: string;
+}
+
+// State management with useReducer
+interface AppealsState {
+  appeals: EnrichedAppeal[];
+  loading: boolean;
+  refreshing: boolean;
+  filter: 'all' | 'pending' | 'approved' | 'denied';
+  searchQuery: string;
+}
+
+type AppealsAction =
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_REFRESHING'; payload: boolean }
+  | { type: 'SET_APPEALS'; payload: EnrichedAppeal[] }
+  | { type: 'SET_FILTER'; payload: AppealsState['filter'] }
+  | { type: 'SET_SEARCH_QUERY'; payload: string };
+
+function appealsReducer(state: AppealsState, action: AppealsAction): AppealsState {
+  switch (action.type) {
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    
+    case 'SET_REFRESHING':
+      return { ...state, refreshing: action.payload };
+    
+    case 'SET_APPEALS':
+      return { ...state, appeals: action.payload, loading: false, refreshing: false };
+    
+    case 'SET_FILTER':
+      return { ...state, filter: action.payload };
+    
+    case 'SET_SEARCH_QUERY':
+      return { ...state, searchQuery: action.payload };
+    
+    default:
+      return state;
+  }
+}
+
+// Pre-compute formatting for all appeals (runs once)
+const precomputeAppealData = (appeals: PointAppeal[]): EnrichedAppeal[] => {
+  return appeals.map((appeal) => ({
+    ...appeal,
+    formattedEventDate: appeal.event?.date 
+      ? formatDateInEST(appeal.event.date, { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        })
+      : '',
+    formattedSubmittedDate: formatDateInEST(appeal.created_at, { 
+      month: 'short', 
+      day: 'numeric', 
+      hour: 'numeric', 
+      minute: '2-digit' 
+    }),
+    formattedReviewDate: appeal.reviewed_at 
+      ? formatDateInEST(appeal.reviewed_at, { 
+          month: 'short', 
+          day: 'numeric', 
+          hour: 'numeric', 
+          minute: '2-digit' 
+        })
+      : '',
+    // Pre-compute searchable text (lowercase once)
+    searchableText: `${appeal.user?.first_name || ''} ${appeal.user?.last_name || ''} ${appeal.event?.title || ''}`.toLowerCase(),
+  }));
+};
+
 export default function PointAppealsManagement() {
-  const [appeals, setAppeals] = useState<PointAppeal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'denied'>('pending');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [state, dispatch] = useReducer(appealsReducer, {
+    appeals: [],
+    loading: true,
+    refreshing: false,
+    filter: 'pending',
+    searchQuery: '',
+  });
+  
   const router = useRouter();
+  const hasCheckedAccess = useRef(false);
 
   const fetchAppeals = useCallback(async () => {
     try {
@@ -152,16 +232,17 @@ export default function PointAppealsManagement() {
         };
       });
 
-      setAppeals(enrichedAppeals);
+      // Pre-compute all formatted data
+      const processedAppeals = precomputeAppealData(enrichedAppeals);
+      dispatch({ type: 'SET_APPEALS', payload: processedAppeals });
     } catch (error) {
       console.error('Error in fetchAppeals:', error);
       Alert.alert('Error', 'An unexpected error occurred while loading appeals.');
-    } finally {
-      setLoading(false);
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, [router]);
 
-  const handleAppealDecision = async (appealId: string, decision: 'approved' | 'denied', response?: string) => {
+  const handleAppealDecision = useCallback(async (appealId: string, decision: 'approved' | 'denied', response?: string) => {
     try {
       const authResult = await checkAuthentication();
       if (!authResult.isAuthenticated) {
@@ -169,7 +250,7 @@ export default function PointAppealsManagement() {
         return;
       }
 
-      const appeal = appeals.find(a => a.id === appealId);
+      const appeal = state.appeals.find((a) => a.id === appealId);
       if (!appeal) {
         Alert.alert('Error', 'Appeal not found.');
         return;
@@ -218,34 +299,49 @@ export default function PointAppealsManagement() {
       console.error('Error in handleAppealDecision:', error);
       Alert.alert('Error', 'An unexpected error occurred.');
     }
-  };
+  }, [state.appeals, fetchAppeals]);
 
   const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchAppeals().finally(() => setRefreshing(false));
-  }, [fetchAppeals]);
-
-  useEffect(() => {
+    dispatch({ type: 'SET_REFRESHING', payload: true });
     fetchAppeals();
   }, [fetchAppeals]);
 
-  const filteredAppeals = appeals.filter(appeal => {
-    const matchesFilter = filter === 'all' || appeal.status === filter;
-    const matchesSearch = searchQuery === '' || 
-      appeal.user?.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      appeal.user?.last_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      appeal.event?.title?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return matchesFilter && matchesSearch;
-  });
+  useEffect(() => {
+    if (!hasCheckedAccess.current) {
+      hasCheckedAccess.current = true;
+      fetchAppeals();
+    }
+  }, [fetchAppeals]);
 
-  const renderFilterButton = (filterValue: typeof filter, label: string, count: number) => (
+  // Destructure state
+  const { appeals, loading, refreshing, filter, searchQuery } = state;
+
+  // Memoize filter counts (compute once per appeals change)
+  const filterCounts = useMemo(() => ({
+    pending: appeals.filter((a) => a.status === 'pending').length,
+    approved: appeals.filter((a) => a.status === 'approved').length,
+    denied: appeals.filter((a) => a.status === 'denied').length,
+    all: appeals.length,
+  }), [appeals]);
+
+  // Memoize filtered appeals (recompute only when appeals, filter, or searchQuery change)
+  const filteredAppeals = useMemo(() => {
+    return appeals.filter((appeal) => {
+      const matchesFilter = filter === 'all' || appeal.status === filter;
+      const matchesSearch = searchQuery === '' || 
+        appeal.searchableText?.includes(searchQuery.toLowerCase());
+      
+      return matchesFilter && matchesSearch;
+    });
+  }, [appeals, filter, searchQuery]);
+
+  const renderFilterButton = useCallback((filterValue: AppealsState['filter'], label: string, count: number) => (
     <TouchableOpacity
       style={[
         styles.filterButton,
         filter === filterValue && styles.activeFilterButton
       ]}
-      onPress={() => setFilter(filterValue)}
+      onPress={() => dispatch({ type: 'SET_FILTER', payload: filterValue })}
     >
       <Text style={[
         styles.filterButtonText,
@@ -254,9 +350,9 @@ export default function PointAppealsManagement() {
         {label} ({count})
       </Text>
     </TouchableOpacity>
-  );
+  ), [filter]);
 
-  const renderAppealItem = ({ item }: { item: PointAppeal }) => (
+  const renderAppealItem = useCallback(({ item }: { item: EnrichedAppeal }) => (
     <View style={styles.appealCard}>
       <View style={styles.appealHeader}>
         <Text style={styles.userName}>
@@ -281,11 +377,7 @@ export default function PointAppealsManagement() {
 
       <Text style={styles.eventTitle}>{item.event?.title}</Text>
       <Text style={styles.eventDate}>
-        {formatDateInEST(item.event?.date || '', { 
-          month: 'short', 
-          day: 'numeric', 
-          year: 'numeric' 
-        })} • {item.event?.point_value} points
+        {item.formattedEventDate} • {item.event?.point_value} points
       </Text>
 
       <Text style={styles.reasonLabel}>Reason:</Text>
@@ -296,12 +388,7 @@ export default function PointAppealsManagement() {
       )}
 
       <Text style={styles.submittedDate}>
-        Submitted: {formatDateInEST(item.created_at, { 
-          month: 'short', 
-          day: 'numeric', 
-          hour: 'numeric', 
-          minute: '2-digit' 
-        })}
+        Submitted: {item.formattedSubmittedDate}
       </Text>
 
       {item.status === 'pending' && (
@@ -357,18 +444,13 @@ export default function PointAppealsManagement() {
           )}
           {item.reviewed_at && (
             <Text style={styles.reviewDate}>
-              {formatDateInEST(item.reviewed_at, { 
-                month: 'short', 
-                day: 'numeric', 
-                hour: 'numeric', 
-                minute: '2-digit' 
-              })}
+              {item.formattedReviewDate}
             </Text>
           )}
         </View>
       )}
     </View>
-  );
+  ), [handleAppealDecision]);
 
   if (loading) {
     return (
@@ -392,15 +474,15 @@ export default function PointAppealsManagement() {
         style={styles.searchInput}
         placeholder="Search by name or event..."
         value={searchQuery}
-        onChangeText={setSearchQuery}
+        onChangeText={(text) => dispatch({ type: 'SET_SEARCH_QUERY', payload: text })}
         placeholderTextColor="#9CA3AF"
       />
 
       <View style={styles.filterContainer}>
-        {renderFilterButton('pending', 'Pending', appeals.filter(a => a.status === 'pending').length)}
-        {renderFilterButton('approved', 'Approved', appeals.filter(a => a.status === 'approved').length)}
-        {renderFilterButton('denied', 'Denied', appeals.filter(a => a.status === 'denied').length)}
-        {renderFilterButton('all', 'All', appeals.length)}
+        {renderFilterButton('pending', 'Pending', filterCounts.pending)}
+        {renderFilterButton('approved', 'Approved', filterCounts.approved)}
+        {renderFilterButton('denied', 'Denied', filterCounts.denied)}
+        {renderFilterButton('all', 'All', filterCounts.all)}
       </View>
 
       <FlatList
@@ -422,6 +504,12 @@ export default function PointAppealsManagement() {
             </Text>
           </View>
         }
+        // Performance optimizations
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
+        initialNumToRender={8}
+        updateCellsBatchingPeriod={50}
       />
     </SafeAreaView>
   );

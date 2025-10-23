@@ -228,11 +228,34 @@ npm test
 
 ## 📚 Documentation
 
+### Essential Documentation
+- **[Project Structure](PROJECT_STRUCTURE.md)**: Complete codebase architecture and organization
+- **[Documentation Index](docs/README.md)**: Organized documentation hub
 - **[Privacy Policy](PRIVACY_POLICY.md)**: Data handling and user rights
 - **[Terms of Service](TERMS_OF_SERVICE.md)**: Usage guidelines and legal terms
-- **[Content Guidelines](CONTENT_MODERATION.md)**: Community standards
-- **API Documentation**: Supabase schema and endpoints
+
+### Developer Documentation
+All development documentation is organized in the [`docs/`](docs/) folder:
+
+#### Features
+- [Event Feedback Implementation](docs/features/EVENT_FEEDBACK_IMPLEMENTATION.md)
+- [Point Appeal System](docs/features/POINT_APPEAL_FEATURE.md)
+- [Test Bank Upload](docs/features/TEST_BANK_UPLOAD_FIX.md)
+- [File Upload Implementation](docs/features/TEST_BANK_FILE_UPLOAD_FIX.md)
+- [Filter UI Modernization](docs/features/FILTER_UI_MODERNIZATION.md)
+
+#### Guides
+- [Error Boundary Guide](docs/guides/ERROR_BOUNDARY_GUIDE.md)
+- [Testing Guide](docs/guides/TESTING_GUIDE.md)
+- [Deployment Checklist](docs/guides/DEPLOYMENT_CHECKLIST.md)
+- [Content Moderation](docs/guides/CONTENT_MODERATION.md)
+- [Security Audit Results](docs/guides/SECURITY_AUDIT_RESULTS.md)
+- [Register Form Reference](docs/guides/REGISTER_FORM_QUICK_REFERENCE.md)
+
+#### Additional Resources
+- **API Documentation**: Supabase schema in [`supabase/migrations/`](supabase/migrations/)
 - **User Guide**: In-app help and feature explanations
+- **Historical Docs**: Archived in [`docs/archive/`](docs/archive/)
 
 ## 🆘 Support & Contact
 

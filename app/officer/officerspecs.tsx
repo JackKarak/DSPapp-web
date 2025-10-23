@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
-import { useOfficerRole } from '../../hooks/useOfficerRole';
+import { useOfficerRole } from '../../hooks/shared';
 
 export default function OfficerSpecs() {
   const router = useRouter();

@@ -94,7 +94,7 @@ BEGIN
   -- 3. Calculate analytics
   -- Total points (use actual point_value + 50% bonus if registered)
   WITH event_points AS (
-    SELECT DISTINCT ON (e.id)
+    SELECT DISTINCT
       e.id,
       e.start_time,
       CASE 
@@ -106,7 +106,7 @@ BEGIN
     LEFT JOIN event_registration er ON er.event_id = e.id AND er.user_id = p_user_id
     WHERE ea.user_id = p_user_id
     
-    UNION ALL
+    UNION
     
     SELECT DISTINCT
       e.id,
@@ -188,7 +188,7 @@ BEGIN
       JOIN events e ON e.id = ea.event_id
       LEFT JOIN event_registration er ON er.event_id = ea.event_id AND er.user_id = ea.user_id
       
-      UNION ALL
+      UNION
       
       SELECT DISTINCT
         pa.user_id,
@@ -234,7 +234,7 @@ BEGIN
       JOIN events e ON e.id = ea.event_id
       LEFT JOIN event_registration er ON er.event_id = ea.event_id AND er.user_id = ea.user_id
       
-      UNION ALL
+      UNION
       
       SELECT DISTINCT
         pa.user_id,

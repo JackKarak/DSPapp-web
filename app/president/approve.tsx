@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,13 @@ import { Colors } from '../../constants/colors';
 import { formatDateInEST, formatTimeInEST, getDateInEST } from '../../lib/dateUtils';
 import { googleCalendarService } from '../../lib/googleCalendar';
 import { supabase } from '../../lib/supabase';
+
+interface RedFlag {
+  type: 'error' | 'warning' | 'info';
+  icon: string;
+  message: string;
+  details?: string;
+}
 
 interface PendingEvent {
   id: string;
@@ -30,16 +37,96 @@ interface PendingEvent {
   status: string;
   is_non_event?: boolean;
   code?: string;
+  // Pre-computed fields
+  redFlags?: RedFlag[];
+  formattedStartDate?: string;
+  formattedStartMonth?: string;
+  formattedStartDay?: number;
+  formattedStartWeekday?: string;
+  formattedStartTime?: string;
+  formattedEndTime?: string;
 }
 
-// Red flag detection functions
-const detectRedFlags = (event: PendingEvent, allEvents: PendingEvent[]) => {
-  const flags: {
-    type: 'error' | 'warning' | 'info';
-    icon: string;
-    message: string;
-    details?: string;
-  }[] = [];
+// State management with useReducer
+interface ApprovalState {
+  pendingEvents: PendingEvent[];
+  allEvents: any[];
+  loading: boolean;
+  processingEventIds: Set<string>;
+  expandedCards: Set<string>;
+}
+
+type ApprovalAction =
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_EVENTS'; payload: { pending: PendingEvent[]; all: any[] } }
+  | { type: 'TOGGLE_PROCESSING'; payload: string }
+  | { type: 'TOGGLE_EXPANDED'; payload: string }
+  | { type: 'CLEAR_PROCESSING'; payload: string };
+
+function approvalReducer(state: ApprovalState, action: ApprovalAction): ApprovalState {
+  switch (action.type) {
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    
+    case 'SET_EVENTS':
+      return {
+        ...state,
+        pendingEvents: action.payload.pending,
+        allEvents: action.payload.all,
+        loading: false,
+      };
+    
+    case 'TOGGLE_PROCESSING': {
+      const newSet = new Set(state.processingEventIds);
+      if (newSet.has(action.payload)) {
+        newSet.delete(action.payload);
+      } else {
+        newSet.add(action.payload);
+      }
+      return { ...state, processingEventIds: newSet };
+    }
+    
+    case 'TOGGLE_EXPANDED': {
+      const newSet = new Set(state.expandedCards);
+      if (newSet.has(action.payload)) {
+        newSet.delete(action.payload);
+      } else {
+        newSet.add(action.payload);
+      }
+      return { ...state, expandedCards: newSet };
+    }
+    
+    case 'CLEAR_PROCESSING': {
+      const newSet = new Set(state.processingEventIds);
+      newSet.delete(action.payload);
+      return { ...state, processingEventIds: newSet };
+    }
+    
+    default:
+      return state;
+  }
+}
+
+// Pre-compute red flags for all events (runs once)
+const precomputeEventData = (events: any[], allEvents: any[]): PendingEvent[] => {
+  return events.map((event) => {
+    const redFlags = detectRedFlags(event, allEvents);
+    
+    return {
+      ...event,
+      redFlags,
+      formattedStartMonth: formatDateInEST(event.start_time, { month: 'short' }).toUpperCase(),
+      formattedStartDay: getDateInEST(event.start_time).getDate(),
+      formattedStartWeekday: formatDateInEST(event.start_time, { weekday: 'short' }),
+      formattedStartTime: formatTimeInEST(event.start_time, { hour: '2-digit', minute: '2-digit' }),
+      formattedEndTime: formatTimeInEST(event.end_time, { hour: '2-digit', minute: '2-digit' }),
+    };
+  });
+};
+
+// Red flag detection functions (moved above component)
+const detectRedFlags = (event: PendingEvent, allEvents: PendingEvent[]): RedFlag[] => {
+  const flags: RedFlag[] = [];
 
   // Missing information flags
   if (!event.description || event.description.trim() === '') {
@@ -162,79 +249,53 @@ const detectRedFlags = (event: PendingEvent, allEvents: PendingEvent[]) => {
 };
 
 export default function EventApproval() {
-  const [pendingEvents, setPendingEvents] = useState<PendingEvent[]>([]);
-  const [allEvents, setAllEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [processingEventIds, setProcessingEventIds] = useState<Set<string>>(new Set());
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [state, dispatch] = useReducer(approvalReducer, {
+    pendingEvents: [],
+    allEvents: [],
+    loading: true,
+    processingEventIds: new Set<string>(),
+    expandedCards: new Set<string>(),
+  });
+  
   const router = useRouter();
+  const hasCheckedAccess = useRef(false);
 
-  useEffect(() => {
-    checkAccess();
-  }, []);
-
-  const checkAccess = async () => {
+  const fetchPendingEvents = useCallback(async () => {
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        Alert.alert('Authentication Error', 'Please log in again.');
-        router.replace('/(auth)/login');
-        return;
-      }
+      dispatch({ type: 'SET_LOADING', payload: true });
 
-      const { data: userData, error: profileError } = await supabase
-        .from('users')
-        .select('role, officer_position')
-        .eq('user_id', user.id)
-        .single();
+      // Parallel fetch for pending events and all events
+      const [eventsResult, allEventsResult] = await Promise.all([
+        supabase
+          .from('events')
+          .select(`
+            id, 
+            title, 
+            description, 
+            start_time, 
+            end_time, 
+            location, 
+            point_type, 
+            point_value, 
+            created_by, 
+            is_registerable, 
+            available_to_pledges, 
+            status,
+            is_non_event,
+            code,
+            created_by_user:created_by(first_name, last_name)
+          `)
+          .eq('status', 'pending')
+          .order('start_time', { ascending: true }),
+        
+        supabase
+          .from('events')
+          .select('id, title, start_time, end_time, status')
+          .order('start_time', { ascending: true })
+      ]);
 
-      if (profileError || !userData) {
-        Alert.alert('Access Denied', 'Unable to verify permissions.');
-        router.replace('/(tabs)');
-        return;
-      }
-
-      // Only presidents/admins can confirm events
-      if (userData.role !== 'admin' && userData.officer_position !== 'president') {
-        Alert.alert('Access Denied', 'Only presidents can confirm events.');
-        router.replace('/(tabs)');
-        return;
-      }
-
-      fetchPendingEvents();
-    } catch (error) {
-      console.error('Access check failed:', error);
-      Alert.alert('Error', 'Failed to verify access permissions.');
-      router.replace('/(tabs)');
-    }
-  };
-
-  const fetchPendingEvents = async () => {
-    try {
-      setLoading(true);
-
-      // Get pending events with creator info
-      const { data: eventsData, error: eventsError } = await supabase
-        .from('events')
-        .select(`
-          id, 
-          title, 
-          description, 
-          start_time, 
-          end_time, 
-          location, 
-          point_type, 
-          point_value, 
-          created_by, 
-          is_registerable, 
-          available_to_pledges, 
-          status,
-          is_non_event,
-          code,
-          created_by_user:created_by(first_name, last_name)
-        `)
-        .eq('status', 'pending')
-        .order('start_time', { ascending: true });
+      const { data: eventsData, error: eventsError } = eventsResult;
+      const { data: allData, error: allError } = allEventsResult;
 
       if (eventsError) {
         console.error('Events Error:', eventsError);
@@ -242,19 +303,15 @@ export default function EventApproval() {
         return;
       }
 
-      // Get all events for conflict detection
-      const { data: allData, error: allError } = await supabase
-        .from('events')
-        .select('id, title, start_time, end_time, status')
-        .order('start_time', { ascending: true });
-
       if (allError) {
         console.error('Error fetching all events:', allError);
       }
 
       if (!eventsData || eventsData.length === 0) {
-        setPendingEvents([]);
-        setAllEvents([]);
+        dispatch({ 
+          type: 'SET_EVENTS', 
+          payload: { pending: [], all: [] } 
+        });
         return;
       }
 
@@ -302,33 +359,79 @@ export default function EventApproval() {
         };
       });
 
-      setPendingEvents(enrichedEvents);
-      setAllEvents(allData || []);
+      // Pre-compute red flags and formatted dates
+      const processedEvents = precomputeEventData(enrichedEvents, allData || []);
+
+      dispatch({ 
+        type: 'SET_EVENTS', 
+        payload: { pending: processedEvents, all: allData || [] } 
+      });
     } catch (error) {
       console.error('Error fetching pending events:', error);
       Alert.alert('Error', 'Failed to load pending events.');
-    } finally {
-      setLoading(false);
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
-  };
+  }, []);
 
-  // Generate a 5-letter random code
-  const generateRandomCode = (): string => {
-    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    let result = '';
-    for (let i = 0; i < 5; i++) {
-      result += letters.charAt(Math.floor(Math.random() * letters.length));
-    }
-    return result;
-  };
-
-  const confirmEvent = async (eventId: string) => {
+  const checkAccess = useCallback(async () => {
     try {
-      setProcessingEventIds(prev => new Set(prev).add(eventId));
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        Alert.alert('Authentication Error', 'Please log in again.');
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      const { data: userData, error: profileError } = await supabase
+        .from('users')
+        .select('role, officer_position')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError || !userData) {
+        Alert.alert('Access Denied', 'Unable to verify permissions.');
+        router.replace('/(tabs)');
+        return;
+      }
+
+      // Only presidents/admins can confirm events
+      if (userData.role !== 'admin' && userData.officer_position !== 'president') {
+        Alert.alert('Access Denied', 'Only presidents can confirm events.');
+        router.replace('/(tabs)');
+        return;
+      }
+
+      fetchPendingEvents();
+    } catch (error) {
+      console.error('Access check failed:', error);
+      Alert.alert('Error', 'Failed to verify access permissions.');
+      router.replace('/(tabs)');
+    }
+  }, [router, fetchPendingEvents]);
+
+  useEffect(() => {
+    if (!hasCheckedAccess.current) {
+      hasCheckedAccess.current = true;
+      checkAccess();
+    }
+  }, [checkAccess]);
+
+  // Generate a 5-letter random code (optimized)
+  const generateRandomCode = useCallback((): string => {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return Array.from({ length: 5 }, () => 
+      letters.charAt(Math.floor(Math.random() * letters.length))
+    ).join('');
+  }, []);
+
+  const confirmEvent = useCallback(async (eventId: string) => {
+    try {
+      dispatch({ type: 'TOGGLE_PROCESSING', payload: eventId });
 
       // Find the event details for Google Calendar
-      const eventToApprove = pendingEvents.find(event => event.id === eventId);
+      const eventToApprove = state.pendingEvents.find((event) => event.id === eventId);
       if (!eventToApprove) {
+        dispatch({ type: 'CLEAR_PROCESSING', payload: eventId });
         Alert.alert('Error', 'Event not found.');
         return;
       }
@@ -346,6 +449,7 @@ export default function EventApproval() {
 
       if (error) {
         console.error('Confirmation Error:', error);
+        dispatch({ type: 'CLEAR_PROCESSING', payload: eventId });
         Alert.alert('Error', 'Failed to confirm event.');
         return;
       }
@@ -388,17 +492,13 @@ export default function EventApproval() {
       console.error('Error confirming event:', error);
       Alert.alert('Error', 'Failed to confirm event.');
     } finally {
-      setProcessingEventIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(eventId);
-        return newSet;
-      });
+      dispatch({ type: 'CLEAR_PROCESSING', payload: eventId });
     }
-  };
+  }, [state.pendingEvents, generateRandomCode, fetchPendingEvents]);
 
-  const rejectEvent = async (eventId: string) => {
+  const rejectEvent = useCallback(async (eventId: string) => {
     try {
-      setProcessingEventIds(prev => new Set(prev).add(eventId));
+      dispatch({ type: 'TOGGLE_PROCESSING', payload: eventId });
 
       const { error } = await supabase
         .from('events')
@@ -407,6 +507,7 @@ export default function EventApproval() {
 
       if (error) {
         console.error('Rejection Error:', error);
+        dispatch({ type: 'CLEAR_PROCESSING', payload: eventId });
         Alert.alert('Error', 'Failed to reject event.');
         return;
       }
@@ -417,51 +518,20 @@ export default function EventApproval() {
       console.error('Error rejecting event:', error);
       Alert.alert('Error', 'Failed to reject event.');
     } finally {
-      setProcessingEventIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(eventId);
-        return newSet;
-      });
+      dispatch({ type: 'CLEAR_PROCESSING', payload: eventId });
     }
-  };
+  }, [fetchPendingEvents]);
 
-  const toggleCardExpansion = (eventId: string) => {
-    setExpandedCards(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(eventId)) {
-        newSet.delete(eventId);
-      } else {
-        newSet.add(eventId);
-      }
-      return newSet;
-    });
-  };
+  const toggleCardExpansion = useCallback((eventId: string) => {
+    dispatch({ type: 'TOGGLE_EXPANDED', payload: eventId });
+  }, []);
 
-  const formatDateTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      timeZone: 'America/New_York',
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    });
-  };
+  // Destructure state for easier access (must be before using in renderEventCard)
+  const { pendingEvents, allEvents, loading, processingEventIds, expandedCards } = state;
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#330066" />
-        <Text style={styles.loadingText}>Loading pending events...</Text>
-      </View>
-    );
-  }
-
-  const renderEventCard = ({ item }: { item: PendingEvent }) => {
-    const start = new Date(item.start_time);
-    const end = new Date(item.end_time);
-    const redFlags = detectRedFlags(item, allEvents);
+  const renderEventCard = useCallback(({ item }: { item: PendingEvent }) => {
+    // Use pre-computed data instead of computing on each render
+    const redFlags = item.redFlags || [];
     const hasErrors = redFlags.some(flag => flag.type === 'error');
     const hasWarnings = redFlags.some(flag => flag.type === 'warning');
     const isExpanded = expandedCards.has(item.id);
@@ -477,13 +547,13 @@ export default function EventApproval() {
         >
           <View style={styles.dateColumn}>
             <Text style={styles.dateMonth}>
-              {formatDateInEST(item.start_time, { month: 'short' }).toUpperCase()}
+              {item.formattedStartMonth}
             </Text>
             <Text style={styles.dateDay}>
-              {getDateInEST(item.start_time).getDate()}
+              {item.formattedStartDay}
             </Text>
             <Text style={styles.dateWeekday}>
-              {formatDateInEST(item.start_time, { weekday: 'short' })}
+              {item.formattedStartWeekday}
             </Text>
           </View>
           
@@ -517,8 +587,7 @@ export default function EventApproval() {
               <View style={styles.metaRow}>
                 <Text style={styles.metaIcon}>⏰</Text>
                 <Text style={styles.metaText}>
-                  {formatTimeInEST(item.start_time, { hour: '2-digit', minute: '2-digit' })} - {' '}
-                  {formatTimeInEST(item.end_time, { hour: '2-digit', minute: '2-digit' })}
+                  {item.formattedStartTime} - {item.formattedEndTime}
                 </Text>
               </View>
               {redFlags.length > 0 && (
@@ -642,7 +711,16 @@ export default function EventApproval() {
         )}
       </View>
     );
-  };
+  }, [expandedCards, processingEventIds, toggleCardExpansion, confirmEvent, rejectEvent]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#330066" />
+        <Text style={styles.loadingText}>Loading pending events...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -664,6 +742,12 @@ export default function EventApproval() {
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContainer}
+          // Performance optimizations
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+          initialNumToRender={5}
+          updateCellsBatchingPeriod={50}
         />
       )}
     </View>

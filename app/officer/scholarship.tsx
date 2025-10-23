@@ -13,14 +13,14 @@ import {
 import { Colors } from '../../constants/colors';
 import { formatDateInEST } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
-import { useOfficerRole } from '../../hooks/useOfficerRole';
+import { useOfficerRole } from '../../hooks/shared';
 
 // Proper type definitions
 interface TestBankItem {
   id: string;
   class_code: string;
   file_type: string;
-  file_name: string;
+  original_file_name: string;
   uploaded_at: string;
   submitted_by: string;
   status: 'pending' | 'approved' | 'rejected';
@@ -63,7 +63,7 @@ const TestBankItem = React.memo(({
         </View>
       </View>
     </View>
-    <Text style={styles.fileName}>{item.file_name}</Text>
+    <Text style={styles.fileName}>{item.original_file_name}</Text>
     <View style={styles.itemFooter}>
       <Text style={styles.uploadedBy}>
         Uploaded by: {Array.isArray(item.users) ? item.users[0]?.first_name : item.users?.first_name} {Array.isArray(item.users) ? item.users[0]?.last_name : item.users?.last_name}
@@ -107,7 +107,7 @@ export default function ScholarshipTab() {
           id,
           class_code,
           file_type,
-          file_name,
+          original_file_name,
           uploaded_at,
           submitted_by,
           status,
@@ -477,7 +477,7 @@ export default function ScholarshipTab() {
 
                 <View style={styles.detailSection}>
                   <Text style={styles.detailLabel}>File Name</Text>
-                  <Text style={styles.detailValue}>{selectedItem.file_name}</Text>
+                  <Text style={styles.detailValue}>{selectedItem.original_file_name}</Text>
                 </View>
 
                 <View style={styles.detailSection}>

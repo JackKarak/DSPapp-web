@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    FlatList,
     KeyboardAvoidingView,
     Modal,
     Platform,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { AccountDeletionService } from '../../lib/accountDeletion';
+import { formatDateInEST } from '../../lib/dateUtils';
 
 type Feedback = {
   id: string;
@@ -26,27 +27,88 @@ type Feedback = {
   status: string;
 };
 
+// Enhanced type with pre-computed fields
+interface EnrichedFeedback extends Feedback {
+  formattedDate?: string;
+}
+
+// State management with useReducer
+interface FeedbackState {
+  feedbacks: EnrichedFeedback[];
+  loading: boolean;
+  showResolved: boolean;
+  accountDeletionModalVisible: boolean;
+  deletionConfirmationText: string;
+  isDeletingAccount: boolean;
+}
+
+type FeedbackAction =
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_FEEDBACKS'; payload: EnrichedFeedback[] }
+  | { type: 'TOGGLE_SHOW_RESOLVED' }
+  | { type: 'SET_SHOW_RESOLVED'; payload: boolean }
+  | { type: 'SET_ACCOUNT_MODAL'; payload: boolean }
+  | { type: 'SET_DELETION_TEXT'; payload: string }
+  | { type: 'SET_DELETING'; payload: boolean };
+
+function feedbackReducer(state: FeedbackState, action: FeedbackAction): FeedbackState {
+  switch (action.type) {
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    
+    case 'SET_FEEDBACKS':
+      return { ...state, feedbacks: action.payload, loading: false };
+    
+    case 'TOGGLE_SHOW_RESOLVED':
+      return { ...state, showResolved: !state.showResolved };
+    
+    case 'SET_SHOW_RESOLVED':
+      return { ...state, showResolved: action.payload };
+    
+    case 'SET_ACCOUNT_MODAL':
+      return { ...state, accountDeletionModalVisible: action.payload };
+    
+    case 'SET_DELETION_TEXT':
+      return { ...state, deletionConfirmationText: action.payload };
+    
+    case 'SET_DELETING':
+      return { ...state, isDeletingAccount: action.payload };
+    
+    default:
+      return state;
+  }
+}
+
+// Pre-compute formatting for all feedbacks (runs once)
+const precomputeFeedbackData = (feedbacks: Feedback[]): EnrichedFeedback[] => {
+  return feedbacks.map((feedback) => ({
+    ...feedback,
+    formattedDate: formatDateInEST(feedback.submitted_at, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }),
+  }));
+};
+
 export default function PresidentHome() {
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showResolved, setShowResolved] = useState(false);
-  const router = useRouter();
+  const [state, dispatch] = useReducer(feedbackReducer, {
+    feedbacks: [],
+    loading: true,
+    showResolved: false,
+    accountDeletionModalVisible: false,
+    deletionConfirmationText: '',
+    isDeletingAccount: false,
+  });
   
-  // Account deletion states
-  const [accountDeletionModalVisible, setAccountDeletionModalVisible] = useState(false);
-  const [deletionConfirmationText, setDeletionConfirmationText] = useState('');
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const router = useRouter();
+  const hasCheckedAccess = useRef(false);
 
-  useEffect(() => {
-    fetchFeedbacks();
-  }, []);
-
-  useEffect(() => {
-    fetchFeedbacks();
-  }, [showResolved]);
-
-  const fetchFeedbacks = async () => {
-    setLoading(true);
+  const fetchFeedbacks = useCallback(async () => {
+    dispatch({ type: 'SET_LOADING', payload: true });
 
     try {
       // Check authentication
@@ -67,7 +129,7 @@ export default function PresidentHome() {
 
       if (userDbError || !userData) {
         Alert.alert('Access Error', 'Could not verify user permissions.');
-        setLoading(false);
+        dispatch({ type: 'SET_LOADING', payload: false });
         return;
       }
 
@@ -82,7 +144,7 @@ export default function PresidentHome() {
         .from('admin_feedback')
         .select('id, submitted_at, subject, message, user_id, status');
 
-      if (!showResolved) {
+      if (!state.showResolved) {
         query = query.neq('status', 'resolved');
       }
 
@@ -90,13 +152,12 @@ export default function PresidentHome() {
 
       if (feedbackError) {
         Alert.alert('Database Error', 'Unable to load feedback data.');
-        setLoading(false);
+        dispatch({ type: 'SET_LOADING', payload: false });
         return;
       }
 
       if (!rawFeedbackData || rawFeedbackData.length === 0) {
-        setFeedbacks([]);
-        setLoading(false);
+        dispatch({ type: 'SET_FEEDBACKS', payload: [] });
         return;
       }
 
@@ -123,16 +184,31 @@ export default function PresidentHome() {
         })()
       }));
 
-      setFeedbacks(formattedFeedbacks);
-      setLoading(false);
+      // Pre-compute all formatted data
+      const processedFeedbacks = precomputeFeedbackData(formattedFeedbacks);
+      dispatch({ type: 'SET_FEEDBACKS', payload: processedFeedbacks });
 
     } catch (error: any) {
       Alert.alert('Error', 'Failed to load feedback data.');
-      setLoading(false);
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
-  };
+  }, [router, state.showResolved]);
 
-  const markAsResolved = async (feedbackId: string) => {
+  // Effect to fetch feedbacks on mount and when filter changes
+  useEffect(() => {
+    if (!hasCheckedAccess.current) {
+      hasCheckedAccess.current = true;
+      fetchFeedbacks();
+    }
+  }, [fetchFeedbacks]);
+
+  useEffect(() => {
+    if (hasCheckedAccess.current) {
+      fetchFeedbacks();
+    }
+  }, [state.showResolved, fetchFeedbacks]);
+
+  const markAsResolved = useCallback(async (feedbackId: string) => {
     try {
       const { error } = await supabase
         .from('admin_feedback')
@@ -152,9 +228,9 @@ export default function PresidentHome() {
     } catch (error) {
       Alert.alert('Error', 'Failed to update feedback status.');
     }
-  };
+  }, [fetchFeedbacks]);
 
-  const markAsPending = async (feedbackId: string) => {
+  const markAsPending = useCallback(async (feedbackId: string) => {
     try {
       const { error } = await supabase
         .from('admin_feedback')
@@ -174,9 +250,9 @@ export default function PresidentHome() {
     } catch (error) {
       Alert.alert('Error', 'Failed to update feedback status.');
     }
-  };
+  }, [fetchFeedbacks]);
 
-  const deleteFeedback = async (feedbackId: string) => {
+  const deleteFeedback = useCallback(async (feedbackId: string) => {
     Alert.alert(
       'Delete Feedback',
       'Are you sure you want to permanently delete this feedback?',
@@ -206,33 +282,20 @@ export default function PresidentHome() {
         }
       ]
     );
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-      timeZone: 'America/New_York',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
+  }, [fetchFeedbacks]);
 
   // Account deletion handlers
-  const handleAccountDeletion = async () => {
-    setAccountDeletionModalVisible(true);
-  };
+  const handleAccountDeletion = useCallback(() => {
+    dispatch({ type: 'SET_ACCOUNT_MODAL', payload: true });
+  }, []);
 
-  const confirmAccountDeletion = async () => {
-    if (deletionConfirmationText !== 'DELETE MY ACCOUNT') {
+  const confirmAccountDeletion = useCallback(async () => {
+    if (state.deletionConfirmationText !== 'DELETE MY ACCOUNT') {
       Alert.alert('Confirmation Required', 'Please type "DELETE MY ACCOUNT" to confirm.');
       return;
     }
 
-    setIsDeletingAccount(true);
+    dispatch({ type: 'SET_DELETING', payload: true });
 
     try {
       // Check authentication
@@ -254,7 +317,7 @@ export default function PresidentHome() {
             {
               text: 'OK',
               onPress: () => {
-                setAccountDeletionModalVisible(false);
+                dispatch({ type: 'SET_ACCOUNT_MODAL', payload: false });
                 router.replace('/(auth)/login');
               }
             }
@@ -267,10 +330,65 @@ export default function PresidentHome() {
       console.error('Account deletion error:', error);
       Alert.alert('Error', 'Failed to delete account. Please try again.');
     } finally {
-      setIsDeletingAccount(false);
-      setDeletionConfirmationText('');
+      dispatch({ type: 'SET_DELETING', payload: false });
+      dispatch({ type: 'SET_DELETION_TEXT', payload: '' });
     }
-  };
+  }, [state.deletionConfirmationText, router]);
+
+  // Destructure state
+  const { feedbacks, loading, showResolved, accountDeletionModalVisible, deletionConfirmationText, isDeletingAccount } = state;
+
+  // Memoize filter counts
+  const filterCounts = useMemo(() => ({
+    pending: feedbacks.filter((f) => f.status !== 'resolved').length,
+    resolved: feedbacks.filter((f) => f.status === 'resolved').length,
+  }), [feedbacks]);
+
+  // Memoized render function
+  const renderFeedbackItem = useCallback(({ item }: { item: EnrichedFeedback }) => (
+    <View style={styles.feedbackCard}>
+      <View style={styles.feedbackHeader}>
+        <Text style={styles.feedbackSubject}>{item.subject}</Text>
+        <Text style={[
+          styles.statusBadge,
+          item.status === 'resolved' ? styles.resolvedBadge : styles.pendingBadge
+        ]}>
+          {item.status.toUpperCase()}
+        </Text>
+      </View>
+      
+      <Text style={styles.feedbackMeta}>
+        From: {item.user_name} • {item.formattedDate}
+      </Text>
+      
+      <Text style={styles.feedbackMessage}>{item.message}</Text>
+      
+      <View style={styles.actionButtons}>
+        {item.status === 'pending' ? (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.resolveButton]}
+            onPress={() => markAsResolved(item.id)}
+          >
+            <Text style={styles.actionButtonText}>Mark Resolved</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.pendingButton]}
+            onPress={() => markAsPending(item.id)}
+          >
+            <Text style={styles.actionButtonText}>Mark Pending</Text>
+          </TouchableOpacity>
+        )}
+        
+        <TouchableOpacity
+          style={[styles.actionButton, styles.deleteButton]}
+          onPress={() => deleteFeedback(item.id)}
+        >
+          <Text style={styles.actionButtonText}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  ), [markAsResolved, markAsPending, deleteFeedback]);
 
   if (loading) {
     return (
@@ -284,82 +402,47 @@ export default function PresidentHome() {
   return (
     <>
       <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Member Feedback</Text>
-        <View style={styles.filterContainer}>
-          <TouchableOpacity
-            style={[styles.filterButton, !showResolved && styles.activeFilter]}
-            onPress={() => setShowResolved(false)}
-          >
-            <Text style={[styles.filterButtonText, !showResolved && styles.activeFilterText]}>
-              Pending ({feedbacks.filter(f => f.status !== 'resolved').length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterButton, showResolved && styles.activeFilter]}
-            onPress={() => setShowResolved(true)}
-          >
-            <Text style={[styles.filterButtonText, showResolved && styles.activeFilterText]}>
-              Resolved ({feedbacks.filter(f => f.status === 'resolved').length})
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView style={styles.feedbackList}>
-        {feedbacks.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {showResolved ? 'No resolved feedback found.' : 'No pending feedback found.'}
-            </Text>
-          </View>
-        ) : (
-          feedbacks.map((feedback) => (
-            <View key={feedback.id} style={styles.feedbackCard}>
-              <View style={styles.feedbackHeader}>
-                <Text style={styles.feedbackSubject}>{feedback.subject}</Text>
-                <Text style={[
-                  styles.statusBadge,
-                  feedback.status === 'resolved' ? styles.resolvedBadge : styles.pendingBadge
-                ]}>
-                  {feedback.status.toUpperCase()}
-                </Text>
-              </View>
-              
-              <Text style={styles.feedbackMeta}>
-                From: {feedback.user_name} • {formatDate(feedback.submitted_at)}
+        <View style={styles.header}>
+          <Text style={styles.title}>Member Feedback</Text>
+          <View style={styles.filterContainer}>
+            <TouchableOpacity
+              style={[styles.filterButton, !showResolved && styles.activeFilter]}
+              onPress={() => dispatch({ type: 'SET_SHOW_RESOLVED', payload: false })}
+            >
+              <Text style={[styles.filterButtonText, !showResolved && styles.activeFilterText]}>
+                Pending ({filterCounts.pending})
               </Text>
-              
-              <Text style={styles.feedbackMessage}>{feedback.message}</Text>
-              
-              <View style={styles.actionButtons}>
-                {feedback.status === 'pending' ? (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.resolveButton]}
-                    onPress={() => markAsResolved(feedback.id)}
-                  >
-                    <Text style={styles.actionButtonText}>Mark Resolved</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.pendingButton]}
-                    onPress={() => markAsPending(feedback.id)}
-                  >
-                    <Text style={styles.actionButtonText}>Mark Pending</Text>
-                  </TouchableOpacity>
-                )}
-                
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.deleteButton]}
-                  onPress={() => deleteFeedback(feedback.id)}
-                >
-                  <Text style={styles.actionButtonText}>Delete</Text>
-                </TouchableOpacity>
-              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterButton, showResolved && styles.activeFilter]}
+              onPress={() => dispatch({ type: 'SET_SHOW_RESOLVED', payload: true })}
+            >
+              <Text style={[styles.filterButtonText, showResolved && styles.activeFilterText]}>
+                Resolved ({filterCounts.resolved})
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <FlatList
+          data={feedbacks}
+          renderItem={renderFeedbackItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.feedbackList}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {showResolved ? 'No resolved feedback found.' : 'No pending feedback found.'}
+              </Text>
             </View>
-          ))
-        )}
-      </ScrollView>
+          }
+          // Performance optimizations
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          removeClippedSubviews={true}
+          initialNumToRender={6}
+          updateCellsBatchingPeriod={50}
+        />
 
       {/* Account Management Section */}
       <View style={styles.accountSection}>
@@ -379,7 +462,7 @@ export default function PresidentHome() {
       visible={accountDeletionModalVisible}
       transparent={true}
       animationType="slide"
-      onRequestClose={() => setAccountDeletionModalVisible(false)}
+      onRequestClose={() => dispatch({ type: 'SET_ACCOUNT_MODAL', payload: false })}
     >
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -399,7 +482,7 @@ export default function PresidentHome() {
           <TextInput
             style={styles.confirmationInput}
             value={deletionConfirmationText}
-            onChangeText={setDeletionConfirmationText}
+            onChangeText={(text) => dispatch({ type: 'SET_DELETION_TEXT', payload: text })}
             placeholder="Type here to confirm..."
             autoCapitalize="characters"
           />
@@ -408,8 +491,8 @@ export default function PresidentHome() {
             <TouchableOpacity
               style={styles.cancelButton}
               onPress={() => {
-                setAccountDeletionModalVisible(false);
-                setDeletionConfirmationText('');
+                dispatch({ type: 'SET_ACCOUNT_MODAL', payload: false });
+                dispatch({ type: 'SET_DELETION_TEXT', payload: '' });
               }}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
