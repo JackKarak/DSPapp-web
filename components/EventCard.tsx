@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { formatDateInEST } from '../lib/dateUtils';
+import { getPointTypeColors, formatPointTypeText } from '../lib/pointTypeColors';
 
 // Type definitions
 export type EventCardData = {
@@ -40,29 +41,6 @@ interface EventCardProps {
   isRegistered: boolean;
   onRegister: (eventId: string) => void;
   onUnregister: (eventId: string) => void;
-}
-
-// Utility functions for tag styling
-function getTypeTagStyle(type: string) {
-  const styles: Record<string, any> = {
-    service: { backgroundColor: '#dbeafe', borderColor: '#3b82f6' },
-    social: { backgroundColor: '#fce7f3', borderColor: '#ec4899' },
-    dei: { backgroundColor: '#e0e7ff', borderColor: '#6366f1' },
-    professional: { backgroundColor: '#d1fae5', borderColor: '#10b981' },
-    'h&w': { backgroundColor: '#fef3c7', borderColor: '#f59e0b' },
-  };
-  return styles[type] || { backgroundColor: '#f3f4f6', borderColor: '#9ca3af' };
-}
-
-function getTypeTagTextStyle(type: string) {
-  const styles: Record<string, any> = {
-    service: { color: '#1e40af' },
-    social: { color: '#9f1239' },
-    dei: { color: '#4338ca' },
-    professional: { color: '#047857' },
-    'h&w': { color: '#b45309' },
-  };
-  return styles[type] || { color: '#374151' };
 }
 
 export const EventCard: React.FC<EventCardProps> = ({
@@ -132,11 +110,18 @@ export const EventCard: React.FC<EventCardProps> = ({
       {/* Card Details */}
       <View style={styles.cardDetails}>
         <View style={styles.tagContainer}>
-          <View style={[styles.typeTag, getTypeTagStyle(event.point_type)]}>
-            <Text style={[styles.typeTagText, getTypeTagTextStyle(event.point_type)]}>
-              {event.point_type === 'dei' ? 'DEI' :
-                event.point_type === 'h&w' ? 'H&W' :
-                  event.point_type.toUpperCase()}
+          <View style={[
+            styles.typeTag, 
+            { 
+              backgroundColor: getPointTypeColors(event.point_type).backgroundColor,
+              borderColor: getPointTypeColors(event.point_type).borderColor
+            }
+          ]}>
+            <Text style={[
+              styles.typeTagText, 
+              { color: getPointTypeColors(event.point_type).textColor }
+            ]}>
+              {formatPointTypeText(event.point_type)}
             </Text>
           </View>
           {!isUpcoming && (

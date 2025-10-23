@@ -57,11 +57,11 @@ export const RACE_OPTIONS = [
 ];
 
 export const LIVING_TYPE_OPTIONS = [
-  { label: 'On Campus', value: 'on_campus' },
-  { label: 'Off Campus', value: 'off_campus' },
-  { label: 'With Parents', value: 'with_parents' },
-  { label: 'Fraternity House', value: 'fraternity_house' },
-  { label: 'Other', value: 'other' }
+  { label: 'On Campus Dorm', value: 'on_campus_dorm' },
+  { label: 'On Campus Apartment', value: 'on_campus_apartment' },
+  { label: 'Off Campus Apartment', value: 'off_campus_apartment' },
+  { label: 'Off Campus House', value: 'off_campus_house' },
+  { label: 'Commute', value: 'commute' }
 ];
 
 // Profile edit restrictions

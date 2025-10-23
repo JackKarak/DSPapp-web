@@ -7,6 +7,7 @@
 import React from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { formatDateInEST } from '../../lib/dateUtils';
+import { getPointTypeColors, formatPointTypeText } from '../../lib/pointTypeColors';
 
 interface Event {
   id: string;
@@ -26,7 +27,7 @@ interface PointAppeal {
   created_at: string;
   reviewed_at?: string;
   review_notes?: string;
-  events?: {
+  event?: {
     id: string;
     title: string;
     start_time: string;
@@ -63,12 +64,30 @@ const AppealRow: React.FC<{ appeal: PointAppeal }> = ({ appeal }) => {
     <View style={styles.appealRow}>
       <View style={styles.appealHeader}>
         <Text style={styles.appealTitle} numberOfLines={1}>
-          {appeal.events?.title || 'Unknown Event'}
+          {appeal.event?.title || 'Unknown Event'}
         </Text>
-        <View style={[styles.statusBadge, { backgroundColor: statusColors[appeal.status] }]}>
-          <Text style={styles.statusText}>
-            {statusEmojis[appeal.status]} {appeal.status.toUpperCase()}
-          </Text>
+        <View style={styles.appealTags}>
+          {appeal.event?.point_type && (
+            <View style={[
+              styles.pointTypeTag,
+              {
+                backgroundColor: getPointTypeColors(appeal.event.point_type).backgroundColor,
+                borderColor: getPointTypeColors(appeal.event.point_type).borderColor,
+              }
+            ]}>
+              <Text style={[
+                styles.pointTypeText,
+                { color: getPointTypeColors(appeal.event.point_type).textColor }
+              ]}>
+                {formatPointTypeText(appeal.event.point_type)}
+              </Text>
+            </View>
+          )}
+          <View style={[styles.statusBadge, { backgroundColor: statusColors[appeal.status] }]}>
+            <Text style={styles.statusText}>
+              {statusEmojis[appeal.status]} {appeal.status.toUpperCase()}
+            </Text>
+          </View>
         </View>
       </View>
       <Text style={styles.appealReason} numberOfLines={2}>
@@ -93,9 +112,27 @@ const AppealableEventRow: React.FC<{
 }> = ({ event, onPress }) => (
   <TouchableOpacity style={styles.appealableRow} onPress={() => onPress(event)}>
     <View style={styles.appealableContent}>
-      <Text style={styles.appealableTitle} numberOfLines={1}>
-        {event.title}
-      </Text>
+      <View style={styles.appealableTitleRow}>
+        <Text style={styles.appealableTitle} numberOfLines={1}>
+          {event.title}
+        </Text>
+        {event.point_type && (
+          <View style={[
+            styles.pointTypeTag,
+            {
+              backgroundColor: getPointTypeColors(event.point_type).backgroundColor,
+              borderColor: getPointTypeColors(event.point_type).borderColor,
+            }
+          ]}>
+            <Text style={[
+              styles.pointTypeText,
+              { color: getPointTypeColors(event.point_type).textColor }
+            ]}>
+              {formatPointTypeText(event.point_type)}
+            </Text>
+          </View>
+        )}
+      </View>
       <Text style={styles.appealableDate}>
         {formatDateInEST(event.date, { month: 'short', day: 'numeric', year: 'numeric' })}
       </Text>
@@ -219,6 +256,21 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  appealTags: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pointTypeTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  pointTypeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -269,11 +321,17 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
+  appealableTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
   appealableTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1e293b',
-    marginBottom: 4,
+    flex: 1,
   },
   appealableDate: {
     fontSize: 12,

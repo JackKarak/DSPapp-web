@@ -21,52 +21,45 @@ export function useAnalyticsData() {
       abortControllerRef.current?.abort();
       abortControllerRef.current = new AbortController();
 
-      const { page, pageSize } = state.membersPagination;
-      const from = page * pageSize;
-      const to = from + pageSize - 1;
-
+      // Fetch ALL members with role='brother' for analytics (no pagination)
       const { data, error, count } = await supabase
         .from('users')
         .select('*', { count: 'exact' })
-        .order('last_name', { ascending: true })
-        .range(from, to);
+        .eq('role', 'brother')
+        .order('last_name', { ascending: true });
 
       if (error) throw error;
 
-      const hasMore = count ? from + (data?.length || 0) < count : false;
-      dispatch({ type: 'SET_MEMBERS', payload: { members: data || [], hasMore } });
+      dispatch({ type: 'SET_MEMBERS', payload: { members: data || [], hasMore: false } });
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         dispatch({ type: 'SET_ERROR', payload: error.message || 'Failed to load members' });
       }
     }
-  }, [state.membersPagination]);
+  }, []);
 
   const fetchEvents = useCallback(async () => {
     try {
       const { start, end } = state.dateRange;
-      const { page, pageSize } = state.eventsPagination;
-      const from = page * pageSize;
-      const to = from + pageSize - 1;
 
+      // Fetch ALL events in date range for analytics (no pagination)
       const { data, error, count } = await supabase
         .from('events')
         .select('*', { count: 'exact' })
+        .eq('status', 'approved')
         .gte('start_time', start.toISOString())
         .lte('start_time', end.toISOString())
-        .order('start_time', { ascending: false })
-        .range(from, to);
+        .order('start_time', { ascending: false });
 
       if (error) throw error;
 
-      const hasMore = count ? from + (data?.length || 0) < count : false;
-      dispatch({ type: 'SET_EVENTS', payload: { events: data || [], hasMore } });
+      dispatch({ type: 'SET_EVENTS', payload: { events: data || [], hasMore: false } });
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         dispatch({ type: 'SET_ERROR', payload: error.message || 'Failed to load events' });
       }
     }
-  }, [state.dateRange, state.eventsPagination]);
+  }, [state.dateRange]);
 
   const fetchAttendance = useCallback(async () => {
     try {

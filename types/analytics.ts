@@ -33,6 +33,7 @@ export type Event = {
   point_value: number;
   point_type: string;
   creator_id: string;
+  status?: string;
 };
 
 export type Attendance = {
@@ -81,6 +82,7 @@ export type CategoryPointsBreakdown = {
   averagePoints: number;
   eventCount: number;
   attendanceCount: number;
+  averageAttendancePerMember?: number; // e.g., 4.7 out of 6 events
 };
 
 export type DiversityMetrics = {

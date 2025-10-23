@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { formatDateTimeInEST } from '../../lib/dateUtils';
 import { EventDetail } from '../../types/account';
+import { getPointTypeColors, formatPointTypeText } from '../../lib/pointTypeColors';
 
 // Type for component state
 type EventState = {
@@ -278,9 +279,21 @@ export default function EventDetailScreen() {
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.icon}>🎯</Text>
-            <Text style={styles.detail}>
-              {state.event.point_type} ({state.event.point_value} pts)
-            </Text>
+            <View style={[
+              styles.pointTypeTag,
+              {
+                backgroundColor: getPointTypeColors(state.event.point_type).backgroundColor,
+                borderColor: getPointTypeColors(state.event.point_type).borderColor,
+              }
+            ]}>
+              <Text style={[
+                styles.pointTypeText,
+                { color: getPointTypeColors(state.event.point_type).textColor }
+              ]}>
+                {formatPointTypeText(state.event.point_type)}
+              </Text>
+            </View>
+            <Text style={styles.pointValue}>({state.event.point_value} pts)</Text>
           </View>
         </View>
 
@@ -426,6 +439,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     flex: 1,
+    lineHeight: 22,
+  },
+  pointTypeTag: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 2,
+    marginRight: 8,
+  },
+  pointTypeText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  pointValue: {
+    fontSize: 16,
+    color: '#333',
     lineHeight: 22,
   },
   descriptionContainer: {

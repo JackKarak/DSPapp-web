@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import { PieChart, BarChart } from 'react-native-chart-kit';
+import { PieChart, BarChart, StackedBarChart } from 'react-native-chart-kit';
 import type { CategoryPointsBreakdown } from '../../types/analytics';
 
 const chartWidth = Dimensions.get('window').width - 32;
@@ -8,26 +8,27 @@ const chartWidth = Dimensions.get('window').width - 32;
 const chartConfig = {
   backgroundGradientFrom: '#ffffff',
   backgroundGradientTo: '#ffffff',
-  color: (opacity = 1) => `rgba(66, 133, 244, ${opacity})`,
+  color: (opacity = 1) => `rgba(139, 92, 246, ${opacity})`, // DSP Purple (RGB: 139, 92, 246)
   strokeWidth: 2,
   barPercentage: 0.7,
   decimalPlaces: 0,
   propsForLabels: {
     fontSize: 11,
+    fill: '#4B5563', // Dark gray for readability
   },
 };
 
 const pieChartColors = [
-  '#4285F4', // Google Blue
-  '#34A853', // Google Green
-  '#FBBC04', // Google Yellow
-  '#EA4335', // Google Red
-  '#9C27B0', // Purple
-  '#FF9800', // Orange
-  '#00BCD4', // Cyan
-  '#795548', // Brown
-  '#607D8B', // Blue Grey
-  '#E91E63', // Pink
+  '#8B5CF6', // DSP Purple (Primary)
+  '#D4AF37', // DSP Gold
+  '#6D28D9', // Dark Purple
+  '#FCD34D', // Light Gold
+  '#A78BFA', // Light Purple
+  '#F59E0B', // Amber
+  '#7C3AED', // Medium Purple
+  '#EAB308', // Yellow Gold
+  '#5B21B6', // Deep Purple
+  '#92400E', // Bronze
 ];
 
 // Pie Chart Component
@@ -140,43 +141,52 @@ export const CategoryPointsChart = memo(({
     );
   }
 
+  // Ensure we have at least some data values > 0
+  const hasValidData = data.some(item => item.totalPoints > 0);
+  
+  if (!hasValidData) {
+    return (
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>Average Points by Category</Text>
+        <Text style={styles.noDataText}>No point data available yet</Text>
+      </View>
+    );
+  }
+
   const chartData = {
     labels: data.map(item => 
       item.category.length > 10 ? item.category.substring(0, 8) + '..' : item.category
     ),
-    datasets: [
-      {
-        data: data.map(item => Math.round(item.averagePoints * 10) / 10), // Round to 1 decimal
-      },
-    ],
+    legend: ["Avg Attendance/Member", "Total Events"],
+    data: data.map(item => [
+      Math.round((item.averageAttendancePerMember || 0) * 10) / 10, // Bottom stack: avg attendance per member
+      item.eventCount // Top stack: total events in category
+    ]),
+    barColors: ["#8B5CF6", "#D4AF37"], // DSP Purple for attendance, DSP Gold for total events
   };
 
   return (
     <View style={styles.chartContainer}>
-      <Text style={styles.chartTitle}>Average Points by Category</Text>
-      <Text style={styles.chartSubtitle}>Per Member Attendance</Text>
-      <BarChart
+      <Text style={styles.chartTitle}>Category Events & Attendance</Text>
+      <Text style={styles.chartSubtitle}>Average Member Attendance vs Total Events</Text>
+      <StackedBarChart
         data={chartData}
         width={chartWidth}
         height={280}
-        yAxisLabel=""
-        yAxisSuffix=" pts"
         chartConfig={{
           ...chartConfig,
           barPercentage: 0.7,
-          color: (opacity = 1) => `rgba(66, 133, 244, ${opacity})`,
           decimalPlaces: 1,
         }}
         style={styles.chart}
-        showValuesOnTopOfBars
-        fromZero
+        hideLegend={false}
       />
       <View style={styles.categoryLegend}>
         {data.map((item, index) => (
           <View key={index} style={styles.categoryLegendItem}>
             <View style={styles.categoryLegendDot} />
             <Text style={styles.categoryLegendText}>
-              {item.category}: {item.eventCount} events, {item.attendanceCount} attendances
+              {item.category}: {Math.round((item.averageAttendancePerMember || 0) * 10) / 10}/{item.eventCount} avg attendance per member
             </Text>
           </View>
         ))}
@@ -233,12 +243,12 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#4285F4',
+    backgroundColor: '#8B5CF6', // DSP Purple
     marginRight: 8,
   },
   categoryLegendText: {
     fontSize: 12,
-    color: '#666',
+    color: '#4B5563', // Dark gray for readability
     flex: 1,
   },
 });

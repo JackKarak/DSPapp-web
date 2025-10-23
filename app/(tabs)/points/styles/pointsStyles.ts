@@ -77,10 +77,10 @@ export const styles = StyleSheet.create({
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 12,
     textAlign: 'center',
     marginBottom: 24,
-    lineHeight: 22,
+    lineHeight: 16,
   },
   
   // Progress Overview
@@ -93,6 +93,7 @@ export const styles = StyleSheet.create({
   progressStats: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    alignItems: 'center',
     marginBottom: 20,
   },
   statItem: {
@@ -100,15 +101,17 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   statNumber: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 4,
+    textAlign: 'center',
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 9,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    textAlign: 'center',
   },
   statDivider: {
     width: 1,
@@ -132,8 +135,9 @@ export const styles = StyleSheet.create({
     borderRadius: 6,
   },
   progressText: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '600',
+    textAlign: 'center',
   },
   
   // Audit Section

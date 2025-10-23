@@ -36,6 +36,17 @@ export function useCategoryBreakdown(
     
     // Aggregate points by category
     events.forEach((event) => {
+      // Only count approved events that have already passed and give points
+      const eventDate = new Date(event.start_time);
+      const now = new Date();
+      const isApproved = event.status === 'approved';
+      const hasPassed = eventDate < now;
+      const givesPoints = event.point_value > 0;
+      
+      if (!isApproved || !hasPassed || !givesPoints) {
+        return; // Skip unapproved, future, or non-point events
+      }
+      
       // Normalize category name (handle case variations)
       const normalizedCategory = event.point_type.trim();
       let categoryKey = normalizedCategory;
@@ -57,7 +68,9 @@ export function useCategoryBreakdown(
       stats.eventCount += 1;
       
       // Count unique attendance and points (avoid double counting)
-      const eventAttendance = attendance.filter(a => a.event_id === event.id && a.attended);
+      // Note: attended field is undefined, so just check event_id match
+      const eventAttendance = attendance.filter(a => a.event_id === event.id);
+      
       eventAttendance.forEach(att => {
         const key = `${att.user_id}-${att.event_id}`;
         if (!stats.uniqueAttendances.has(key)) {
@@ -69,16 +82,21 @@ export function useCategoryBreakdown(
       categoryMap.set(categoryKey, stats);
     });
     
-    // Convert to array and calculate averages
-    return Array.from(categoryMap.entries())
+    // Convert to array and calculate totals
+    const memberCount = members.length || 1; // Avoid division by zero
+    
+    const result = Array.from(categoryMap.entries())
       .map(([category, stats]) => ({
         category,
         totalPoints: stats.totalPoints,
         eventCount: stats.eventCount,
         attendanceCount: stats.uniqueAttendances.size,
         averagePoints: stats.uniqueAttendances.size > 0 ? stats.totalPoints / stats.uniqueAttendances.size : 0,
+        averageAttendancePerMember: memberCount > 0 ? stats.uniqueAttendances.size / memberCount : 0, // e.g., 4.7 out of 6 possible
       }))
       .filter(item => item.eventCount > 0) // Only show categories with events
-      .sort((a, b) => b.averagePoints - a.averagePoints); // Sort by average points descending
+      .sort((a, b) => b.totalPoints - a.totalPoints); // Sort by total points descending
+    
+    return result;
   }, [events, attendance, members]);
 }

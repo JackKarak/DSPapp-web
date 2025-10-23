@@ -23,7 +23,7 @@ export const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#EA4335',
+    color: '#DC2626', // Red for errors
     textAlign: 'center',
     marginTop: 16,
   },
@@ -42,12 +42,12 @@ export const styles = StyleSheet.create({
   insightCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#FFF9E6',
+    backgroundColor: '#FEF3C7', // Light gold background
     padding: 12,
     borderRadius: 8,
     marginBottom: 8,
     borderLeftWidth: 3,
-    borderLeftColor: '#F7B910',
+    borderLeftColor: '#D4AF37', // DSP Gold
   },
   insightText: {
     fontSize: 14,
@@ -100,7 +100,7 @@ export const styles = StyleSheet.create({
   chartsSectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#330066',
+    color: '#6D28D9', // Dark DSP Purple
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -119,7 +119,7 @@ export const styles = StyleSheet.create({
   chartTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#330066',
+    color: '#6D28D9', // Dark DSP Purple
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -154,7 +154,7 @@ export const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#4285F4',
+    backgroundColor: '#8B5CF6', // DSP Purple
     marginRight: 8,
   },
   categoryLegendText: {
@@ -180,13 +180,13 @@ export const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#330066',
+    color: '#6D28D9', // Dark DSP Purple
     marginBottom: 12,
   },
   
   // Load More Button
   loadMoreButton: {
-    backgroundColor: '#4285F4',
+    backgroundColor: '#8B5CF6', // DSP Purple
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',

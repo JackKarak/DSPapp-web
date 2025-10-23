@@ -40,7 +40,7 @@ export const RecentEvents: React.FC<RecentEventsProps> = ({
         scrollEnabled={false}
         onEndReached={onLoadMore}
         onEndReachedThreshold={0.5}
-        ListFooterComponent={hasMore ? <ActivityIndicator size="small" color="#4285F4" style={styles.loader} /> : null}
+        ListFooterComponent={hasMore ? <ActivityIndicator size="small" color="#8B5CF6" style={styles.loader} /> : null}
         initialNumToRender={5}
         maxToRenderPerBatch={5}
         windowSize={3}

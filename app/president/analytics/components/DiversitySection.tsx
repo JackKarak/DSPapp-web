@@ -29,7 +29,7 @@ export const DiversitySection: React.FC<DiversitySectionProps> = ({
   return (
     <AnalyticsSection title="Diversity & Inclusion">
       {loading ? (
-        <ActivityIndicator size="large" color="#4285F4" style={styles.loader} />
+        <ActivityIndicator size="large" color="#8B5CF6" style={styles.loader} />
       ) : (
         <>
           <DiversityScoreCard score={diversityMetrics.diversityScore} />

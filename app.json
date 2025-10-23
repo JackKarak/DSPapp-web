@@ -26,12 +26,17 @@
         "NSCameraUsageDescription": "The DSP App needs camera access to allow you to take photos for your profile, event documentation, and submission of required materials.",
         "NSLocationWhenInUseUsageDescription": "The DSP App uses your location only when you're using the app to help you find nearby fraternity events and provide location-based services for event check-ins.",
         "NSDocumentPickerUsageDescription": "The DSP App needs access to your documents to allow you to upload files for scholarship submissions, event materials, and other fraternity-related documentation.",
+        "NSFaceIDUsageDescription": "The DSP App uses Face ID to securely authenticate your identity and keep your fraternity account safe. You can always use your password instead.",
+        "NSCalendarsUsageDescription": "The DSP App can add approved fraternity events to your calendar so you never miss important activities and meetings.",
+        "NSRemindersUsageDescription": "The DSP App can create reminders for upcoming fraternity events and deadlines.",
+        "NSContactsUsageDescription": "The DSP App accesses your contacts only to help you find other fraternity members and connect with brothers.",
+        "NSPrivacyPolicyURL": "https://sites.google.com/terpmail.umd.edu/dspapp/privacy-policy?authuser=0",
         "CFBundleLocalizations": ["en"],
-        "ITSAppUsesNonExemptEncryption": false,
+        "ITSAppUsesNonExemptEncryption": true,
         "NSUserTrackingUsageDescription": "This app does not track users for advertising purposes."
       },
       "config": {
-        "usesNonExemptEncryption": false
+        "usesNonExemptEncryption": true
       },
       "associatedDomains": ["applinks:deltasigmapi.org"]
     },
@@ -80,7 +85,11 @@
       "typedRoutes": true
     },
     "newArchEnabled": true,
-    "privacy": "unlisted",
-    "jsEngine": "hermes"
+    "privacy": "public",
+    "jsEngine": "hermes",
+    "extra": {
+      "privacyPolicyUrl": "https://sites.google.com/terpmail.umd.edu/dspapp/privacy-policy?authuser=0",
+      "termsOfServiceUrl": "https://sites.google.com/terpmail.umd.edu/dspapp/terms-of-service?authuser=0"
+    }
   }
 }

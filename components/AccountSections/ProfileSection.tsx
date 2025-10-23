@@ -17,6 +17,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { UserProfile, ProfileFormData } from '../../types/hooks';
+import { ConsentPreferences } from '../../lib/dataConsent';
 import { ProfileDisplay } from './ProfileDisplay';
 import { ProfileEditForm } from './ProfileEditForm';
 import { formatDateInEST } from '../../lib/dateUtils';
@@ -26,6 +27,7 @@ interface ProfileSectionProps {
   profile: UserProfile | null;
   isEditing: boolean;
   formData: ProfileFormData;
+  userConsent: ConsentPreferences | null;
   canEdit: boolean;
   nextEditDate: Date | null;
   daysUntilEdit: number;
@@ -40,6 +42,7 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({
   profile,
   isEditing,
   formData,
+  userConsent,
   canEdit,
   nextEditDate,
   daysUntilEdit,
@@ -66,6 +69,7 @@ export const ProfileSection: React.FC<ProfileSectionProps> = ({
       {isEditing ? (
         <ProfileEditForm
           formData={formData}
+          userConsent={userConsent}
           onUpdate={onUpdate}
           onSave={onSave}
           onCancel={onCancel}

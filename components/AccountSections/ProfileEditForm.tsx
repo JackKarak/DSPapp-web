@@ -2,11 +2,13 @@
  * ProfileEditForm Component
  * 
  * Form for editing user profile with all fields and validation
+ * Includes consent-based field visibility
  */
 
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { ProfileFormData } from '../../types/hooks';
+import { ConsentPreferences } from '../../lib/dataConsent';
 import { DropdownSelect } from '../DropdownSelect';
 import {
   PRONOUNS_OPTIONS,
@@ -22,6 +24,7 @@ import {
 
 interface ProfileEditFormProps {
   formData: ProfileFormData;
+  userConsent: ConsentPreferences | null;
   onUpdate: <K extends keyof ProfileFormData>(field: K, value: ProfileFormData[K]) => void;
   onSave: () => void;
   onCancel: () => void;
@@ -59,7 +62,7 @@ const MajorMultiSelect: React.FC<{
       </TouchableOpacity>
       
       {showDropdown && (
-        <View style={styles.multiSelectDropdown}>
+        <ScrollView style={styles.multiSelectDropdown} nestedScrollEnabled={true}>
           {AVAILABLE_MAJORS.map((major) => (
             <TouchableOpacity
               key={major}
@@ -80,7 +83,7 @@ const MajorMultiSelect: React.FC<{
               )}
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -88,11 +91,17 @@ const MajorMultiSelect: React.FC<{
 
 export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({
   formData,
+  userConsent,
   onUpdate,
   onSave,
   onCancel,
   saving,
 }) => {
+  // Check if user has consented to specific categories
+  const hasDemographicsConsent = userConsent?.demographics ?? false;
+  const hasAcademicConsent = userConsent?.academic ?? false;
+  const hasHousingConsent = userConsent?.housing ?? false;
+
   return (
     <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
       {/* Personal Information Section */}
@@ -148,55 +157,69 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({
         editable={!saving}
       />
 
-      <Text style={styles.fieldLabel}>Pronouns</Text>
-      <DropdownSelect
-        label=""
-        value={formData.pronouns || ''}
-        options={PRONOUNS_OPTIONS}
-        onValueChange={(value) => onUpdate('pronouns', value)}
-        placeholder="Select pronouns"
-      />
+      {/* Pronouns - Demographics consent required */}
+      {hasDemographicsConsent && (
+        <>
+          <Text style={styles.fieldLabel}>Pronouns</Text>
+          <DropdownSelect
+            label=""
+            value={formData.pronouns || ''}
+            options={PRONOUNS_OPTIONS}
+            onValueChange={(value) => onUpdate('pronouns', value)}
+            placeholder="Select pronouns"
+          />
+        </>
+      )}
 
-      {/* Academic Information Section */}
-      <Text style={styles.sectionLabel}>Academic Information</Text>
+      {/* Academic Information Section - Requires academic consent */}
+      {hasAcademicConsent && (
+        <>
+          <Text style={styles.sectionLabel}>Academic Information (Optional)</Text>
 
-      <Text style={styles.fieldLabel}>Majors / Intended Majors</Text>
-      <MajorMultiSelect
-        selectedMajors={formData.selectedMajors || []}
-        onSelectionChange={(majors) => onUpdate('selectedMajors', majors)}
-      />
+          <Text style={styles.fieldLabel}>Majors / Intended Majors</Text>
+          <MajorMultiSelect
+            selectedMajors={formData.selectedMajors || []}
+            onSelectionChange={(majors) => onUpdate('selectedMajors', majors)}
+          />
 
-      <Text style={styles.fieldLabel}>Minors / Intended Minors</Text>
-      <TextInput
-        style={[styles.input, styles.multilineInput]}
-        value={formData.minors || ''}
-        onChangeText={(text) => onUpdate('minors', text)}
-        placeholder="Statistics, Business"
-        multiline={true}
-        numberOfLines={2}
-        editable={!saving}
-      />
+          <Text style={styles.fieldLabel}>Minors / Intended Minors</Text>
+          <TextInput
+            style={[styles.input, styles.multilineInput]}
+            value={formData.minors || ''}
+            onChangeText={(text) => onUpdate('minors', text)}
+            placeholder="Statistics, Business"
+            multiline={true}
+            numberOfLines={2}
+            editable={!saving}
+          />
 
-      <Text style={styles.fieldLabel}>Expected Graduation</Text>
-      <DropdownSelect
-        label=""
-        value={formData.expectedGraduation || ''}
-        options={GRADUATION_OPTIONS}
-        onValueChange={(value) => onUpdate('expectedGraduation', value)}
-        placeholder="Select graduation date"
-      />
+          <Text style={styles.fieldLabel}>Expected Graduation</Text>
+          <DropdownSelect
+            label=""
+            value={formData.expectedGraduation || ''}
+            options={GRADUATION_OPTIONS}
+            onValueChange={(value) => onUpdate('expectedGraduation', value)}
+            placeholder="Select graduation date"
+          />
+        </>
+      )}
 
       {/* Fraternity Information Section */}
       <Text style={styles.sectionLabel}>Fraternity Information</Text>
 
-      <Text style={styles.fieldLabel}>House Membership</Text>
-      <DropdownSelect
-        label=""
-        value={formData.houseMembership || ''}
-        options={HOUSE_OPTIONS}
-        onValueChange={(value) => onUpdate('houseMembership', value)}
-        placeholder="Select house"
-      />
+      {/* House Membership - Requires housing consent */}
+      {hasHousingConsent && (
+        <>
+          <Text style={styles.fieldLabel}>House Membership</Text>
+          <DropdownSelect
+            label=""
+            value={formData.houseMembership || ''}
+            options={HOUSE_OPTIONS}
+            onValueChange={(value) => onUpdate('houseMembership', value)}
+            placeholder="Select house"
+          />
+        </>
+      )}
 
       <Text style={styles.fieldLabel}>Pledge Class</Text>
       <DropdownSelect
@@ -207,44 +230,53 @@ export const ProfileEditForm: React.FC<ProfileEditFormProps> = ({
         placeholder="Select pledge class"
       />
 
-      {/* Personal Details Section (Optional) */}
-      <Text style={styles.sectionLabel}>Personal Details (Optional)</Text>
+      {/* Personal Details Section - Requires demographics consent */}
+      {hasDemographicsConsent && (
+        <>
+          <Text style={styles.sectionLabel}>Personal Details (Optional)</Text>
 
-      <Text style={styles.fieldLabel}>Gender</Text>
-      <DropdownSelect
-        label=""
-        value={formData.gender || ''}
-        options={GENDER_OPTIONS}
-        onValueChange={(value) => onUpdate('gender', value)}
-        placeholder="Select gender"
-      />
+          <Text style={styles.fieldLabel}>Gender</Text>
+          <DropdownSelect
+            label=""
+            value={formData.gender || ''}
+            options={GENDER_OPTIONS}
+            onValueChange={(value) => onUpdate('gender', value)}
+            placeholder="Select gender"
+          />
 
-      <Text style={styles.fieldLabel}>Sexual Orientation</Text>
-      <DropdownSelect
-        label=""
-        value={formData.sexualOrientation || ''}
-        options={SEXUAL_ORIENTATION_OPTIONS}
-        onValueChange={(value) => onUpdate('sexualOrientation', value)}
-        placeholder="Select sexual orientation"
-      />
+          <Text style={styles.fieldLabel}>Sexual Orientation</Text>
+          <DropdownSelect
+            label=""
+            value={formData.sexualOrientation || ''}
+            options={SEXUAL_ORIENTATION_OPTIONS}
+            onValueChange={(value) => onUpdate('sexualOrientation', value)}
+            placeholder="Select sexual orientation"
+          />
 
-      <Text style={styles.fieldLabel}>Race/Ethnicity</Text>
-      <DropdownSelect
-        label=""
-        value={formData.race || ''}
-        options={RACE_OPTIONS}
-        onValueChange={(value) => onUpdate('race', value)}
-        placeholder="Select race/ethnicity"
-      />
+          <Text style={styles.fieldLabel}>Race/Ethnicity</Text>
+          <DropdownSelect
+            label=""
+            value={formData.race || ''}
+            options={RACE_OPTIONS}
+            onValueChange={(value) => onUpdate('race', value)}
+            placeholder="Select race/ethnicity"
+          />
+        </>
+      )}
 
-      <Text style={styles.fieldLabel}>Living Type</Text>
-      <DropdownSelect
-        label=""
-        value={formData.livingType || ''}
-        options={LIVING_TYPE_OPTIONS}
-        onValueChange={(value) => onUpdate('livingType', value)}
-        placeholder="Select living type"
-      />
+      {/* Living Type - Requires housing consent */}
+      {hasHousingConsent && (
+        <>
+          <Text style={styles.fieldLabel}>Living Type</Text>
+          <DropdownSelect
+            label=""
+            value={formData.livingType || ''}
+            options={LIVING_TYPE_OPTIONS}
+            onValueChange={(value) => onUpdate('livingType', value)}
+            placeholder="Select living type"
+          />
+        </>
+      )}
 
       {/* Action Buttons */}
       <TouchableOpacity 

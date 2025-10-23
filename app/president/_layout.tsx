@@ -156,7 +156,7 @@ function PresidentLayout() {
     <ErrorBoundary>
       <Tabs screenOptions={screenOptions}>
         <Tabs.Screen name="presidentindex" options={homeOptions} />
-        <Tabs.Screen name="analytics" options={analyticsOptions} />
+        <Tabs.Screen name="analytics/index" options={analyticsOptions} />
         <Tabs.Screen name="approve" options={approveOptions} />
         <Tabs.Screen name="override" options={overrideOptions} />
         <Tabs.Screen name="register" options={registerOptions} />
