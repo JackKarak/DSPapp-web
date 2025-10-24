@@ -2,7 +2,7 @@
   "expo": {
     "name": "The DSP App",
     "slug": "dsp-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.deltasigmapi.app",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "deploymentTarget": "15.1",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "The DSP App needs access to your photo library to allow you to upload profile pictures and event photos for fraternity activities and member identification.",
@@ -32,11 +32,11 @@
         "NSContactsUsageDescription": "The DSP App accesses your contacts only to help you find other fraternity members and connect with brothers.",
         "NSPrivacyPolicyURL": "https://sites.google.com/terpmail.umd.edu/dspapp/privacy-policy?authuser=0",
         "CFBundleLocalizations": ["en"],
-        "ITSAppUsesNonExemptEncryption": true,
+        "ITSAppUsesNonExemptEncryption": false,
         "NSUserTrackingUsageDescription": "This app does not track users for advertising purposes."
       },
       "config": {
-        "usesNonExemptEncryption": true
+        "usesNonExemptEncryption": false
       },
       "associatedDomains": ["applinks:deltasigmapi.org"]
     },

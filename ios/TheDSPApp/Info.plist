@@ -49,28 +49,7 @@
       <key>NSAllowsArbitraryLoads</key>
       <false/>
       <key>NSAllowsLocalNetworking</key>
-      <false/>
-      <key>NSExceptionDomains</key>
-      <dict>
-        <key>supabase.co</key>
-        <dict>
-          <key>NSExceptionRequiresForwardSecrecy</key>
-          <false/>
-          <key>NSExceptionMinimumTLSVersion</key>
-          <string>TLSv1.2</string>
-          <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-          <false/>
-        </dict>
-        <key>googleapis.com</key>
-        <dict>
-          <key>NSExceptionRequiresForwardSecrecy</key>
-          <false/>
-          <key>NSExceptionMinimumTLSVersion</key>
-          <string>TLSv1.2</string>
-          <key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-          <false/>
-        </dict>
-      </dict>
+      <true/>
     </dict>
     <key>NSCalendarsUsageDescription</key>
     <string>The DSP App can add approved fraternity events to your calendar so you never miss important activities and meetings.</string>
