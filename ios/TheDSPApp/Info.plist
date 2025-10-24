@@ -14,6 +14,10 @@
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+      <string>en</string>
+    </array>
     <key>CFBundleName</key>
     <string>$(PRODUCT_NAME)</string>
     <key>CFBundlePackageType</key>
@@ -33,9 +37,9 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>2</string>
     <key>ITSAppUsesNonExemptEncryption</key>
-    <false/>
+    <true/>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -68,18 +72,30 @@
         </dict>
       </dict>
     </dict>
+    <key>NSCalendarsUsageDescription</key>
+    <string>The DSP App can add approved fraternity events to your calendar so you never miss important activities and meetings.</string>
     <key>NSCameraUsageDescription</key>
-    <string>This app accesses your camera to allow you to take photos for your profile and events.</string>
+    <string>The DSP App needs camera access to allow you to take photos for your profile, event documentation, and submission of required materials.</string>
+    <key>NSContactsUsageDescription</key>
+    <string>The DSP App accesses your contacts only to help you find other fraternity members and connect with brothers.</string>
     <key>NSDocumentPickerUsageDescription</key>
-    <string>This app accesses documents to allow you to upload files for your profile and submissions.</string>
+    <string>The DSP App needs access to your documents to allow you to upload files for scholarship submissions, event materials, and other fraternity-related documentation.</string>
+    <key>NSFaceIDUsageDescription</key>
+    <string>The DSP App uses Face ID to securely authenticate your identity and keep your fraternity account safe. You can always use your password instead.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>This app uses location services to help find event locations and provide location-based features.</string>
+    <string>The DSP App uses your location only when you're using the app to help you find nearby fraternity events and provide location-based services for event check-ins.</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>This app accesses your photo library to allow you to upload profile pictures and event photos.</string>
+    <string>The DSP App needs access to your photo library to allow you to upload profile pictures and event photos for fraternity activities and member identification.</string>
+    <key>NSPrivacyPolicyURL</key>
+    <string>https://sites.google.com/terpmail.umd.edu/dspapp/privacy-policy?authuser=0</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>The DSP App can create reminders for upcoming fraternity events and deadlines.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
     </array>
+    <key>NSUserTrackingUsageDescription</key>
+    <string>This app does not track users for advertising purposes.</string>
     <key>RCTNewArchEnabled</key>
     <true/>
     <key>UILaunchStoryboardName</key>
