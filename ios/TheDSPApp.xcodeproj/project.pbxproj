@@ -8,28 +8,28 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		3578D2C3791D98ED910B21A5 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B315F187D177E9B1D17E5C8 /* ExpoModulesProvider.swift */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
+		94C579D64FCBFCBF44CFDB32 /* libPods-TheDSPApp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = CB2D90A33D0EC64E485A36B0 /* libPods-TheDSPApp.a */; };
+		AA2C09DCA196EA526124F3F6 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = ABB3BDC09EE870ADE60AFA73 /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		D0D8AF5F8AD82DAFCC17D027 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 050E0CE613DBFD0FEE569CB1 /* PrivacyInfo.xcprivacy */; };
-		D9BD12DE87217E3753A9BD68 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B05E53AE0272B5F910BFAF /* ExpoModulesProvider.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
-		F28AE633B1B2F0D985D252FB /* libPods-TheDSPApp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 7D8AF869E9288E23F6298B75 /* libPods-TheDSPApp.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		050E0CE613DBFD0FEE569CB1 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = TheDSPApp/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		11B05E53AE0272B5F910BFAF /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-TheDSPApp/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* TheDSPApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TheDSPApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = TheDSPApp/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = TheDSPApp/Info.plist; sourceTree = "<group>"; };
-		7D8AF869E9288E23F6298B75 /* libPods-TheDSPApp.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-TheDSPApp.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		888EAA16B9638DEB1494DF76 /* Pods-TheDSPApp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TheDSPApp.release.xcconfig"; path = "Target Support Files/Pods-TheDSPApp/Pods-TheDSPApp.release.xcconfig"; sourceTree = "<group>"; };
-		9621178E7FCED1F2D22EDB51 /* Pods-TheDSPApp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TheDSPApp.debug.xcconfig"; path = "Target Support Files/Pods-TheDSPApp/Pods-TheDSPApp.debug.xcconfig"; sourceTree = "<group>"; };
+		2B315F187D177E9B1D17E5C8 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-TheDSPApp/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		53F2D10209D4B00C81B0D20A /* Pods-TheDSPApp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TheDSPApp.debug.xcconfig"; path = "Target Support Files/Pods-TheDSPApp/Pods-TheDSPApp.debug.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = TheDSPApp/SplashScreen.storyboard; sourceTree = "<group>"; };
+		ABB3BDC09EE870ADE60AFA73 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = TheDSPApp/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
+		CB2D90A33D0EC64E485A36B0 /* libPods-TheDSPApp.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-TheDSPApp.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = TheDSPApp/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* TheDSPApp-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "TheDSPApp-Bridging-Header.h"; path = "TheDSPApp/TheDSPApp-Bridging-Header.h"; sourceTree = "<group>"; };
+		FB37F1FEB9EC049F70B3990D /* Pods-TheDSPApp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TheDSPApp.release.xcconfig"; path = "Target Support Files/Pods-TheDSPApp/Pods-TheDSPApp.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -37,13 +37,21 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F28AE633B1B2F0D985D252FB /* libPods-TheDSPApp.a in Frameworks */,
+				94C579D64FCBFCBF44CFDB32 /* libPods-TheDSPApp.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		071E3553034F16D8E131B855 /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				5959F7983ED027D1C03C5FAE /* TheDSPApp */,
+			);
+			name = ExpoModulesProviders;
+			sourceTree = "<group>";
+		};
 		13B07FAE1A68108700A75B9A /* TheDSPApp */ = {
 			isa = PBXGroup;
 			children = (
@@ -53,36 +61,26 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				050E0CE613DBFD0FEE569CB1 /* PrivacyInfo.xcprivacy */,
+				ABB3BDC09EE870ADE60AFA73 /* PrivacyInfo.xcprivacy */,
 			);
 			name = TheDSPApp;
-			sourceTree = "<group>";
-		};
-		29723B4EA0589CC0F26306BF /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				9621178E7FCED1F2D22EDB51 /* Pods-TheDSPApp.debug.xcconfig */,
-				888EAA16B9638DEB1494DF76 /* Pods-TheDSPApp.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				7D8AF869E9288E23F6298B75 /* libPods-TheDSPApp.a */,
+				CB2D90A33D0EC64E485A36B0 /* libPods-TheDSPApp.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		7D575C039B447E331405B3AF /* ExpoModulesProviders */ = {
+		5959F7983ED027D1C03C5FAE /* TheDSPApp */ = {
 			isa = PBXGroup;
 			children = (
-				F48041F9FD3D9372BE70EECC /* TheDSPApp */,
+				2B315F187D177E9B1D17E5C8 /* ExpoModulesProvider.swift */,
 			);
-			name = ExpoModulesProviders;
+			name = TheDSPApp;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -99,8 +97,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				29723B4EA0589CC0F26306BF /* Pods */,
-				7D575C039B447E331405B3AF /* ExpoModulesProviders */,
+				9106535F74977630F094FF6D /* Pods */,
+				071E3553034F16D8E131B855 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -115,6 +113,15 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		9106535F74977630F094FF6D /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				53F2D10209D4B00C81B0D20A /* Pods-TheDSPApp.debug.xcconfig */,
+				FB37F1FEB9EC049F70B3990D /* Pods-TheDSPApp.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
@@ -122,14 +129,6 @@
 			);
 			name = Supporting;
 			path = TheDSPApp/Supporting;
-			sourceTree = "<group>";
-		};
-		F48041F9FD3D9372BE70EECC /* TheDSPApp */ = {
-			isa = PBXGroup;
-			children = (
-				11B05E53AE0272B5F910BFAF /* ExpoModulesProvider.swift */,
-			);
-			name = TheDSPApp;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -140,13 +139,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "TheDSPApp" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				CFAD09EA1D0580346B6AC7A9 /* [Expo] Configure project */,
+				0D78423B443DC4CDD0E00833 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				46CD6727BC982A1D07287A74 /* [CP] Embed Pods Frameworks */,
+				25BADCD83E7903A5A4DFBDFD /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -196,7 +195,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				D0D8AF5F8AD82DAFCC17D027 /* PrivacyInfo.xcprivacy in Resources */,
+				AA2C09DCA196EA526124F3F6 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -242,7 +241,31 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		46CD6727BC982A1D07287A74 /* [CP] Embed Pods Frameworks */ = {
+		0D78423B443DC4CDD0E00833 /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/TheDSPApp/TheDSPApp.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-TheDSPApp/expo-configure-project.sh",
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Pods/Target Support Files/Pods-TheDSPApp/ExpoModulesProvider.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-TheDSPApp/expo-configure-project.sh\"\n";
+		};
+		25BADCD83E7903A5A4DFBDFD /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -298,30 +321,6 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-TheDSPApp/Pods-TheDSPApp-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		CFAD09EA1D0580346B6AC7A9 /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/TheDSPApp/TheDSPApp.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-TheDSPApp/expo-configure-project.sh",
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-TheDSPApp/ExpoModulesProvider.swift",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-TheDSPApp/expo-configure-project.sh\"\n";
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -330,7 +329,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				D9BD12DE87217E3753A9BD68 /* ExpoModulesProvider.swift in Sources */,
+				3578D2C3791D98ED910B21A5 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -339,12 +338,13 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 9621178E7FCED1F2D22EDB51 /* Pods-TheDSPApp.debug.xcconfig */;
+			baseConfigurationReference = 53F2D10209D4B00C81B0D20A /* Pods-TheDSPApp.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = TheDSPApp/TheDSPApp.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = PWB4DJ779X;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -375,12 +375,13 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 888EAA16B9638DEB1494DF76 /* Pods-TheDSPApp.release.xcconfig */;
+			baseConfigurationReference = FB37F1FEB9EC049F70B3990D /* Pods-TheDSPApp.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = TheDSPApp/TheDSPApp.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = PWB4DJ779X;
 				INFOPLIST_FILE = TheDSPApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
