@@ -20,3 +20,25 @@ export {
   DistributionBarChart,
   CategoryPointsChart,
 } from './AnalyticsCharts';
+
+// Re-export officer analytics components
+export {
+  KPICard,
+  EngagementMetricCard,
+  InsightItem,
+  OfficerEventCard,
+  FeedbackItem,
+} from './OfficerAnalyticsCards';
+
+export {
+  HeaderSection,
+  KPIRowSection,
+  AttendanceTrendChart,
+  DemographicsChart,
+  EventTypeDistributionChart,
+  EngagementMetricsSection,
+  FeedbackSection,
+  EventsSection,
+} from './OfficerAnalyticsSections';
+
+export { PerformanceComparison } from './PerformanceComparison';
