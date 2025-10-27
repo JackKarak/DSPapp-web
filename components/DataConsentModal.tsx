@@ -85,7 +85,12 @@ export function DataConsentModal({
             <Ionicons name="shield-checkmark" size={32} color="#4285F4" />
             <Text style={styles.title}>Your Privacy Matters</Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            accessibilityHint="Double tap to close this consent form"
+          >
             <Ionicons name="close" size={24} color="#666" />
           </TouchableOpacity>
         </View>
@@ -133,6 +138,11 @@ export function DataConsentModal({
                 onValueChange={() => toggleConsent('demographics')}
                 trackColor={{ false: '#d1d5db', true: '#4285F4' }}
                 thumbColor="#ffffff"
+                accessible={true}
+                accessibilityRole="switch"
+                accessibilityLabel="Share demographics and identity information"
+                accessibilityHint="Toggle to allow sharing of gender, pronouns, race, ethnicity, and sexual orientation"
+                accessibilityState={{ checked: consent.demographics }}
               />
             </View>
           </View>
@@ -151,6 +161,11 @@ export function DataConsentModal({
                 onValueChange={() => toggleConsent('academic')}
                 trackColor={{ false: '#d1d5db', true: '#4285F4' }}
                 thumbColor="#ffffff"
+                accessible={true}
+                accessibilityRole="switch"
+                accessibilityLabel="Share academic details"
+                accessibilityHint="Toggle to allow sharing of major, minor, and graduation date"
+                accessibilityState={{ checked: consent.academic }}
               />
             </View>
           </View>
@@ -169,6 +184,11 @@ export function DataConsentModal({
                 onValueChange={() => toggleConsent('housing')}
                 trackColor={{ false: '#d1d5db', true: '#4285F4' }}
                 thumbColor="#ffffff"
+                accessible={true}
+                accessibilityRole="switch"
+                accessibilityLabel="Share housing information"
+                accessibilityHint="Toggle to allow sharing of living situation and house membership"
+                accessibilityState={{ checked: consent.housing }}
               />
             </View>
           </View>
@@ -187,6 +207,11 @@ export function DataConsentModal({
                 onValueChange={() => toggleConsent('analytics')}
                 trackColor={{ false: '#d1d5db', true: '#4285F4' }}
                 thumbColor="#ffffff"
+                accessible={true}
+                accessibilityRole="switch"
+                accessibilityLabel="Allow analytics and insights"
+                accessibilityHint="Toggle to allow use of your data for aggregated chapter analytics"
+                accessibilityState={{ checked: consent.analytics }}
               />
             </View>
           </View>
@@ -223,6 +248,10 @@ export function DataConsentModal({
           <TouchableOpacity
             style={[styles.button, styles.skipButton]}
             onPress={handleDecline}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel="Skip all data sharing"
+            accessibilityHint="Double tap to continue without sharing any optional information"
           >
             <Text style={styles.skipButtonText}>Skip All</Text>
           </TouchableOpacity>
@@ -230,6 +259,10 @@ export function DataConsentModal({
           <TouchableOpacity
             style={[styles.button, styles.continueButton]}
             onPress={handleAccept}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={noneSelected ? 'Continue without sharing' : allSelected ? 'Share all selected information' : 'Continue with selected preferences'}
+            accessibilityHint="Double tap to save your preferences and continue"
           >
             <Text style={styles.continueButtonText}>
               {noneSelected ? 'Continue Without Sharing' : allSelected ? 'Share All' : 'Continue'}

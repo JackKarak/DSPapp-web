@@ -31,14 +31,18 @@
         "NSRemindersUsageDescription": "The DSP App can create reminders for upcoming fraternity events and deadlines.",
         "NSContactsUsageDescription": "The DSP App accesses your contacts only to help you find other fraternity members and connect with brothers.",
         "NSPrivacyPolicyURL": "https://sites.google.com/terpmail.umd.edu/dspapp/privacy-policy?authuser=0",
-        "CFBundleLocalizations": ["en"],
+        "CFBundleLocalizations": [
+          "en"
+        ],
         "ITSAppUsesNonExemptEncryption": true,
         "NSUserTrackingUsageDescription": "This app does not track users for advertising purposes."
       },
       "config": {
         "usesNonExemptEncryption": true
       },
-      "associatedDomains": ["applinks:deltasigmapi.org"]
+      "associatedDomains": [
+        "applinks:deltasigmapi.org"
+      ]
     },
     "android": {
       "adaptiveIcon": {
@@ -62,6 +66,8 @@
     },
     "plugins": [
       "expo-router",
+      "expo-secure-store",
+      "@react-native-community/netinfo",
       [
         "expo-splash-screen",
         {

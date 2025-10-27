@@ -114,9 +114,7 @@ export default function LoginScreen() {
     setResetLoading(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'your-app://reset-password',
-      });
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
 
       if (error) {
         throw new Error(error.message);
@@ -124,7 +122,7 @@ export default function LoginScreen() {
 
       Alert.alert(
         'Reset Email Sent',
-        'Check your email for a password reset link. If you don\'t see it, check your spam folder.',
+        'Check your email for a password reset link. Follow the link to reset your password, then return to the app to log in.',
         [{ text: 'OK' }]
       );
     } catch (error: any) {
@@ -178,6 +176,9 @@ export default function LoginScreen() {
                 keyboardType="email-address"
                 autoComplete="email"
                 editable={!loading}
+                accessible={true}
+                accessibilityLabel="Email address"
+                accessibilityHint="Enter your email address to sign in"
               />
             </View>
 
@@ -193,10 +194,17 @@ export default function LoginScreen() {
                   secureTextEntry={!showPassword}
                   autoComplete="password"
                   editable={!loading}
+                  accessible={true}
+                  accessibilityLabel="Password"
+                  accessibilityHint="Enter your password"
                 />
                 <TouchableOpacity
                   style={styles.eyeButton}
                   onPress={() => setShowPassword(!showPassword)}
+                  accessible={true}
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                  accessibilityHint="Double tap to toggle password visibility"
                 >
                   <Text style={styles.eyeText}>{showPassword ? '👁️‍🗨️' : '👁️‍🗨️'}</Text>
                 </TouchableOpacity>
@@ -208,6 +216,11 @@ export default function LoginScreen() {
               onPress={handleLogin}
               disabled={loading || resetLoading}
               activeOpacity={0.8}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel="Sign in"
+              accessibilityHint="Double tap to sign in to your account"
+              accessibilityState={{ disabled: loading || resetLoading }}
             >
               {loading ? (
                 <ActivityIndicator size="small" color="#ffffff" />
@@ -220,6 +233,10 @@ export default function LoginScreen() {
               style={styles.forgotPasswordButton}
               onPress={handleForgotPassword}
               disabled={loading || resetLoading}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel="Forgot password"
+              accessibilityHint="Double tap to reset your password"
             >
               {resetLoading ? (
                 <ActivityIndicator size="small" color="#8b5cf6" />
@@ -236,6 +253,10 @@ export default function LoginScreen() {
               onPress={goToSignUp}
               disabled={loading || resetLoading}
               style={styles.signUpButton}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel="Sign up"
+              accessibilityHint="Double tap to create a new account"
             >
               <Text style={styles.signUpText}>Sign Up</Text>
             </TouchableOpacity>

@@ -1,160 +1,81 @@
-# DSP App - Clean Project Structure# DSPapp Project Structure
+# DSPapp Project Structure
 
+Complete file organization and architecture documentation for the Delta Sigma Phi mobile application.
 
+## 📱 Application Overview
 
-## Root Directory (Clean & Organized) ✅Complete file organization and architecture documentation for the Delta Sigma Phi mobile application.
+A React Native mobile app built with Expo for managing fraternity operations including events, attendance tracking, points system, and member management.
 
+---
 
-
-```## 📱 Application Overview
-
-DSPapp/
-
-├── 📄 README.md                        # Main project documentationA React Native mobile app built with Expo for managing fraternity operations including events, attendance tracking, points system, and member management.
-
-├── 📄 PRIVACY_POLICY.md                # Required for App Store
-
-├── 📄 TERMS_OF_SERVICE.md              # Required for App Store---
-
-├── 📄 CRITICAL_FIXES_COMPLETE.md       # ⭐ Latest fixes for production
-
-├── 📄 CLEANUP_PLAN.md                  # This cleanup documentation## 📂 Root Directory Structure
-
-│
-
-├── 📁 app/                             # Expo Router screens```
-
-│   ├── _layout.tsxDSPapp/
-
-│   ├── index.tsx├── 📁 app/                    # Application routes (Expo Router file-based routing)
-
-│   ├── (auth)/                         # Authentication├── 📁 assets/                 # Static assets (images, fonts, icons)
-
-│   ├── (tabs)/                         # Member screens├── 📁 components/             # Reusable React components
-
-│   ├── event/                          # Event details├── 📁 constants/              # App-wide constants
-
-│   ├── officer/                        # Officer screens├── 📁 contexts/               # React Context providers
-
-│   └── president/                      # President screens├── 📁 docs/                   # 📚 All documentation (NEW - organized)
-
-│├── 📁 hooks/                  # Custom React hooks
-
-├── 📁 components/                      # Reusable components├── 📁 lib/                    # Utility functions and libraries
-
-├── 📁 hooks/                           # Custom hooks├── 📁 styles/                 # Shared stylesheet modules
-
-├── 📁 lib/                             # Utilities├── 📁 supabase/              # Database migrations and functions
-
-├── 📁 types/                           # TypeScript types├── 📁 types/                  # TypeScript type definitions
-
-├── 📁 constants/                       # Constants├── 📁 android/                # Android native code
-
-├── 📁 contexts/                        # React contexts├── 📁 ios/                    # iOS native code
-
-├── 📁 styles/                          # Styles├── 📄 package.json            # Dependencies and scripts
-
-├── 📁 assets/                          # Images, fonts├── 📄 tsconfig.json           # TypeScript configuration
-
-├── 📁 ios/                             # iOS native├── 📄 app.config.js           # Expo configuration
-
-├── 📁 docs/                            # ⭐ All documentation (organized)├── 📄 README.md               # Main project documentation
-
-└── 📁 supabase/                        # Backend└── 📄 .gitignore              # Git ignore patterns
+## 📂 Root Directory Structure
 
 ```
-
+DSPapp/
+├── 📁 app/                    # Application routes (Expo Router file-based routing)
+├── 📁 assets/                 # Static assets (images, fonts, icons)
+├── 📁 components/             # Reusable React components
+├── 📁 constants/              # App-wide constants
+├── 📁 contexts/               # React Context providers
+├── 📁 docs/                   # 📚 All documentation (NEW - organized)
+├── 📁 hooks/                  # Custom React hooks
+├── 📁 lib/                    # Utility functions and libraries
+├── 📁 styles/                 # Shared stylesheet modules
+├── 📁 supabase/              # Database migrations and functions
+├── 📁 types/                  # TypeScript type definitions
+├── 📁 android/                # Android native code
+├── 📁 ios/                    # iOS native code
+├── 📄 package.json            # Dependencies and scripts
+├── 📄 tsconfig.json           # TypeScript configuration
+├── 📄 app.config.js           # Expo configuration
+├── 📄 README.md               # Main project documentation
+└── 📄 .gitignore              # Git ignore patterns
 ```
 
 ---
 
-## Documentation Structure
-
 ## 🗺️ Detailed Directory Breakdown
 
+### `app/` - Application Routes
+File-based routing using Expo Router. Each file becomes a route.
+
 ```
-
-docs/### `app/` - Application Routes
-
-├── README.mdFile-based routing using Expo Router. Each file becomes a route.
-
-├── archive/                            # ✅ Historical documentation
-
-│   ├── ANALYTICS_REFACTOR_COMPLETE.md```
-
-│   ├── POINTS_REFACTOR_COMPLETE.mdapp/
-
-│   ├── ORGANIZATION_COMPLETE.md├── _layout.tsx                # Root layout wrapper
-
-│   ├── POINTS_FIX_SUMMARY.md├── index.tsx                  # Root redirect handler
-
-│   ├── PROFILE_FORM_FIXES.md│
-
-│   └── PROJECT_STRUCTURE_OLD.md├── (auth)/                    # 🔐 Authentication screens (grouped route)
-
-├── compliance/                         # ✅ Privacy & compliance│   ├── login.tsx             # Login screen
-
-├── features/                           # ✅ Feature docs│   └── signup.tsx            # Registration screen
-
-├── fixes/                              # ✅ Bug fixes│
-
-└── guides/                             # ✅ Dev guides├── (tabs)/                    # 📱 Main app tabs (grouped route)
-
-```│   ├── _layout.tsx           # Tab navigator layout
-
-│   ├── index.tsx             # Events feed (Home)
-
-## Cleanup Summary│   ├── points.tsx            # Points leaderboard
-
-│   ├── newsletter.tsx        # Newsletter WebView
-
-### ✅ Files Deleted│   ├── attendance.tsx        # Event check-in
-
-1. `app/(tabs)/account.tsx.backup` - Old backup│   └── account.tsx           # User profile & settings
-
+app/
+├── _layout.tsx                # Root layout wrapper
+├── index.tsx                  # Root redirect handler
 │
-
-### ✅ Files Moved to docs/archive/├── event/                     # 🎉 Event detail pages
-
-1. `ANALYTICS_REFACTOR_COMPLETE.md`│   └── [id].tsx              # Dynamic event detail page
-
-2. `POINTS_REFACTOR_COMPLETE.md`│
-
-3. `ORGANIZATION_COMPLETE.md`├── officer/                   # 👔 Officer-only pages
-
-4. `POINTS_FIX_SUMMARY.md`│   ├── _layout.tsx           # Officer tab navigator
-
-5. `PROFILE_FORM_FIXES.md`│   ├── index.tsx             # Officer dashboard
-
-6. `PROJECT_STRUCTURE.md` (old version)│   ├── analytics.tsx         # Member analytics
-
+├── (auth)/                    # 🔐 Authentication screens (grouped route)
+│   ├── login.tsx             # Login screen
+│   └── signup.tsx            # Registration screen
+│
+├── (tabs)/                    # 📱 Main app tabs (grouped route)
+│   ├── _layout.tsx           # Tab navigator layout
+│   ├── index.tsx             # Events feed (Home)
+│   ├── points.tsx            # Points leaderboard
+│   ├── newsletter.tsx        # Newsletter WebView
+│   ├── attendance.tsx        # Event check-in
+│   └── account.tsx           # User profile & settings
+│
+├── event/                     # 🎉 Event detail pages
+│   └── [id].tsx              # Dynamic event detail page
+│
+├── officer/                   # 👔 Officer-only pages
+│   ├── _layout.tsx           # Officer tab navigator
+│   ├── index.tsx             # Officer dashboard
+│   ├── analytics.tsx         # Member analytics
 │   ├── events.tsx            # Event management
-
-### ✅ Files Kept in Root│   ├── historian.tsx         # Photo gallery
-
-1. `README.md` - Main documentation│   ├── scholarship.tsx       # Test bank review
-
-2. `PRIVACY_POLICY.md` - Legal requirement│   └── register.tsx          # Create events (officers)
-
-3. `TERMS_OF_SERVICE.md` - Legal requirement│
-
-4. `CRITICAL_FIXES_COMPLETE.md` - Latest production info ⭐└── president/                 # 👑 President-only pages
-
-5. `CLEANUP_PLAN.md` - This file    ├── _layout.tsx           # President tab navigator
-
+│   ├── historian.tsx         # Photo gallery
+│   ├── scholarship.tsx       # Test bank review
+│   └── register.tsx          # Create events (officers)
+│
+└── president/                 # 👑 President-only pages
+    ├── _layout.tsx           # President tab navigator
     ├── presidentindex.tsx    # President dashboard
-
-## Result    ├── analytics.tsx         # Advanced analytics
-
+    ├── analytics.tsx         # Advanced analytics
     ├── approve.tsx           # Approve pending events
-
-**Before Cleanup**: 11+ documentation files cluttering root    ├── override.tsx          # Point overrides
-
-**After Cleanup**: 5 essential files in root ✅    └── register.tsx          # Create events (president)
-
+    ├── override.tsx          # Point overrides
+    └── register.tsx          # Create events (president)
 ```
-
-All completed work and historical docs now in `docs/archive/`
 
 **Route Access Control:**
 - `(auth)/*` - Public routes

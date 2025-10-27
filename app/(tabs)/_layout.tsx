@@ -90,9 +90,9 @@ export default function BrotherLayout() {
       <Tabs screenOptions={screenOptions}>
         <Tabs.Screen name="index" options={calendarOptions} />
         <Tabs.Screen name="attendance" options={attendanceOptions} />
-        <Tabs.Screen name="points/index" options={pointsOptions} />
+        <Tabs.Screen name="points" options={pointsOptions} />
         <Tabs.Screen name="newsletter" options={newsOptions} />
-        <Tabs.Screen name="account/index" options={accountOptions} />
+        <Tabs.Screen name="account" options={accountOptions} />
       </Tabs>
     </ErrorBoundary>
   );

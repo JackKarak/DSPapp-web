@@ -76,6 +76,33 @@
     <string>This app uses location services to help find event locations and provide location-based features.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>This app accesses your photo library to allow you to upload profile pictures and event photos.</string>
+    <key>NSPrivacyTracking</key>
+    <false/>
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array>
+      <dict>
+        <key>NSPrivacyCollectedDataType</key>
+        <string>NSPrivacyCollectedDataTypeEmailAddress</string>
+        <key>NSPrivacyCollectedDataTypeLinked</key>
+        <true/>
+        <key>NSPrivacyCollectedDataTypePurposes</key>
+        <array>
+          <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+        </array>
+      </dict>
+      <dict>
+        <key>NSPrivacyCollectedDataType</key>
+        <string>NSPrivacyCollectedDataTypeName</string>
+        <key>NSPrivacyCollectedDataTypeLinked</key>
+        <true/>
+        <key>NSPrivacyCollectedDataTypePurposes</key>
+        <array>
+          <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+        </array>
+      </dict>
+    </array>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
