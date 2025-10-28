@@ -21,26 +21,56 @@ export default function ResetPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [sessionValid, setSessionValid] = useState(false);
   const router = useRouter();
   const params = useLocalSearchParams();
 
   useEffect(() => {
-    // Check if we have the access token from the deep link
-    const accessToken = params.access_token as string;
-    const refreshToken = params.refresh_token as string;
-
-    if (accessToken && refreshToken) {
-      // Set the session using the tokens from the email link
-      supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      }).catch((error) => {
-        logger.error('Failed to set session from reset link', error);
-        Alert.alert('Error', 'Invalid or expired reset link.');
-        router.replace('/(auth)/login');
-      });
-    }
+    checkSession();
   }, [params]);
+
+  const checkSession = async () => {
+    try {
+      // Check if we have tokens from the email link
+      const accessToken = params.access_token as string;
+      const refreshToken = params.refresh_token as string;
+      const type = params.type as string;
+
+      if (type === 'recovery' && accessToken && refreshToken) {
+        // Set the session from the email link tokens
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        setSessionValid(true);
+      } else {
+        // Check if user already has a valid session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          setSessionValid(true);
+        } else {
+          Alert.alert(
+            'Invalid Reset Link',
+            'This password reset link is invalid or has expired. Please request a new one.',
+            [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
+          );
+        }
+      }
+    } catch (error: any) {
+      logger.error('Failed to verify reset session', error);
+      Alert.alert(
+        'Error',
+        'Unable to verify your password reset link. Please request a new one.',
+        [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
+      );
+    }
+  };
 
   const handleResetPassword = async () => {
     if (!newPassword || !confirmPassword) {
@@ -58,6 +88,18 @@ export default function ResetPasswordScreen() {
       return;
     }
 
+    // Additional password strength validation
+    const hasLetter = /[a-zA-Z]/.test(newPassword);
+    const hasNumber = /[0-9]/.test(newPassword);
+    
+    if (!hasLetter || !hasNumber) {
+      Alert.alert(
+        'Weak Password',
+        'Password must contain both letters and numbers for better security.'
+      );
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -66,12 +108,15 @@ export default function ResetPasswordScreen() {
       });
 
       if (error) {
-        throw new Error(error.message);
+        throw error;
       }
+
+      // Sign out after successful password reset
+      await supabase.auth.signOut();
 
       Alert.alert(
         'Password Reset Successful',
-        'Your password has been updated. You can now log in with your new password.',
+        'Your password has been updated. Please log in with your new password.',
         [
           {
             text: 'OK',
@@ -81,11 +126,31 @@ export default function ResetPasswordScreen() {
       );
     } catch (error: any) {
       logger.error('Password reset error', error);
-      Alert.alert('Reset Error', error.message || 'Failed to reset password.');
+      
+      // Handle specific error cases
+      if (error.message?.includes('session')) {
+        Alert.alert(
+          'Session Expired',
+          'Your password reset session has expired. Please request a new reset link.',
+          [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
+        );
+      } else {
+        Alert.alert('Reset Error', error.message || 'Failed to reset password. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  // Show loading while verifying session
+  if (!sessionValid) {
+    return (
+      <View style={[styles.mainContainer, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#8b5cf6" />
+        <Text style={styles.loadingText}>Verifying reset link...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.mainContainer}>
@@ -169,9 +234,15 @@ export default function ResetPasswordScreen() {
 
             <View style={styles.requirementsContainer}>
               <Text style={styles.requirementsTitle}>Password Requirements:</Text>
-              <Text style={styles.requirementText}>• At least 6 characters</Text>
-              <Text style={styles.requirementText}>• Should contain letters and numbers</Text>
-              <Text style={styles.requirementText}>• Avoid common passwords</Text>
+              <Text style={[styles.requirementText, newPassword.length >= 6 && styles.requirementMet]}>
+                • At least 6 characters {newPassword.length >= 6 && '✓'}
+              </Text>
+              <Text style={[styles.requirementText, /[a-zA-Z]/.test(newPassword) && /[0-9]/.test(newPassword) && styles.requirementMet]}>
+                • Contains letters and numbers {/[a-zA-Z]/.test(newPassword) && /[0-9]/.test(newPassword) && '✓'}
+              </Text>
+              <Text style={[styles.requirementText, newPassword === confirmPassword && newPassword.length > 0 && styles.requirementMet]}>
+                • Passwords match {newPassword === confirmPassword && newPassword.length > 0 && '✓'}
+              </Text>
             </View>
 
             <TouchableOpacity
@@ -214,6 +285,10 @@ const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
     backgroundColor: '#f3f4f6',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   container: {
     flex: 1,
@@ -320,6 +395,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     marginBottom: 4,
+  },
+  requirementMet: {
+    color: '#10b981',
+    fontWeight: '600',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6b7280',
   },
   resetButton: {
     backgroundColor: '#8b5cf6',
