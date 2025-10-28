@@ -86,6 +86,10 @@ export const AccountDeletionModal: React.FC<AccountDeletionModalProps> = ({
               placeholder="DELETE MY ACCOUNT"
               autoCapitalize="characters"
               autoCorrect={false}
+              accessible={true}
+              accessibilityLabel="Account deletion confirmation input"
+              accessibilityHint="Type DELETE MY ACCOUNT in capital letters to enable the deletion button"
+              accessibilityValue={{ text: confirmationText }}
             />
 
             {/* Action Buttons */}
@@ -94,6 +98,10 @@ export const AccountDeletionModal: React.FC<AccountDeletionModalProps> = ({
                 style={[styles.button, styles.cancelButton]}
                 onPress={onClose}
                 disabled={deleting}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel account deletion"
+                accessibilityHint="Double tap to cancel and return to settings"
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
@@ -105,6 +113,11 @@ export const AccountDeletionModal: React.FC<AccountDeletionModalProps> = ({
                 ]}
                 onPress={onConfirm}
                 disabled={!isConfirmationValid || deleting}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel="Delete account permanently"
+                accessibilityHint={isConfirmationValid ? "Double tap to permanently delete your account" : "Enter the confirmation text to enable this button"}
+                accessibilityState={{ disabled: !isConfirmationValid || deleting }}
               >
                 {deleting ? (
                   <ActivityIndicator color="#ffffff" />

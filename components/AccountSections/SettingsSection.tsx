@@ -24,6 +24,10 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
       <TouchableOpacity 
         style={styles.settingButton} 
         onPress={onManageDataPreferences}
+        accessible={true}
+        accessibilityRole="button"
+        accessibilityLabel="Manage data preferences"
+        accessibilityHint="Double tap to manage your privacy and data collection preferences"
       >
         <Text style={styles.settingButtonText}>Manage Data Preferences</Text>
       </TouchableOpacity>
@@ -31,6 +35,10 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
       <TouchableOpacity 
         style={[styles.settingButton, styles.deleteButton]} 
         onPress={onDeleteAccount}
+        accessible={true}
+        accessibilityRole="button"
+        accessibilityLabel="Delete account"
+        accessibilityHint="Double tap to permanently delete your account and all associated data"
       >
         <Text style={[styles.settingButtonText, styles.deleteButtonText]}>
           Delete Account

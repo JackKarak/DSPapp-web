@@ -88,13 +88,34 @@ We may share your information only in the following circumstances:
 - **Expo Platform**: App development and deployment infrastructure
 - **Apple/Google**: App distribution through official app stores
 
-## Your Privacy Rights
+### Your Privacy Rights
 
 ### Access and Control
 - **Data Access**: Request a copy of all personal data we have about you
 - **Data Correction**: Update or correct inaccurate information through your profile
 - **Data Portability**: Receive your data in a structured, machine-readable format
 - **Account Deletion**: Request complete removal of your account and associated data
+
+### Account Deletion Process
+Users may permanently delete their account at any time by:
+1. **In-App Deletion**: Navigate to Account → Settings → Delete Account
+2. **Confirmation Required**: Type "DELETE MY ACCOUNT" to confirm the irreversible action
+3. **Immediate Anonymization**: Personal data is anonymized immediately upon deletion
+4. **Complete Removal**: All user data is permanently removed from our servers within 30 days
+5. **Recovery Period**: Contact support within 7 days if you wish to recover your account
+
+What Gets Deleted:
+- Personal information (name, email, phone number)
+- Event attendance records
+- Points and achievement history
+- All appeals and feedback submissions
+- Account credentials and authentication tokens
+- Communication preferences and notifications
+
+What May Be Retained (Anonymized):
+- Aggregated analytics for organizational metrics
+- Activity logs for audit and security purposes (marked as deleted user)
+- Historical data required for chapter record-keeping (anonymized)
 
 ### Communication Preferences
 - **Opt-Out Rights**: Unsubscribe from non-essential notifications and newsletters
