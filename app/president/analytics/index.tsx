@@ -21,12 +21,12 @@ import {
   useCategoryBreakdown, 
   useDiversityMetrics 
 } from '../../../hooks/analytics';
-import { FraternityHealth } from './components/FraternityHealth';
-import { CategoryBreakdown } from './components/CategoryBreakdown';
-import { TopPerformers } from './components/TopPerformers';
-import { RecentEvents } from './components/RecentEvents';
-import { DiversitySection } from './components/DiversitySection';
-import { styles } from './styles/analyticsStyles';
+import { FraternityHealth } from './_components/FraternityHealth';
+import { CategoryBreakdown } from './_components/CategoryBreakdown';
+import { TopPerformers } from './_components/TopPerformers';
+import { RecentEvents } from './_components/RecentEvents';
+import { DiversitySection } from './_components/DiversitySection';
+import { styles } from './_styles/analyticsStyles';
 
 function PresidentAnalyticsOptimized() {
   const { state, handleRefresh, handleLoadMoreEvents } = useAnalyticsData();

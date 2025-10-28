@@ -7,7 +7,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import { MetricCard, AnalyticsSection } from '../../../../components/AnalyticsComponents/index';
-import { styles } from '../styles/analyticsStyles';
+import { styles } from '../_styles/analyticsStyles';
 
 interface HealthMetrics {
   totalMembers: number;

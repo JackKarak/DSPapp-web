@@ -15,7 +15,7 @@ import {
   DiversityCard 
 } from '../../../../components/AnalyticsComponents/index';
 import type { DiversityMetrics } from '../../../../types/analytics';
-import { styles } from '../styles/analyticsStyles';
+import { styles } from '../_styles/analyticsStyles';
 
 interface DiversitySectionProps {
   diversityMetrics: DiversityMetrics;
