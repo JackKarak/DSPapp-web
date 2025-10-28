@@ -30,3 +30,36 @@ To verify the fix:
 4. Test each tab works correctly
 
 All navigation bugs resolved! 🎉
+
+
+---
+
+## Update - October 28, 2025: Deeper Fix Required
+
+The initial fix worked, but we discovered that .tsx files inside subdirectories were still being exposed as routes.
+
+### Root Cause
+- Component files like CategoryCard.tsx, HeaderSection.tsx in points/components/ were being treated as routes
+- Expo Router picks up ALL .tsx files unless folders start with underscore
+
+### Final Solution
+Renamed all subdirectories with underscore prefix:
+
+**Points:**
+- components  _components
+- hooks  _hooks
+- styles  _styles
+- constants  _constants
+
+**Account:**
+- components  _components
+- hooks  _hooks
+- styles  _styles
+
+Updated all imports in 9 files to match new structure.
+
+### Result
+ Now truly only 5 tabs showing
+ All icons visible
+ No manual href: null needed
+ Cleaner code using Expo Router conventions

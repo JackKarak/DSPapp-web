@@ -10,11 +10,11 @@ import { ActivityIndicator, RefreshControl, ScrollView, StatusBar, Text, View } 
 import { MaterialIcons } from '@expo/vector-icons';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { Colors } from '../../../constants/colors';
-import { usePointsData } from './hooks/usePointsData';
-import { HeaderSection } from './components/HeaderSection';
-import { PointCategories } from './components/PointCategories';
-import { Leaderboard } from './components/Leaderboard';
-import { styles } from './styles/pointsStyles';
+import { usePointsData } from './_hooks/usePointsData';
+import { HeaderSection } from './_components/HeaderSection';
+import { PointCategories } from './_components/PointCategories';
+import { Leaderboard } from './_components/Leaderboard';
+import { styles } from './_styles/pointsStyles';
 
 export default function PointsScreen() {
   const colors = Colors['light'];

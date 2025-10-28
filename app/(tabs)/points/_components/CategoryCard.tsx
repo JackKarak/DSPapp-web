@@ -7,8 +7,8 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { styles } from '../styles/pointsStyles';
-import { getCategoryInfo } from '../constants/pointRequirements';
+import { styles } from '../_styles/pointsStyles';
+import { getCategoryInfo } from '../_constants/pointRequirements';
 
 interface CategoryCardProps {
   category: string;

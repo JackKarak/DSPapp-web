@@ -6,8 +6,8 @@
 
 import React from 'react';
 import { View, Text } from 'react-native';
-import { styles } from '../styles/pointsStyles';
-import { POINT_REQUIREMENTS } from '../constants/pointRequirements';
+import { styles } from '../_styles/pointsStyles';
+import { POINT_REQUIREMENTS } from '../_constants/pointRequirements';
 import { CategoryCard } from './CategoryCard';
 
 interface PointCategoriesProps {

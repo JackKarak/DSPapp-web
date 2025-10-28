@@ -37,7 +37,7 @@ import { DataConsentModal } from '../../../components/DataConsentModal';
 import { AccountDeletionModal } from '../../../components/AccountModals/AccountDeletionModal';
 
 // Hook
-import { useAccountData } from './hooks/useAccountData';
+import { useAccountData } from './_hooks/useAccountData';
 
 export default function AccountTab() {
   const account = useAccountData();

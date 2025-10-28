@@ -8,7 +8,7 @@
 import { useCallback, useReducer, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../../../lib/supabase';
-import { POINT_REQUIREMENTS } from '../constants/pointRequirements';
+import { POINT_REQUIREMENTS } from '../_constants/pointRequirements';
 
 // State type
 export type PointsState = {

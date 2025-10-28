@@ -7,7 +7,7 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { styles } from '../styles/pointsStyles';
+import { styles } from '../_styles/pointsStyles';
 
 interface LeaderboardUser {
   name: string;
