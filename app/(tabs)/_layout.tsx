@@ -90,9 +90,19 @@ export default function BrotherLayout() {
       <Tabs screenOptions={screenOptions}>
         <Tabs.Screen name="index" options={calendarOptions} />
         <Tabs.Screen name="attendance" options={attendanceOptions} />
-        <Tabs.Screen name="points" options={pointsOptions} />
+        <Tabs.Screen name="points/index" options={pointsOptions} />
         <Tabs.Screen name="newsletter" options={newsOptions} />
-        <Tabs.Screen name="account" options={accountOptions} />
+        <Tabs.Screen name="account/index" options={accountOptions} />
+        
+        {/* Hide subdirectories from navigation */}
+        <Tabs.Screen name="points/components" options={{ href: null }} />
+        <Tabs.Screen name="points/constants" options={{ href: null }} />
+        <Tabs.Screen name="points/hooks" options={{ href: null }} />
+        <Tabs.Screen name="points/styles" options={{ href: null }} />
+        <Tabs.Screen name="account/components" options={{ href: null }} />
+        <Tabs.Screen name="account/hooks" options={{ href: null }} />
+        <Tabs.Screen name="account/styles" options={{ href: null }} />
+        <Tabs.Screen name="account/README" options={{ href: null }} />
       </Tabs>
     </ErrorBoundary>
   );
