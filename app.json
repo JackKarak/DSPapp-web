@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.deltasigmapi.app",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "deploymentTarget": "15.1",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "The DSP App needs access to your photo library to allow you to upload profile pictures and event photos for fraternity activities and member identification.",
@@ -33,7 +33,28 @@
         "NSPrivacyPolicyURL": "https://sites.google.com/terpmail.umd.edu/dspapp/privacy-policy?authuser=0",
         "CFBundleLocalizations": ["en"],
         "ITSAppUsesNonExemptEncryption": false,
-        "NSUserTrackingUsageDescription": "This app does not track users for advertising purposes."
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": [
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeEmailAddress",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeName",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+          },
+          {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeUserID",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+          }
+        ]
       },
       "config": {
         "usesNonExemptEncryption": false
