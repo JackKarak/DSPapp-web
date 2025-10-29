@@ -10,6 +10,9 @@ module.exports = {
       supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
       environment: process.env.NODE_ENV || 'development',
       googleCalendarId: process.env.GOOGLE_CALENDAR_ID,
+      eas: {
+        projectId: "9f6f58a7-3407-4218-8b49-61530c10345f"
+      },
     },
   },
 };

@@ -15,10 +15,13 @@
     },
     "production": {
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "simulator": false,
+        "autoIncrement": true,
+        "buildConfiguration": "Release"
       },
       "android": {
-        "resourceClass": "m-medium"
+        "resourceClass": "medium"
       }
     }
   },
