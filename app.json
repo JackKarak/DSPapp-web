@@ -2,7 +2,7 @@
   "expo": {
     "name": "The DSP App",
     "slug": "dsp-app",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.deltasigmapi.app",
-      "buildNumber": "4",
+      "buildNumber": "8",
       "deploymentTarget": "15.1",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "The DSP App needs access to your photo library to allow you to upload profile pictures and event photos for fraternity activities and member identification.",
