@@ -19,8 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.deltasigmapi.app",
-      "buildNumber": "8",
-      "deploymentTarget": "15.1",
+      "buildNumber": "9",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "The DSP App needs access to your photo library to allow you to upload profile pictures and event photos for fraternity activities and member identification.",
         "NSCameraUsageDescription": "The DSP App needs camera access to allow you to take photos for your profile, event documentation, and submission of required materials.",
@@ -31,7 +30,9 @@
         "NSRemindersUsageDescription": "The DSP App can create reminders for upcoming fraternity events and deadlines.",
         "NSContactsUsageDescription": "The DSP App accesses your contacts only to help you find other fraternity members and connect with brothers.",
         "NSPrivacyPolicyURL": "https://sites.google.com/terpmail.umd.edu/dspapp/privacy-policy?authuser=0",
-        "CFBundleLocalizations": ["en"],
+        "CFBundleLocalizations": [
+          "en"
+        ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSPrivacyTracking": false,
         "NSPrivacyTrackingDomains": [],
@@ -40,19 +41,25 @@
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeEmailAddress",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeName",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeUserID",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           }
         ]
       },
@@ -109,7 +116,6 @@
       "typedRoutes": true
     },
     "newArchEnabled": true,
-    "privacy": "public",
     "jsEngine": "hermes",
     "extra": {
       "privacyPolicyUrl": "https://sites.google.com/terpmail.umd.edu/dspapp/privacy-policy?authuser=0",

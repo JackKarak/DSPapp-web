@@ -4,6 +4,10 @@ module.exports = {
   ...baseConfig,
   expo: {
     ...baseConfig.expo,
+    plugins: [
+      ...(baseConfig.expo.plugins || []),
+      "expo-web-browser"
+    ],
     extra: {
       ...baseConfig.expo.extra,
       supabaseUrl: process.env.SUPABASE_URL,
