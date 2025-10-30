@@ -115,7 +115,7 @@
     "experiments": {
       "typedRoutes": true
     },
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "jsEngine": "hermes",
     "extra": {
       "privacyPolicyUrl": "https://sites.google.com/terpmail.umd.edu/dspapp/privacy-policy?authuser=0",

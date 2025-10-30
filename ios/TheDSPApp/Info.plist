@@ -103,7 +103,7 @@
     <key>NSUserTrackingUsageDescription</key>
     <string>This app does not track users for advertising purposes.</string>
     <key>RCTNewArchEnabled</key>
-    <true/>
+    <false/>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>
