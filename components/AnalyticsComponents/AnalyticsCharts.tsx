@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { PieChart, BarChart, StackedBarChart } from 'react-native-chart-kit';
+import { Ionicons } from '@expo/vector-icons';
 import type { CategoryPointsBreakdown } from '../../types/analytics';
 
 const chartWidth = Dimensions.get('window').width - 32;
@@ -16,6 +17,19 @@ const chartConfig = {
     fontSize: 11,
     fill: '#4B5563', // Dark gray for readability
   },
+};
+
+// Map categories to icon names
+const getCategoryIcon = (category: string): keyof typeof Ionicons.glyphMap => {
+  const categoryLower = category.toLowerCase();
+  if (categoryLower.includes('brotherhood')) return 'people';
+  if (categoryLower.includes('service')) return 'hand-left';
+  if (categoryLower.includes('professional')) return 'briefcase';
+  if (categoryLower.includes('scholarship')) return 'school';
+  if (categoryLower.includes('dei')) return 'ribbon';
+  if (categoryLower.includes('h&w') || categoryLower.includes('health')) return 'fitness';
+  if (categoryLower.includes('fundrais')) return 'cash';
+  return 'flash'; // Default icon
 };
 
 const pieChartColors = [
@@ -154,9 +168,7 @@ export const CategoryPointsChart = memo(({
   }
 
   const chartData = {
-    labels: data.map(item => 
-      item.category.length > 10 ? item.category.substring(0, 8) + '..' : item.category
-    ),
+    labels: data.map((_, index) => `${index + 1}`), // Use numbers instead of text
     legend: ["Avg Attendance/Member", "Total Events"],
     data: data.map(item => [
       Math.round((item.averageAttendancePerMember || 0) * 10) / 10, // Bottom stack: avg attendance per member
@@ -184,9 +196,17 @@ export const CategoryPointsChart = memo(({
       <View style={styles.categoryLegend}>
         {data.map((item, index) => (
           <View key={index} style={styles.categoryLegendItem}>
-            <View style={styles.categoryLegendDot} />
+            <View style={styles.categoryLegendNumber}>
+              <Text style={styles.categoryLegendNumberText}>{index + 1}</Text>
+            </View>
+            <Ionicons 
+              name={getCategoryIcon(item.category)} 
+              size={20} 
+              color="#8B5CF6" 
+              style={styles.categoryIcon}
+            />
             <Text style={styles.categoryLegendText}>
-              {item.category}: {Math.round((item.averageAttendancePerMember || 0) * 10) / 10}/{item.eventCount} avg attendance per member
+              {item.category}: {Math.round((item.averageAttendancePerMember || 0) * 10) / 10} avg / {item.eventCount} events
             </Text>
           </View>
         ))}
@@ -238,6 +258,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  categoryLegendNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#8B5CF6', // DSP Purple
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  categoryLegendNumberText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  categoryIcon: {
+    marginRight: 8,
   },
   categoryLegendDot: {
     width: 8,
