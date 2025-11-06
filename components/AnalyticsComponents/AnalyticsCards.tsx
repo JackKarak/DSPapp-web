@@ -8,6 +8,7 @@ import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { MemberPerformance, EventAnalytics } from '../../types/analytics';
 import { formatTime } from '../../hooks/analytics';
+import { DSP_CHART_COLORS, getDiversityScoreColor } from '../../constants/analytics';
 
 // ============================================================================
 // METRIC CARD
@@ -22,10 +23,10 @@ interface MetricCardProps {
 
 export const MetricCard = memo<MetricCardProps>(({ label, value, icon, loading = false }) => (
   <View style={styles.metricCard}>
-    <Ionicons name={icon} size={32} color="#4285F4" />
+    <Ionicons name={icon} size={32} color={DSP_CHART_COLORS.purple} />
     <Text style={styles.metricTitle}>{label}</Text>
     {loading ? (
-      <ActivityIndicator size="small" color="#4285F4" />
+      <ActivityIndicator size="small" color={DSP_CHART_COLORS.purple} />
     ) : (
       <Text style={styles.metricValue}>{value}</Text>
     )}
@@ -104,7 +105,7 @@ export const DiversityCard = memo<DiversityCardProps>(({
 }) => (
   <View style={styles.diversityCard}>
     <View style={styles.diversityHeader}>
-      <Ionicons name={icon} size={24} color="#4285F4" />
+      <Ionicons name={icon} size={24} color={DSP_CHART_COLORS.purple} />
       <Text style={styles.diversityTitle}>{title}</Text>
     </View>
     {data.slice(0, maxItems).map((item, index) => (
@@ -148,12 +149,7 @@ interface DiversityScoreCardProps {
 }
 
 export const DiversityScoreCard = memo<DiversityScoreCardProps>(({ score }) => {
-  const getScoreColor = (s: number) => {
-    if (s >= 70) return '#34A853';
-    if (s >= 50) return '#F7B910';
-    if (s >= 30) return '#FF9800';
-    return '#EA4335';
-  };
+  const scoreColor = getDiversityScoreColor(score);
 
   const getScoreLabel = (s: number) => {
     if (s >= 70) return 'Excellent';
@@ -165,12 +161,12 @@ export const DiversityScoreCard = memo<DiversityScoreCardProps>(({ score }) => {
   return (
     <View style={styles.scoreCard}>
       <Text style={styles.scoreLabel}>Diversity Index</Text>
-      <Text style={[styles.scoreValue, { color: getScoreColor(score) }]}>
+      <Text style={[styles.scoreValue, { color: scoreColor }]}>
         {score.toFixed(0)}
       </Text>
       <Text style={styles.scoreSubLabel}>{getScoreLabel(score)}</Text>
       <View style={styles.scoreBar}>
-        <View style={[styles.scoreBarFill, { width: `${score}%`, backgroundColor: getScoreColor(score) }]} />
+        <View style={[styles.scoreBarFill, { width: `${score}%`, backgroundColor: scoreColor }]} />
       </View>
     </View>
   );
@@ -192,7 +188,7 @@ export const AnalyticsSection = memo<AnalyticsSectionProps>(({ title, children, 
     <Text style={styles.sectionTitle}>{title}</Text>
     {error ? (
       <View style={styles.errorContainer}>
-        <Ionicons name="alert-circle" size={24} color="#EA4335" />
+        <Ionicons name="alert-circle" size={24} color={DSP_CHART_COLORS.error} />
         <Text style={styles.errorText}>{error}</Text>
       </View>
     ) : (
@@ -223,15 +219,15 @@ const styles = StyleSheet.create({
   },
   metricTitle: {
     fontSize: 14,
-    color: '#666',
+    color: '#6b7280',
     marginTop: 8,
     textAlign: 'center',
   },
   metricValue: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1a1a1a',
-    marginTop: 8,
+    color: DSP_CHART_COLORS.purple,
+    marginTop: 4,
   },
   performanceRow: {
     flexDirection: 'row',
@@ -246,7 +242,7 @@ const styles = StyleSheet.create({
   rank: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#4285F4',
+    color: DSP_CHART_COLORS.purple,
     marginRight: 12,
     minWidth: 40,
   },
@@ -354,7 +350,7 @@ const styles = StyleSheet.create({
   },
   moreItems: {
     fontSize: 13,
-    color: '#4285F4',
+    color: DSP_CHART_COLORS.purple,
     marginTop: 8,
     fontStyle: 'italic',
   },

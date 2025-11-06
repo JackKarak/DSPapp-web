@@ -1,30 +1,77 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
 import { Alert, StyleSheet, TouchableOpacity } from 'react-native';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { Colors } from '../../constants/colors';
 
 export default function BrotherLayout() {
   const router = useRouter();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  // Monitor auth state changes - auto logout if signed out elsewhere
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        router.replace('/(auth)/login');
+      }
+    });
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   // Memoized sign out handler - prevents recreation on every render
   const handleSignOut = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      Alert.alert('Sign Out Failed', error.message);
-    } else {
+    if (isSigningOut) return; // Prevent duplicate requests
+    
+    setIsSigningOut(true);
+    
+    try {
+      const { error } = await Promise.race([
+        supabase.auth.signOut(),
+        new Promise<{ error: Error }>((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 10000)
+        )
+      ]);
+      
+      if (error) {
+        throw error;
+      }
+      
       router.replace('/(auth)/login');
+    } catch (error: any) {
+      Alert.alert(
+        'Sign Out Failed', 
+        error.message === 'Request timeout' 
+          ? 'Network timeout. Please try again.'
+          : error.message,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: handleSignOut }
+        ]
+      );
+    } finally {
+      setIsSigningOut(false);
     }
-  }, [router]);
+  }, [router, isSigningOut]);
 
   // Memoized header right component - prevents recreation on every render
   const HeaderRightComponent = useCallback(() => (
-    <TouchableOpacity onPress={handleSignOut} style={styles.headerButton}>
-      <Ionicons name="log-out-outline" size={24} color="#fff" />
+    <TouchableOpacity 
+      onPress={handleSignOut} 
+      style={styles.headerButton}
+      disabled={isSigningOut}
+    >
+      <Ionicons 
+        name="log-out-outline" 
+        size={24} 
+        color={isSigningOut ? '#999' : '#fff'} 
+      />
     </TouchableOpacity>
-  ), [handleSignOut]);
+  ), [handleSignOut, isSigningOut]);
 
   // Memoized screen options - prevents recreation on every render
   const screenOptions = useMemo(() => ({
@@ -97,7 +144,7 @@ export default function BrotherLayout() {
           options={attendanceOptions} 
         />
         <Tabs.Screen 
-          name="points" 
+          name="points/index" 
           options={pointsOptions}
         />
         <Tabs.Screen 
@@ -105,7 +152,7 @@ export default function BrotherLayout() {
           options={newsOptions} 
         />
         <Tabs.Screen 
-          name="account" 
+          name="account/index" 
           options={accountOptions}
         />
       </Tabs>

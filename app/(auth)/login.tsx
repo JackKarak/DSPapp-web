@@ -6,6 +6,7 @@ import {
   Dimensions,
   ImageBackground,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -48,54 +49,60 @@ export default function LoginScreen() {
 
     setLoading(true);
 
-    try {      // Check if user exists in users table
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single();
-
-      if (userError || !userData) {
-        console.error('User lookup error:', userError);
-        throw new Error('User not found. Please contact an administrator or complete the signup process.');
-      }      // Proceed with normal authentication
+    try {
+      // Authenticate first - NEVER check user table before auth (prevents user enumeration)
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (authError || !authData?.user) {
-        console.error('Auth error:', authError);
-        console.error('Auth error details:', {
-          message: authError?.message,
-          status: authError?.status,
-          code: authError?.code
-        });
-        
-        // Provide more specific error messages
-        if (authError?.message?.includes('Invalid login credentials')) {
-          throw new Error('Invalid email or password. Please check your credentials and try again.');
-        } else if (authError?.message?.includes('Email not confirmed')) {
-          throw new Error('Please check your email and click the confirmation link before logging in.');
-        } else {
-          throw new Error(authError?.message || 'Unable to sign in.');
-        }
+        logger.error('Login error', sanitizeForLog(authError));
+        // ALWAYS use generic message - don't reveal if user exists
+        throw new Error('Invalid email or password. Please try again.');
       }
 
-      const userId = authData.user.id;      // Navigate based on role from users table data
+      // Wait for session to be fully established for RLS policies
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        logger.error('Session error after login', sanitizeForLog(sessionError));
+        throw new Error('Login failed. Please try again.');
+      }
+
+      // Now fetch user data (only for authenticated users)
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('role')
+        .eq('user_id', authData.user.id)
+        .single();
+
+      if (userError || !userData) {
+        // User authenticated but not in users table - edge case
+        logger.error('User fetch error', { 
+          userId: authData.user.id, 
+          error: userError,
+          errorCode: userError?.code,
+          errorMessage: userError?.message,
+          errorDetails: userError?.details
+        });
+        throw new Error('Account setup incomplete. Please contact support.');
+      }
+
+      // Navigate based on role (from authenticated user data)
       switch (userData.role) {
         case 'officer':
           router.replace('/officer/officerspecs');
           break;
         case 'admin':
-          router.replace('/president/presidentindex' as any);
+          router.replace('/president/presidentindex');
           break;
         default:
           router.replace('/(tabs)');
       }
     } catch (error: any) {
       logger.error('Login error', sanitizeForLog(error));
-      Alert.alert('Login Error', error.message || 'An unexpected error occurred.');
+      // Always show generic error to prevent user enumeration
+      Alert.alert('Login Failed', 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -115,7 +122,7 @@ export default function LoginScreen() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'dspapp://reset-password',
+        redirectTo: 'dspapp://(auth)/reset-password',
       });
 
       if (error) {
@@ -124,7 +131,7 @@ export default function LoginScreen() {
 
       Alert.alert(
         'Reset Email Sent',
-        'Check your email for a password reset link. The link will open the app automatically so you can reset your password.',
+        'Check your email for a password reset link. Click the link in the email to reset your password.',
         [{ text: 'OK' }]
       );
     } catch (error: any) {
@@ -262,6 +269,17 @@ export default function LoginScreen() {
             >
               <Text style={styles.signUpText}>Sign Up</Text>
             </TouchableOpacity>
+            
+            {/* Legal Links */}
+            <View style={styles.legalLinks}>
+              <TouchableOpacity onPress={() => router.push('/(auth)/privacy' as any)}>
+                <Text style={styles.legalLinkText}>Privacy Policy</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalSeparator}> • </Text>
+              <TouchableOpacity onPress={() => Linking.openURL('https://sites.google.com/terpmail.umd.edu/dspapp/terms')}>
+                <Text style={styles.legalLinkText}>Terms of Service</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -467,5 +485,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#ffffff',
+  },
+  legalLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  legalLinkText: {
+    fontSize: 14,
+    color: '#8b5cf6',
+    textDecorationLine: 'underline',
+  },
+  legalSeparator: {
+    fontSize: 14,
+    color: '#6b7280',
   },
 });

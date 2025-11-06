@@ -19,7 +19,15 @@ export default function SignupScreen() {
   const [role, setRole] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [uid, setUid] = useState('');
-  const [existingUser, setExistingUser] = useState<any>(null);
+  interface ExistingUser {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    pledge_class?: string;
+    phone_number?: number;
+  }
+  const [existingUser, setExistingUser] = useState<ExistingUser | null>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -35,9 +43,9 @@ export default function SignupScreen() {
   const createUserData = (authUserId: string) => {
     const baseData = {
       user_id: authUserId,
-      first_name: firstName,
-      last_name: lastName,
-      email,
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      email: email.toLowerCase().trim(),
       role,
     };
 
@@ -63,10 +71,20 @@ export default function SignupScreen() {
   };
 
   const handleRoleSelection = async (selectedRole: string) => {
+    // Block admin self-registration - admins must be created by existing admins
+    if (selectedRole === 'admin') {
+      Alert.alert(
+        'Admin Access Restricted',
+        'Admin accounts must be created by existing administrators. Please contact chapter leadership for admin access.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
     setRole(selectedRole);
     if (selectedRole === 'brother' || selectedRole === 'pledge') {
       setStep(2); // Go to phone/UID collection
-    } else if (selectedRole === 'officer' || selectedRole === 'admin') {
+    } else if (selectedRole === 'officer') {
       setStep(3); // Go directly to form completion
     }
   };
@@ -344,6 +362,25 @@ export default function SignupScreen() {
     return;
   }
 
+  // Email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email.trim())) {
+    Alert.alert('Invalid Email', 'Please enter a valid email address.');
+    return;
+  }
+
+  // Password strength validation
+  if (password.length < 8) {
+    Alert.alert('Weak Password', 'Password must be at least 8 characters long.');
+    return;
+  }
+
+  // Block admin role (double-check in case UI is bypassed)
+  if (role === 'admin') {
+    Alert.alert('Access Denied', 'Admin accounts cannot be created through self-registration.');
+    return;
+  }
+
   // Role-specific validation
   if (role === 'brother' || role === 'pledge') {
     if (!phoneNumber || !uid) {
@@ -366,56 +403,35 @@ export default function SignupScreen() {
     let authUserId: string;
 
     if (existingUser) {
-      // For existing brothers: handle auth account scenarios
+      // For existing brothers: create auth account
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
+        email: email.toLowerCase().trim(),
         password,
       });
 
       if (signUpError) {
-        // Handle case where user already exists in auth
+        // Handle case where email is already in use
         if (signUpError.message.includes('User already registered') || 
             signUpError.message.includes('already been taken') ||
             signUpError.message.includes('already registered')) {
-          
-          // For existing brothers with auth conflicts, we'll create a new auth account
-          // by updating their email temporarily, then creating the account
-          const tempEmail = `temp_${Date.now()}_${email}`;
-          
-          const { data: tempSignUpData, error: tempSignUpError } = await supabase.auth.signUp({
-            email: tempEmail,
-            password,
-          });
-
-          if (tempSignUpError) {
-            throw new Error('Could not create account. Please contact support.');
-          }
-
-          if (!tempSignUpData?.user?.id) {
-            throw new Error('Failed to create user account.');
-          }
-
-          authUserId = tempSignUpData.user.id;
-
-          // Update the auth user's email back to the original
-          const { error: updateError } = await supabase.auth.admin.updateUserById(
-            authUserId,
-            { email: email }
+          Alert.alert(
+            'Email Already Registered',
+            'This email is already registered. Would you like to sign in instead?',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Sign In', onPress: () => router.replace('/(auth)/login') }
+            ]
           );
-
-          if (updateError) {
-            console.warn('Email update warning:', updateError);
-            // Continue with signup process even if email update fails
-          }
-        } else {
-          throw new Error(signUpError.message);
+          return;
         }
-      } else if (signUpData?.user?.id) {
-        // New auth user created successfully
-        authUserId = signUpData.user.id;
-      } else {
+        throw new Error(signUpError.message);
+      }
+
+      if (!signUpData?.user?.id) {
         throw new Error('Failed to create user account.');
       }
+
+      authUserId = signUpData.user.id;
 
       // Transfer information from brother table to users table
       // User must stay signed in for RLS policy to work
@@ -427,9 +443,10 @@ export default function SignupScreen() {
         throw new Error(insertError.message || 'Could not create user profile.');
       }
 
-      // Delete the brother record since they're now in the users table
+      // Delete the brother/pledge record since they're now in the users table
+      const tableName = role === 'pledge' ? 'pledge' : 'brother';
       const { error: deleteError } = await supabase
-        .from('brother')
+        .from(tableName)
         .delete()
         .eq('id', existingUser.id);
 
@@ -442,9 +459,9 @@ export default function SignupScreen() {
       await supabase.auth.signOut();
 
     } else {
-      // For officers/admin: create new auth user
+      // For officers: create new auth user
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
+        email: email.toLowerCase().trim(),
         password,
       });
 
@@ -485,9 +502,6 @@ export default function SignupScreen() {
       switch (role) {
         case 'officer':
           successMessage = 'Officer account created successfully! You can now login and access officer features.';
-          break;
-        case 'admin':
-          successMessage = 'Admin account created successfully! You now have full access to all features.';
           break;
         case 'brother':
         case 'pledge':
@@ -554,7 +568,6 @@ export default function SignupScreen() {
               <Picker.Item label="Brother" value="brother" />
               <Picker.Item label="Pledge" value="pledge" />
               <Picker.Item label="Officer" value="officer" />
-              <Picker.Item label="Admin" value="admin" />
             </Picker>
           </>
         )}
@@ -592,9 +605,7 @@ export default function SignupScreen() {
         {step === 3 && (
           <>
             <Text style={styles.stepTitle}>
-              {role === 'officer' ? 'Officer Registration' : 
-               role === 'admin' ? 'Admin Registration' : 
-               'Complete Your Profile'}
+              {role === 'officer' ? 'Officer Registration' : 'Complete Your Profile'}
             </Text>
             <TextInput
               placeholder="First Name"

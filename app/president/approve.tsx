@@ -347,7 +347,8 @@ export default function EventApproval() {
           const creator = event.created_by_user[0];
           creatorName = `${creator.first_name} ${creator.last_name}`;
         } else if (event.created_by_user && !Array.isArray(event.created_by_user)) {
-          const creator = event.created_by_user as any;
+          // Handle single object response (not array)
+          const creator = event.created_by_user as { first_name: string; last_name: string };
           creatorName = `${creator.first_name} ${creator.last_name}`;
         } else if (usersMap[event.created_by]) {
           creatorName = usersMap[event.created_by];

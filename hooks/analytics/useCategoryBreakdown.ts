@@ -12,6 +12,11 @@ export function useCategoryBreakdown(
   members: Member[]
 ): CategoryPointsBreakdown[] {
   return useMemo(() => {
+    // Handle null/undefined/empty arrays
+    const safeEvents = events || [];
+    const safeAttendance = attendance || [];
+    const safeMembers = members || [];
+    
     const categoryMap = new Map<string, { 
       totalPoints: number; 
       eventCount: number; 
@@ -35,7 +40,7 @@ export function useCategoryBreakdown(
     });
     
     // Aggregate points by category
-    events.forEach((event) => {
+    safeEvents.forEach((event) => {
       // Only count approved events that have already passed and give points
       const eventDate = new Date(event.start_time);
       const now = new Date();
@@ -69,7 +74,7 @@ export function useCategoryBreakdown(
       
       // Count unique attendance and points (avoid double counting)
       // Note: attended field is undefined, so just check event_id match
-      const eventAttendance = attendance.filter(a => a.event_id === event.id);
+      const eventAttendance = safeAttendance.filter(a => a.event_id === event.id);
       
       eventAttendance.forEach(att => {
         const key = `${att.user_id}-${att.event_id}`;

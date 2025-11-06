@@ -7,24 +7,9 @@ import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { BarChart, LineChart, PieChart } from '../IOSCharts';
 import { KPICard, EngagementMetricCard, InsightItem, OfficerEventCard, FeedbackItem } from './OfficerAnalyticsCards';
+import { CHART_COLOR_ARRAYS, CHART_CONFIG, DSP_CHART_COLORS, KPI_COLORS } from '../../constants/analytics';
 
 const screenWidth = Dimensions.get('window').width;
-const pieColors = ['#4285F4', '#34A853', '#FBBC04', '#EA4335', '#9C27B0', '#FF9800', '#00BCD4', '#8BC34A'];
-
-const chartConfig = {
-  backgroundColor: '#ffffff',
-  backgroundGradientFrom: '#ffffff',
-  backgroundGradientTo: '#ffffff',
-  color: (opacity = 1) => `rgba(66, 133, 244, ${opacity})`,
-  strokeWidth: 2,
-  barPercentage: 0.7,
-  useShadowColorFromDataset: false,
-  decimalPlaces: 0,
-  propsForLabels: {
-    fontSize: 12,
-    fontWeight: '500' as any,
-  },
-};
 
 // ============================================================================
 // HEADER SECTION
@@ -68,14 +53,14 @@ export const KPIRowSection: React.FC<KPIRowSectionProps> = ({
         title="Average Rating"
         value={avgRating.toFixed(1)}
         subtitle="out of 5.0"
-        color="#1a73e8"
+        color={KPI_COLORS.rating}
       />
       <KPICard
         title="Avg Attendance"
         value={avgAttendance.toFixed(0)}
         subtitle="members per event"
         trend={growthRate}
-        color="#34a853"
+        color={KPI_COLORS.attendance}
       />
     </View>
     <View style={styles.kpiRow}>
@@ -83,13 +68,13 @@ export const KPIRowSection: React.FC<KPIRowSectionProps> = ({
         title="Engagement"
         value={`${engagementRate.toFixed(1)}%`}
         subtitle="member participation"
-        color="#fbbc04"
+        color={KPI_COLORS.engagement}
       />
       <KPICard
         title="Total Events"
         value={totalEvents}
         subtitle="created"
-        color="#ea4335"
+        color={KPI_COLORS.events}
       />
     </View>
   </>
@@ -112,12 +97,12 @@ export const AttendanceTrendChart: React.FC<AttendanceTrendProps> = ({ attendanc
           labels: attendanceTrend.map((d) => d.month),
           datasets: [{
             data: attendanceTrend.map((d) => d.count),
-            color: () => '#4285F4',
+            color: () => DSP_CHART_COLORS.purple,
           }]
         }}
         width={screenWidth - 48}
         height={220}
-        chartConfig={chartConfig}
+        chartConfig={CHART_CONFIG}
         style={styles.chart}
         bezier
       />
@@ -147,7 +132,7 @@ export const DemographicsChart: React.FC<DemographicsChartProps> = ({ byPledgeCl
         }}
         width={screenWidth - 48}
         height={220}
-        chartConfig={chartConfig}
+        chartConfig={CHART_CONFIG}
         style={styles.chart}
         yAxisLabel=""
         yAxisSuffix=""
@@ -173,7 +158,7 @@ export const EventTypeDistributionChart: React.FC<EventTypeDistributionProps> = 
   const pointDistribution = Object.entries(byPointType || {}).map(([name, points], i) => ({
     name,
     points: points as number,
-    color: pieColors[i % pieColors.length],
+    color: CHART_COLOR_ARRAYS.pie[i % CHART_COLOR_ARRAYS.pie.length],
     legendFontColor: '#333',
     legendFontSize: 13,
   }));
@@ -186,7 +171,7 @@ export const EventTypeDistributionChart: React.FC<EventTypeDistributionProps> = 
           data={pointDistribution}
           width={screenWidth - 48}
           height={220}
-          chartConfig={chartConfig}
+          chartConfig={CHART_CONFIG}
           accessor="points"
           backgroundColor="transparent"
           paddingLeft="15"
@@ -257,7 +242,7 @@ export const EngagementMetricsSection: React.FC<EngagementMetricsSectionProps> =
           value={`${engagementRate.toFixed(1)}%`}
           description={getEngagementDescription(engagementRate)}
           percentage={engagementRate}
-          color="#4285F4"
+          color={DSP_CHART_COLORS.purple}
         />
         <EngagementMetricCard
           icon="⭐"
@@ -265,7 +250,7 @@ export const EngagementMetricsSection: React.FC<EngagementMetricsSectionProps> =
           value={`${avgRating.toFixed(1)}/5.0`}
           description={getSatisfactionDescription(avgRating)}
           percentage={(avgRating / 5) * 100}
-          color="#34A853"
+          color={DSP_CHART_COLORS.success}
         />
         <EngagementMetricCard
           icon="🔄"
@@ -273,7 +258,7 @@ export const EngagementMetricsSection: React.FC<EngagementMetricsSectionProps> =
           value={`${wouldAttendAgainPct.toFixed(1)}%`}
           description={getRetentionDescription(wouldAttendAgainPct)}
           percentage={wouldAttendAgainPct}
-          color="#FBBC04"
+          color={DSP_CHART_COLORS.gold}
         />
         <EngagementMetricCard
           icon="🎯"
@@ -281,7 +266,7 @@ export const EngagementMetricsSection: React.FC<EngagementMetricsSectionProps> =
           value={`${wellOrganizedPct.toFixed(1)}%`}
           description={getOrganizationDescription(wellOrganizedPct)}
           percentage={wellOrganizedPct}
-          color="#EA4335"
+          color={DSP_CHART_COLORS.darkPurple}
         />
       </View>
 

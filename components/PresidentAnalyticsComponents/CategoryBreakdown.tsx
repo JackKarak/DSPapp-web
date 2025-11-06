@@ -5,8 +5,8 @@
  */
 
 import React from 'react';
-import { CategoryPointsChart, AnalyticsSection } from '../../../../components/AnalyticsComponents/index';
-import type { CategoryPointsBreakdown } from '../../../../types/analytics';
+import { CategoryPointsChart, AnalyticsSection } from '../AnalyticsComponents/index';
+import type { CategoryPointsBreakdown } from '../../types/analytics';
 
 interface CategoryBreakdownProps {
   categoryBreakdown: CategoryPointsBreakdown[];

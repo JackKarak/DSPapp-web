@@ -157,26 +157,12 @@ function PresidentLayout() {
       <Tabs screenOptions={screenOptions}>
         <Tabs.Screen name="presidentindex" options={homeOptions} />
         <Tabs.Screen 
-          name="analytics" 
+          name="analytics/index" 
           options={analyticsOptions}
-          redirect={false}
         />
         <Tabs.Screen name="approve" options={approveOptions} />
         <Tabs.Screen name="override" options={overrideOptions} />
         <Tabs.Screen name="register" options={registerOptions} />
-        {/* Hide internal routes from tab bar */}
-        <Tabs.Screen 
-          name="analytics/index" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="analytics/_components"
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="analytics/_styles"
-          options={{ href: null }}
-        />
       </Tabs>
     </ErrorBoundary>
   );

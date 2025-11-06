@@ -5,7 +5,9 @@ import { WebView } from 'react-native-webview';
 import { supabase } from '../../lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
-const DEFAULT_NEWSLETTER_URL = 'https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798?e=bbc0848b47';
+// Move to environment variable or app config
+const DEFAULT_NEWSLETTER_URL = process.env.EXPO_PUBLIC_DEFAULT_NEWSLETTER_URL || 
+  'https://mailchi.mp/f868da07ca2d/dspatch-feb-21558798?e=bbc0848b47';
 
 // Single state object - prevents multiple re-renders
 type NewsletterState = {

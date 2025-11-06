@@ -74,6 +74,7 @@ export type HealthMetrics = {
   retentionRate: number;
   avgAttendanceRate: number;
   avgPoints: number;
+  isEmpty?: boolean; // Flag to indicate no data available
 };
 
 export type CategoryPointsBreakdown = {

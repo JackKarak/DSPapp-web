@@ -6,8 +6,8 @@
 
 import React, { useCallback } from 'react';
 import { FlatList } from 'react-native';
-import { PerformanceRow, AnalyticsSection } from '../../../../components/AnalyticsComponents/index';
-import type { MemberPerformance } from '../../../../types/analytics';
+import { PerformanceRow, AnalyticsSection } from '../AnalyticsComponents/index';
+import type { MemberPerformance } from '../../types/analytics';
 
 interface TopPerformersProps {
   topPerformers: MemberPerformance[];

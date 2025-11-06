@@ -37,10 +37,10 @@ import { DataConsentModal } from '../../../components/DataConsentModal';
 import { AccountDeletionModal } from '../../../components/AccountModals/AccountDeletionModal';
 
 // Hook
-import { useAccountData } from './_hooks/useAccountData';
+import { useAccount } from './_hooks/useAccount';
 
 export default function AccountTab() {
-  const account = useAccountData();
+  const account = useAccount();
   const [deletionModalVisible, setDeletionModalVisible] = useState(false);
   const [deletionConfirmText, setDeletionConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -159,16 +159,18 @@ export default function AccountTab() {
         />
 
         {/* Analytics Section */}
-        <AnalyticsSection
-          analytics={account.analytics}
-        />
+        {account.analytics && (
+          <AnalyticsSection
+            analytics={account.analytics}
+          />
+        )}
 
         {/* Profile Section */}
         <ProfileSection
           profile={account.profile}
           isEditing={account.isEditing}
           formData={account.formData}
-          userConsent={account.userConsent}
+          userConsent={account.userConsent as any}
           canEdit={account.canEdit}
           nextEditDate={account.nextEditDate}
           daysUntilEdit={account.daysUntilEdit}
@@ -181,7 +183,7 @@ export default function AccountTab() {
 
         {/* Events Section */}
         <EventsSection
-          events={account.events}
+          events={account.events as any}
           submittedFeedback={account.submittedFeedback}
           expanded={account.eventsExpanded}
           onToggleExpanded={() => account.setEventsExpanded(!account.eventsExpanded)}
@@ -191,16 +193,16 @@ export default function AccountTab() {
         {/* Appeals Section */}
         {account.profile?.role !== 'pledge' && (
           <AppealsSection
-            userAppeals={account.appeals}
-            appealableEvents={account.appealableEvents}
+            userAppeals={account.appeals as any}
+            appealableEvents={account.appealableEvents as any}
             onAppealPress={account.handleAppealPress}
-            userRole={account.profile?.role}
+            userRole={account.profile?.role || null}
           />
         )}
 
         {/* Test Bank Section */}
         <TestBankSection
-          submissions={account.testBankSubmissions}
+          submissions={account.testBankSubmissions as any}
           expanded={account.testBankExpanded}
           onToggleExpanded={() => account.setTestBankExpanded(!account.testBankExpanded)}
           onUploadPress={account.handleOpenTestBankModal}
@@ -261,7 +263,10 @@ export default function AccountTab() {
       {/* Point Appeal Modal */}
       <PointAppealModal
         visible={account.appealModalVisible}
-        event={account.selectedAppealEvent}
+        event={account.selectedAppealEvent ? {
+          ...account.selectedAppealEvent,
+          host_name: account.selectedAppealEvent.host_name || 'Unknown Host'
+        } : null}
         onClose={() => account.setAppealModalVisible(false)}
         onSubmit={account.handleSubmitAppeal}
         appealReason={account.appealReason}
@@ -274,7 +279,10 @@ export default function AccountTab() {
       {/* Event Feedback Modal */}
       <EventFeedbackModal
         visible={account.feedbackModalVisible}
-        event={account.selectedFeedbackEvent}
+        event={account.selectedFeedbackEvent ? {
+          ...account.selectedFeedbackEvent,
+          host_name: account.selectedFeedbackEvent.host_name || 'Unknown Host'
+        } : null}
         onClose={() => account.setFeedbackModalVisible(false)}
         onSubmit={account.handleSubmitFeedback}
         feedbackData={account.feedbackData}

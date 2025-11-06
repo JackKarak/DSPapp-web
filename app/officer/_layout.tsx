@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { ActivityIndicator, Alert, TouchableOpacity, View } from 'react-native';
 import { useOfficerRole } from '../../hooks/shared';
 import { supabase } from '../../lib/supabase';
@@ -9,15 +9,41 @@ import { ErrorBoundary } from '../../components/ErrorBoundary';
 export default function OfficerLayout() {
   const router = useRouter();
   const { role, loading } = useOfficerRole();
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
-  const handleSignOut: () => Promise<void> = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      Alert.alert('Sign Out Failed', error.message);
-    } else {
+  const handleSignOut = useCallback(async () => {
+    if (isSigningOut) return; // Prevent duplicate requests
+    
+    setIsSigningOut(true);
+    
+    try {
+      const { error } = await Promise.race([
+        supabase.auth.signOut(),
+        new Promise<{ error: Error }>((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 10000)
+        )
+      ]);
+      
+      if (error) {
+        throw error;
+      }
+      
       router.replace('/(auth)/login');
+    } catch (error: any) {
+      Alert.alert(
+        'Sign Out Failed', 
+        error.message === 'Request timeout' 
+          ? 'Network timeout. Please try again.'
+          : error.message,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: handleSignOut }
+        ]
+      );
+    } finally {
+      setIsSigningOut(false);
     }
-  };
+  }, [router, isSigningOut]);
 
   // Memoize accessible tabs - MUST be before any conditional returns
   const accessibleTabs = useMemo(() => {
@@ -42,13 +68,13 @@ export default function OfficerLayout() {
 
   // Define tab configuration once
   const tabConfig = useMemo(() => [
-    { name: 'index', title: 'Home', icon: 'home-outline' },
-    { name: 'analytics', title: 'Analytics', icon: 'bar-chart-outline' },
-    { name: 'events', title: 'Events', icon: 'calendar-outline' },
-    { name: 'register', title: 'Register', icon: 'person-add-outline' },
-    { name: 'scholarship', title: 'Testbank', icon: 'library-outline', path: '/officer/scholarship' },
-    { name: 'historian', title: 'Marketing', icon: 'megaphone-outline', path: '/officer/historian' },
-    { name: 'officerspecs', title: 'Officer Control', icon: 'settings-outline', hidden: true },
+    { name: 'index', title: 'Home', icon: 'home-outline' as const },
+    { name: 'analytics', title: 'Analytics', icon: 'bar-chart-outline' as const },
+    { name: 'events', title: 'Events', icon: 'calendar-outline' as const },
+    { name: 'register', title: 'Register', icon: 'person-add-outline' as const },
+    { name: 'scholarship', title: 'Testbank', icon: 'library-outline' as const, path: '/officer/scholarship' },
+    { name: 'historian', title: 'Marketing', icon: 'megaphone-outline' as const, path: '/officer/historian' },
+    { name: 'officerspecs', title: 'Officer Control', icon: 'settings-outline' as const, hidden: true },
   ], []);
 
   useEffect(() => {
@@ -77,8 +103,16 @@ export default function OfficerLayout() {
         headerTintColor: 'white',
         tabBarLabelStyle: { fontWeight: 'bold' },
         headerRight: () => (
-          <TouchableOpacity onPress={handleSignOut} style={{ marginRight: 16 }}>
-            <Ionicons name="log-out-outline" size={24} color="#fff" />
+          <TouchableOpacity 
+            onPress={handleSignOut} 
+            style={{ marginRight: 16 }}
+            disabled={isSigningOut}
+          >
+            <Ionicons 
+              name="log-out-outline" 
+              size={24} 
+              color={isSigningOut ? '#999' : '#fff'} 
+            />
           </TouchableOpacity>
         ),
       }}
@@ -90,9 +124,9 @@ export default function OfficerLayout() {
           options={{
             title: tab.title,
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name={tab.icon as any} size={size} color={color} />
+              <Ionicons name={tab.icon} size={size} color={color} />
             ),
-            href: tab.hidden ? null : (accessibleTabs.has(tab.name) ? (tab.path ?? undefined) : null),
+            href: tab.hidden ? null : (accessibleTabs.has(tab.name) ? (tab.path as any ?? undefined) : null),
           }}
         />
       ))}

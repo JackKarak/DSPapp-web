@@ -3,21 +3,9 @@ import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { PieChart, BarChart, StackedBarChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import type { CategoryPointsBreakdown } from '../../types/analytics';
+import { IOS_CHART_CONFIG, CHART_COLOR_ARRAYS } from '../../constants/analytics';
 
 const chartWidth = Dimensions.get('window').width - 32;
-
-const chartConfig = {
-  backgroundGradientFrom: '#ffffff',
-  backgroundGradientTo: '#ffffff',
-  color: (opacity = 1) => `rgba(139, 92, 246, ${opacity})`, // DSP Purple (RGB: 139, 92, 246)
-  strokeWidth: 2,
-  barPercentage: 0.7,
-  decimalPlaces: 0,
-  propsForLabels: {
-    fontSize: 11,
-    fill: '#4B5563', // Dark gray for readability
-  },
-};
 
 // Map categories to icon names
 const getCategoryIcon = (category: string): keyof typeof Ionicons.glyphMap => {
@@ -32,19 +20,6 @@ const getCategoryIcon = (category: string): keyof typeof Ionicons.glyphMap => {
   return 'flash'; // Default icon
 };
 
-const pieChartColors = [
-  '#8B5CF6', // DSP Purple (Primary)
-  '#D4AF37', // DSP Gold
-  '#6D28D9', // Dark Purple
-  '#FCD34D', // Light Gold
-  '#A78BFA', // Light Purple
-  '#F59E0B', // Amber
-  '#7C3AED', // Medium Purple
-  '#EAB308', // Yellow Gold
-  '#5B21B6', // Deep Purple
-  '#92400E', // Bronze
-];
-
 // Pie Chart Component
 export const DiversityPieChart = memo(({ 
   data, 
@@ -56,7 +31,7 @@ export const DiversityPieChart = memo(({
   const chartData = data.slice(0, 6).map((item, index) => ({
     name: item.label.length > 15 ? item.label.substring(0, 12) + '...' : item.label,
     population: item.count,
-    color: pieChartColors[index % pieChartColors.length],
+    color: CHART_COLOR_ARRAYS.pie[index % CHART_COLOR_ARRAYS.pie.length],
     legendFontColor: '#333',
     legendFontSize: 12,
   }));
@@ -77,7 +52,7 @@ export const DiversityPieChart = memo(({
         data={chartData}
         width={chartWidth}
         height={220}
-        chartConfig={chartConfig}
+        chartConfig={IOS_CHART_CONFIG}
         accessor="population"
         backgroundColor="transparent"
         paddingLeft="15"
@@ -128,7 +103,7 @@ export const DistributionBarChart = memo(({
         yAxisLabel=""
         yAxisSuffix=""
         chartConfig={{
-          ...chartConfig,
+          ...IOS_CHART_CONFIG,
           barPercentage: 0.6,
         }}
         style={styles.chart}
@@ -186,7 +161,7 @@ export const CategoryPointsChart = memo(({
         width={chartWidth}
         height={280}
         chartConfig={{
-          ...chartConfig,
+          ...IOS_CHART_CONFIG,
           barPercentage: 0.7,
           decimalPlaces: 1,
         }}

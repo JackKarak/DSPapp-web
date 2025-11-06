@@ -14,13 +14,21 @@ export function useMemberPerformance(
   limit: number = 10
 ): MemberPerformance[] {
   return useMemo(() => {
-    const eventLookup = createEventLookup(events);
+    // Handle null/undefined/empty arrays
+    if (!members || !Array.isArray(members) || members.length === 0) {
+      return [];
+    }
+
+    const safeAttendance = attendance || [];
+    const safeEvents = events || [];
+    
+    const eventLookup = createEventLookup(safeEvents);
     const memberLookup = createMemberLookup(members);
     
     // Aggregate data in single pass, avoiding duplicates
     const memberStats = new Map<string, { points: number; eventsAttended: Set<string> }>();
 
-    attendance.forEach((att) => {
+    safeAttendance.forEach((att) => {
       if (att.attended) {
         const event = eventLookup.get(att.event_id);
         if (event) {
@@ -47,7 +55,7 @@ export function useMemberPerformance(
           pledgeClass: member.pledge_class,
           points: stats.points,
           eventsAttended: stats.eventsAttended.size,
-          attendanceRate: events.length > 0 ? (stats.eventsAttended.size / events.length) * 100 : 0,
+          attendanceRate: safeEvents.length > 0 ? (stats.eventsAttended.size / safeEvents.length) * 100 : 0,
         });
       }
     });

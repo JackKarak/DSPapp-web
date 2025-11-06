@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { DSP_CHART_COLORS, getTrendColor, getAttendanceRateColor } from '../../constants/analytics';
 
 // ============================================================================
 // KPI CARD
@@ -23,9 +24,9 @@ export const KPICard: React.FC<KPICardProps> = React.memo(({
   value, 
   subtitle, 
   trend, 
-  color = '#4285F4' 
+  color = DSP_CHART_COLORS.purple 
 }) => {
-  const trendColor = trend ? (trend >= 0 ? '#34A853' : '#EA4335') : '#80868b';
+  const trendColor = trend ? getTrendColor(trend) : DSP_CHART_COLORS.neutral;
   const trendSymbol = trend ? (trend >= 0 ? '↑' : '↓') : '';
   
   return (
@@ -122,7 +123,7 @@ export const OfficerEventCard: React.FC<EventCardProps> = React.memo(({
   attendanceCount,
   attendanceRate
 }) => {
-  const rateColor = attendanceRate >= 70 ? '#34a853' : attendanceRate >= 50 ? '#fbbc04' : '#ea4335';
+  const rateColor = getAttendanceRateColor(attendanceRate);
 
   return (
     <View style={styles.eventCard}>
@@ -172,7 +173,7 @@ export const FeedbackItem: React.FC<FeedbackItemProps> = React.memo(({
     <View style={styles.feedbackHeader}>
       <View style={styles.ratingContainer}>
         {[...Array(5)].map((_, i) => (
-          <Text key={i} style={[styles.star, { color: i < rating ? '#FBBC04' : '#e0e0e0' }]}>★</Text>
+          <Text key={i} style={[styles.star, { color: i < rating ? DSP_CHART_COLORS.gold : '#e0e0e0' }]}>★</Text>
         ))}
       </View>
       <Text style={styles.feedbackDate}>{date}</Text>

@@ -13,6 +13,21 @@ export function useHealthMetrics(
   events: Event[]
 ): HealthMetrics {
   return useMemo(() => {
+    // Handle null/undefined/empty arrays
+    if (!members || !Array.isArray(members) || members.length === 0) {
+      return {
+        totalMembers: 0,
+        activeMembers: 0,
+        retentionRate: 0,
+        avgAttendanceRate: 0,
+        avgPoints: 0,
+        isEmpty: true,
+      };
+    }
+
+    const safeAttendance = attendance || [];
+    const safeEvents = events || [];
+    
     const totalMembers = members.length;
     const activeMembers = members.filter((m) => m.role !== 'inactive').length;
     const retentionRate = totalMembers > 0 ? (activeMembers / totalMembers) * 100 : 0;
@@ -23,7 +38,7 @@ export function useHealthMetrics(
     
     // Get unique user-event combinations to avoid double counting
     const uniqueAttendances = new Map<string, boolean>();
-    attendance.forEach((att) => {
+    safeAttendance.forEach((att) => {
       // Only count attendance for current brothers
       if (brotherIds.has(att.user_id)) {
         const key = `${att.user_id}-${att.event_id}`;
@@ -37,16 +52,16 @@ export function useHealthMetrics(
     const actualAttendances = Array.from(uniqueAttendances.values()).filter(attended => attended).length;
     
     // Calculate attendance rate: actual attendances / total possible (brothers × events)
-    const totalPossibleAttendances = brothers.length * events.length;
+    const totalPossibleAttendances = brothers.length * safeEvents.length;
     const avgAttendanceRate = totalPossibleAttendances > 0 
       ? (actualAttendances / totalPossibleAttendances) * 100 
       : 0;
 
     // Calculate points using lookup map for O(1) access
-    const eventLookup = createEventLookup(events);
+    const eventLookup = createEventLookup(safeEvents);
     const memberPoints = new Map<string, number>();
 
-    attendance.forEach((att) => {
+    safeAttendance.forEach((att) => {
       if (att.attended && brotherIds.has(att.user_id)) {
         const event = eventLookup.get(att.event_id);
         if (event) {

@@ -316,7 +316,7 @@ export default function OfficerDashboard() {
             <TouchableOpacity 
               key={resource.key}
               style={styles.resourceItem}
-              onPress={() => router.push(resource.route as any)}
+              onPress={() => router.push(resource.route as any)} // Type cast needed for dynamic officer routes
             >
               <Text style={styles.resourceIcon}>{resource.icon}</Text>
               <View style={styles.resourceContent}>

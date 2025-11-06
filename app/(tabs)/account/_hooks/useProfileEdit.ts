@@ -18,10 +18,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
-import { supabase } from '../../lib/supabase';
-import { checkAuthentication, handleAuthenticationRedirect } from '../../lib/auth';
-import { formatDateInEST } from '../../lib/dateUtils';
-import { UserProfile, ProfileFormData } from '../../types/hooks';
+import { supabase } from '../../../../lib/supabase';
+import { checkAuthentication, handleAuthenticationRedirect } from '../../../../lib/auth';
+import { formatDateInEST } from '../../../../lib/dateUtils';
+import { UserProfile, ProfileFormData } from '../../../../types/hooks';
 
 // Profile edit cooldown in days
 const PROFILE_EDIT_COOLDOWN_DAYS = 7;

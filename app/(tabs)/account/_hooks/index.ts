@@ -7,4 +7,5 @@
 
 export { useAccountData } from './useAccountData';
 export { useProfileEdit } from './useProfileEdit';
+export { useAccount } from './useAccount'; // Master hook with everything
 
