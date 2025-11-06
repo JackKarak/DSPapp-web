@@ -6,9 +6,9 @@
 
 import React, { useCallback } from 'react';
 import { ActivityIndicator, FlatList } from 'react-native';
-import { EventRow, AnalyticsSection } from '../../../../components/AnalyticsComponents/index';
-import type { EventAnalytics } from '../../../../types/analytics';
-import { styles } from '../_styles/analyticsStyles';
+import { EventRow, AnalyticsSection } from '../AnalyticsComponents/index';
+import type { EventAnalytics } from '../../types/analytics';
+import { styles } from '../../styles/presidentAnalytics/analyticsStyles';
 
 interface RecentEventsProps {
   eventAnalytics: EventAnalytics[];

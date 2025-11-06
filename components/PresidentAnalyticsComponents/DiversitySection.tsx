@@ -13,9 +13,9 @@ import {
   DistributionBarChart,
   InsightCard,
   DiversityCard 
-} from '../../../../components/AnalyticsComponents/index';
-import type { DiversityMetrics } from '../../../../types/analytics';
-import { styles } from '../_styles/analyticsStyles';
+} from '../AnalyticsComponents/index';
+import type { DiversityMetrics } from '../../types/analytics';
+import { styles } from '../../styles/presidentAnalytics/analyticsStyles';
 
 interface DiversitySectionProps {
   diversityMetrics: DiversityMetrics;
