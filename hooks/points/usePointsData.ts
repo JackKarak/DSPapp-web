@@ -7,8 +7,8 @@
 
 import { useCallback, useReducer, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { supabase } from '../../../../lib/supabase';
-import { POINT_REQUIREMENTS } from '../_constants/pointRequirements';
+import { supabase } from '../../lib/supabase';
+import { POINT_REQUIREMENTS } from '../../constants/points/pointRequirements';
 
 // State type
 export type PointsState = {
@@ -90,10 +90,9 @@ export function usePointsData() {
       }
 
       // SINGLE RPC CALL - Get everything at once!
+      // SECURITY: RPC uses auth.uid() internally - no user_id parameter needed
       const { data: dashboardData, error: dashboardError } = await supabase
-        .rpc('get_points_dashboard', {
-          p_user_id: user.id
-        });
+        .rpc('get_points_dashboard');
 
       if (dashboardError) {
         console.error('Dashboard fetch error:', dashboardError);

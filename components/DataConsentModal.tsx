@@ -23,6 +23,9 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '../constants/colors';
+
+const dspPurple = Colors.primary; // Use DSP Purple for consistency
 
 interface DataConsentModalProps {
   visible: boolean;
@@ -82,7 +85,7 @@ export function DataConsentModal({
       <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <Ionicons name="shield-checkmark" size={32} color="#4285F4" />
+            <Ionicons name="shield-checkmark" size={32} color="dspPurple" />
             <Text style={styles.title}>Your Privacy Matters</Text>
           </View>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}
@@ -136,7 +139,7 @@ export function DataConsentModal({
               <Switch
                 value={consent.demographics}
                 onValueChange={() => toggleConsent('demographics')}
-                trackColor={{ false: '#d1d5db', true: '#4285F4' }}
+                trackColor={{ false: '#d1d5db', true: 'dspPurple' }}
                 thumbColor="#ffffff"
                 accessible={true}
                 accessibilityRole="switch"
@@ -159,7 +162,7 @@ export function DataConsentModal({
               <Switch
                 value={consent.academic}
                 onValueChange={() => toggleConsent('academic')}
-                trackColor={{ false: '#d1d5db', true: '#4285F4' }}
+                trackColor={{ false: '#d1d5db', true: 'dspPurple' }}
                 thumbColor="#ffffff"
                 accessible={true}
                 accessibilityRole="switch"
@@ -182,7 +185,7 @@ export function DataConsentModal({
               <Switch
                 value={consent.housing}
                 onValueChange={() => toggleConsent('housing')}
-                trackColor={{ false: '#d1d5db', true: '#4285F4' }}
+                trackColor={{ false: '#d1d5db', true: 'dspPurple' }}
                 thumbColor="#ffffff"
                 accessible={true}
                 accessibilityRole="switch"
@@ -205,7 +208,7 @@ export function DataConsentModal({
               <Switch
                 value={consent.analytics}
                 onValueChange={() => toggleConsent('analytics')}
-                trackColor={{ false: '#d1d5db', true: '#4285F4' }}
+                trackColor={{ false: '#d1d5db', true: 'dspPurple' }}
                 thumbColor="#ffffff"
                 accessible={true}
                 accessibilityRole="switch"
@@ -217,7 +220,7 @@ export function DataConsentModal({
           </View>
 
           <View style={styles.infoBox}>
-            <Ionicons name="information-circle" size={20} color="#4285F4" />
+            <Ionicons name="information-circle" size={20} color="dspPurple" />
             <Text style={styles.infoText}>
               Tip: You can select "Continue" even if you don't enable anything. 
               All required information is collected separately.
@@ -388,7 +391,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   link: {
-    color: '#4285F4',
+    color: 'dspPurple',
     textDecorationLine: 'underline',
   },
   footer: {
@@ -418,7 +421,7 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   continueButton: {
-    backgroundColor: '#4285F4',
+    backgroundColor: '#330066',
   },
   continueButtonText: {
     fontSize: 16,

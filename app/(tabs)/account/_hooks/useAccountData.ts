@@ -14,12 +14,12 @@
  * - Eliminates race conditions
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Alert } from 'react-native';
-import { supabase } from '../../lib/supabase';
-import { checkAuthentication, handleAuthenticationRedirect } from '../../lib/auth';
-import { UserProfile, Analytics } from '../../types/hooks';
-import { Event, PointAppeal } from '../../types/account';
+import { supabase } from '../../../../lib/supabase';
+import { checkAuthentication, handleAuthenticationRedirect } from '../../../../lib/auth';
+import { UserProfile, Analytics } from '../../../../types/hooks';
+import { Event, PointAppeal } from '../../../../types/account';
 
 interface UseAccountDataReturn {
   loading: boolean;
@@ -29,7 +29,7 @@ interface UseAccountDataReturn {
   analytics: Analytics | null;
   appeals: PointAppeal[];
   appealableEvents: Event[];
-  submittedFeedbackEvents: Set<string>;
+  submittedFeedback: Set<string>;
   refreshData: () => Promise<void>;
 }
 
@@ -81,10 +81,9 @@ export const useAccountData = (): UseAccountDataReturn => {
 
       // Step 2: SINGLE RPC CALL - Get everything at once!
       // This dramatically improves performance over 15+ individual queries
+      // SECURITY: RPC uses auth.uid() internally - no user_id parameter needed
       const { data: dashboardData, error: dashboardError } = await supabase
-        .rpc('get_account_dashboard', {
-          p_user_id: user.id
-        });
+        .rpc('get_account_dashboard');
 
       if (dashboardError) {
         console.error('Dashboard fetch error:', dashboardError);
@@ -197,6 +196,11 @@ export const useAccountData = (): UseAccountDataReturn => {
     await fetchData();
   }, [fetchData]);
 
+  // Fetch data on mount
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
   return {
     loading,
     error,
@@ -205,7 +209,7 @@ export const useAccountData = (): UseAccountDataReturn => {
     analytics,
     appeals,
     appealableEvents,
-    submittedFeedbackEvents,
+    submittedFeedback: submittedFeedbackEvents, // Alias for component compatibility
     refreshData,
   };
 };
