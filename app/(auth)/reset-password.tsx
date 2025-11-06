@@ -10,7 +10,8 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  Linking
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { logger } from '../../lib/logger';
@@ -27,16 +28,83 @@ export default function ResetPasswordScreen() {
 
   useEffect(() => {
     checkSession();
-  }, [params]);
+    
+    // Add deep link listener
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+    
+    // Check if app was opened with a URL
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink({ url });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  const handleDeepLink = async ({ url }: { url: string }) => {
+    try {
+      logger.info('Received deep link:', url);
+      
+      // Handle both query params and hash fragments
+      let accessToken, refreshToken, type;
+      
+      if (url.includes('#')) {
+        // Hash fragment format (Supabase default)
+        const hashPart = url.split('#')[1];
+        const hashParams = new URLSearchParams(hashPart);
+        accessToken = hashParams.get('access_token');
+        refreshToken = hashParams.get('refresh_token');
+        type = hashParams.get('type');
+      } else if (url.includes('?')) {
+        // Query param format
+        const urlObj = new URL(url);
+        accessToken = urlObj.searchParams.get('access_token');
+        refreshToken = urlObj.searchParams.get('refresh_token');
+        type = urlObj.searchParams.get('type');
+      }
+
+      if (type === 'recovery' && accessToken && refreshToken) {
+        logger.info('Valid recovery tokens found in URL');
+        
+        // Set the session from the email link tokens
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (error) {
+          logger.error('Failed to set session from deep link', error);
+          throw error;
+        }
+
+        setSessionValid(true);
+        logger.info('Session set successfully from deep link');
+      } else {
+        logger.warn('Invalid or missing tokens in deep link');
+      }
+    } catch (error: any) {
+      logger.error('Failed to handle deep link', error);
+      Alert.alert(
+        'Error',
+        'Unable to process password reset link. Please request a new one.',
+        [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
+      );
+    }
+  };
 
   const checkSession = async () => {
     try {
-      // Check if we have tokens from the email link
+      // First check URL params from router (for backward compatibility)
       const accessToken = params.access_token as string;
       const refreshToken = params.refresh_token as string;
       const type = params.type as string;
 
       if (type === 'recovery' && accessToken && refreshToken) {
+        logger.info('Valid recovery tokens found in params');
+        
         // Set the session from the email link tokens
         const { error } = await supabase.auth.setSession({
           access_token: accessToken,
@@ -48,19 +116,31 @@ export default function ResetPasswordScreen() {
         }
 
         setSessionValid(true);
+        return;
+      }
+
+      // Check if user already has a valid session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        logger.info('Valid session found');
+        setSessionValid(true);
       } else {
-        // Check if user already has a valid session
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session) {
-          setSessionValid(true);
-        } else {
-          Alert.alert(
-            'Invalid Reset Link',
-            'This password reset link is invalid or has expired. Please request a new one.',
-            [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
-          );
-        }
+        // Don't show error immediately - wait for deep link to arrive
+        logger.info('No session found, waiting for deep link...');
+        setTimeout(() => {
+          // Check again after waiting for deep link
+          supabase.auth.getSession().then(({ data: { session: laterSession } }) => {
+            if (!laterSession && !sessionValid) {
+              logger.warn('No valid session after timeout');
+              Alert.alert(
+                'Invalid Reset Link',
+                'This password reset link is invalid or has expired. Please request a new one.',
+                [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
+              );
+            }
+          });
+        }, 3000); // Wait 3 seconds for deep link to arrive
       }
     } catch (error: any) {
       logger.error('Failed to verify reset session', error);

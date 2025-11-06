@@ -114,7 +114,9 @@ export default function LoginScreen() {
     setResetLoading(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'dspapp://reset-password',
+      });
 
       if (error) {
         throw new Error(error.message);
@@ -122,7 +124,7 @@ export default function LoginScreen() {
 
       Alert.alert(
         'Reset Email Sent',
-        'Check your email for a password reset link. Follow the link to reset your password, then return to the app to log in.',
+        'Check your email for a password reset link. The link will open the app automatically so you can reset your password.',
         [{ text: 'OK' }]
       );
     } catch (error: any) {
