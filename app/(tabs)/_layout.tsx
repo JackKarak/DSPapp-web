@@ -88,59 +88,25 @@ export default function BrotherLayout() {
   return (
     <ErrorBoundary>
       <Tabs screenOptions={screenOptions}>
-        <Tabs.Screen name="index" options={calendarOptions} />
-        <Tabs.Screen name="attendance" options={attendanceOptions} />
+        <Tabs.Screen 
+          name="index" 
+          options={calendarOptions} 
+        />
+        <Tabs.Screen 
+          name="attendance" 
+          options={attendanceOptions} 
+        />
         <Tabs.Screen 
           name="points" 
           options={pointsOptions}
-          redirect={false}
         />
-        <Tabs.Screen name="newsletter" options={newsOptions} />
+        <Tabs.Screen 
+          name="newsletter" 
+          options={newsOptions} 
+        />
         <Tabs.Screen 
           name="account" 
           options={accountOptions}
-          redirect={false}
-        />
-        {/* Hide internal routes from tab bar */}
-        <Tabs.Screen 
-          name="points/index" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/index" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="points/_components"
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="points/_constants"
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="points/_hooks"
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="points/_styles"
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/_components"
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/_hooks"
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/_styles"
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/README"
-          options={{ href: null }}
         />
       </Tabs>
     </ErrorBoundary>

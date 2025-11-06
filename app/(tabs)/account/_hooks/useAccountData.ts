@@ -1,540 +1,211 @@
 /**
  * useAccountData Hook
  * 
- * Manages ALL data fetching, state, and logic for the account screen
- * This hook contains all business logic, keeping the component file minimal
+ * Purpose: Single source of truth for all account data fetching
+ * 
+ * This hook centralizes all data fetching logic that was previously scattered
+ * throughout the account.tsx component. It uses the RPC function `get_account_dashboard`
+ * to fetch all data in a single database call, dramatically improving performance.
+ * 
+ * Impact:
+ * - Removes 15+ database calls from component
+ * - Makes data testable with mocks
+ * - Centralizes loading/error states
+ * - Eliminates race conditions
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
-import { supabase } from '../../../../lib/supabase';
-import { uploadFileToStorage } from '../../../../lib/fileUpload';
-import { 
-  shouldShowConsentModal, 
-  saveConsentPreferences,
-  getConsentPreferences,
-  filterDataByConsent,
-  ConsentPreferences 
-} from '../../../../lib/dataConsent';
+import { supabase } from '../../lib/supabase';
+import { checkAuthentication, handleAuthenticationRedirect } from '../../lib/auth';
+import { UserProfile, Analytics } from '../../types/hooks';
+import { Event, PointAppeal } from '../../types/account';
 
-export function useAccountData() {
-  // ==================== STATE ====================
-  // Loading states
+interface UseAccountDataReturn {
+  loading: boolean;
+  error: string | null;
+  profile: UserProfile | null;
+  events: Event[];
+  analytics: Analytics | null;
+  appeals: PointAppeal[];
+  appealableEvents: Event[];
+  submittedFeedbackEvents: Set<string>;
+  refreshData: () => Promise<void>;
+}
+
+/**
+ * Custom hook for managing account data fetching and state
+ * 
+ * @returns {UseAccountDataReturn} Account data and management functions
+ * 
+ * @example
+ * ```tsx
+ * const { loading, error, profile, events, refreshData } = useAccountData();
+ * 
+ * if (loading) return <LoadingState />;
+ * if (error) return <ErrorState message={error} />;
+ * 
+ * return <ProfileSection profile={profile} />;
+ * ```
+ */
+export const useAccountData = (): UseAccountDataReturn => {
+  // State management
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Data state
-  const [profile, setProfile] = useState<any>(null);
-  const [analytics, setAnalytics] = useState<any>(null);
-  const [events, setEvents] = useState<any[]>([]);
-  const [appeals, setAppeals] = useState<any[]>([]);
-  const [appealableEvents, setAppealableEvents] = useState<any[]>([]);
-  const [submittedFeedback, setSubmittedFeedback] = useState<Set<string>>(new Set());
-  const [testBankSubmissions, setTestBankSubmissions] = useState<any[]>([]);
-  const [userConsent, setUserConsent] = useState<ConsentPreferences | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [appeals, setAppeals] = useState<PointAppeal[]>([]);
+  const [appealableEvents, setAppealableEvents] = useState<Event[]>([]);
+  const [submittedFeedbackEvents, setSubmittedFeedbackEvents] = useState<Set<string>>(new Set());
 
-  // UI state
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState<any>({});
-  const [eventsExpanded, setEventsExpanded] = useState(false);
-  const [achievementsExpanded, setAchievementsExpanded] = useState(false);
-  const [testBankExpanded, setTestBankExpanded] = useState(false);
-  
-  // Modal states
-  const [consentModalVisible, setConsentModalVisible] = useState(false);
-  const [testBankModalVisible, setTestBankModalVisible] = useState(false);
-  const [appealModalVisible, setAppealModalVisible] = useState(false);
-  const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
-  
-  // Modal data states
-  const [selectedAppealEvent, setSelectedAppealEvent] = useState<any>(null);
-  const [selectedFeedbackEvent, setSelectedFeedbackEvent] = useState<any>(null);
-  const [appealReason, setAppealReason] = useState('');
-  const [appealPictureUrl, setAppealPictureUrl] = useState('');
-  const [submittingAppeal, setSubmittingAppeal] = useState(false);
-  const [testBankClassCode, setTestBankClassCode] = useState('');
-  const [testBankFileType, setTestBankFileType] = useState<'test' | 'notes' | 'materials'>('test');
-  const [testBankSelectedFile, setTestBankSelectedFile] = useState<any>(null);
-  const [uploadingTestBank, setUploadingTestBank] = useState(false);
-  const [feedbackData, setFeedbackData] = useState({
-    rating: 0,
-    would_attend_again: null as boolean | null,
-    well_organized: null as boolean | null,
-    comments: '',
-  });
-  const [submittingFeedback, setSubmittingFeedback] = useState(false);
-
-  // ==================== DATA FETCHING ====================
-  const fetchAccountData = useCallback(async () => {
+  /**
+   * Fetch all account data in a single RPC call
+   * Uses the optimized `get_account_dashboard` database function
+   */
+  const fetchData = useCallback(async () => {
     try {
+      setLoading(true);
       setError(null);
       
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setError('Not authenticated');
+      // Step 1: Check authentication
+      const authResult = await checkAuthentication();
+      
+      if (!authResult.isAuthenticated) {
+        console.error('Authentication failed:', authResult.error);
+        handleAuthenticationRedirect();
         return;
       }
+      
+      const user = authResult.user;
 
+      // Step 2: SINGLE RPC CALL - Get everything at once!
+      // This dramatically improves performance over 15+ individual queries
       const { data: dashboardData, error: dashboardError } = await supabase
-        .rpc('get_account_dashboard', { p_user_id: user.id });
+        .rpc('get_account_dashboard', {
+          p_user_id: user.id
+        });
 
       if (dashboardError) {
-        setError(dashboardError.message);
-        return;
+        console.error('Dashboard fetch error:', dashboardError);
+        throw new Error(`Failed to load account data: ${dashboardError.message}`);
       }
 
       if (!dashboardData) {
-        setError('No data returned');
+        throw new Error('No account data received. Please contact support.');
+      }
+
+      // Parse the returned JSON
+      const profileData = dashboardData.profile;
+      const eventsData = dashboardData.events || [];
+      const analyticsData = dashboardData.analytics || {};
+      const userAppeals = dashboardData.user_appeals || [];
+      const appealableEventsData = dashboardData.appealable_events || [];
+
+      // Check if account is approved
+      if (!profileData.approved) {
+        Alert.alert('Pending Approval', 'Your account is awaiting approval.');
+        setLoading(false);
         return;
       }
 
-      setProfile(dashboardData.profile || null);
-      setAnalytics(dashboardData.analytics || null);
-      setEvents(dashboardData.events || []);
-      setAppeals(dashboardData.user_appeals || []);
-      setAppealableEvents(dashboardData.appealable_events || []);
+      // Step 3: Update profile state
+      setProfile({
+        first_name: profileData.first_name || null,
+        last_name: profileData.last_name || null,
+        phone_number: profileData.phone_number || null,
+        email: profileData.email || null,
+        uid: profileData.uid || null,
+        role: profileData.role || null,
+        majors: profileData.majors || null,
+        minors: profileData.minors || null,
+        house_membership: profileData.house_membership || null,
+        race: profileData.race || null,
+        pronouns: profileData.pronouns || null,
+        living_type: profileData.living_type || null,
+        gender: profileData.gender || null,
+        sexual_orientation: profileData.sexual_orientation || null,
+        expected_graduation: profileData.expected_graduation || null,
+        pledge_class: profileData.pledge_class || null,
+        last_profile_update: profileData.last_profile_update || null,
+        approved: profileData.approved,
+      });
 
-      // Fetch submitted feedback
-      const eventIds = (dashboardData.events || []).map((e: any) => e.id).filter(Boolean);
+      // Step 4: Update events (already sorted and deduplicated by database)
+      setEvents(eventsData);
+
+      // Step 5: Update analytics (already calculated by database)
+      setAnalytics({
+        totalPoints: analyticsData.totalPoints || 0,
+        currentStreak: analyticsData.currentStreak || 0,
+        longestStreak: analyticsData.longestStreak || 0,
+        eventsThisMonth: analyticsData.eventsThisMonth || 0,
+        eventsThisSemester: analyticsData.eventsThisSemester || 0,
+        attendanceRate: analyticsData.attendanceRate || 0,
+        rankInPledgeClass: analyticsData.rankInPledgeClass || 0,
+        totalInPledgeClass: analyticsData.totalInPledgeClass || 0,
+        rankInFraternity: analyticsData.rankInFraternity || 0,
+        totalInFraternity: analyticsData.totalInFraternity || 0,
+        achievements: analyticsData.achievements || [],
+        monthlyProgress: analyticsData.monthlyProgress || [],
+      });
+
+      // Step 6: Update appeals data
+      setAppeals(userAppeals);
+      setAppealableEvents(appealableEventsData);
+
+      // Step 7: Fetch event feedback submissions (small query, kept separate)
+      // Filter out null/undefined event IDs
+      const eventIds = Array.isArray(eventsData) 
+        ? eventsData
+            .map((event: any) => event?.id)
+            .filter((id: any) => id != null && id !== '') 
+        : [];
+      
       if (eventIds.length > 0) {
-        const { data: feedbackData } = await supabase
+        const { data: existingFeedback, error: feedbackError } = await supabase
           .from('event_feedback')
           .select('event_id')
           .eq('user_id', user.id)
           .in('event_id', eventIds);
         
-        if (feedbackData) {
-          setSubmittedFeedback(new Set(feedbackData.map(f => f.event_id)));
+        if (!feedbackError && existingFeedback) {
+          const submittedEventIds = new Set(
+            existingFeedback.map(feedback => feedback.event_id)
+          );
+          setSubmittedFeedbackEvents(submittedEventIds);
         }
       }
 
-      // Fetch test bank submissions
-      const { data: testBankData } = await supabase
-        .from('test_bank')
-        .select('id, class_code, file_type, original_file_name, uploaded_at, status')
-        .eq('submitted_by', user.id)
-        .order('uploaded_at', { ascending: false });
-      
-      if (testBankData) {
-        setTestBankSubmissions(testBankData);
-      }
-
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : 'An unexpected error occurred';
+      console.error('useAccountData fetchData error:', err);
+      setError(errorMessage);
+      Alert.alert('Error Loading Account', errorMessage);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  }, []);
+  }, []); // No dependencies - RPC function is self-contained
 
-  // ==================== PROFILE EDITING ====================
-  const startEditing = useCallback(async () => {
-    const needsConsent = await shouldShowConsentModal();
-    
-    if (needsConsent) {
-      setConsentModalVisible(true);
-      return;
-    }
+  /**
+   * Refresh all account data
+   * Can be called from pull-to-refresh or after data mutations
+   */
+  const refreshData = useCallback(async () => {
+    await fetchData();
+  }, [fetchData]);
 
-    const majorsArray: string[] = profile?.majors ? profile.majors.split(',').map((m: string) => m.trim()) : [];
-    
-    setFormData({
-      firstName: profile?.first_name || '',
-      lastName: profile?.last_name || '',
-      email: profile?.email || '',
-      phoneNumber: profile?.phone_number || '',
-      uid: profile?.uid || '',
-      selectedMajors: majorsArray,
-      minors: profile?.minors || '',
-      expectedGraduation: profile?.expected_graduation || '',
-      houseMembership: profile?.house_membership || '',
-      pronouns: profile?.pronouns || '',
-      gender: profile?.gender || '',
-      sexualOrientation: profile?.sexual_orientation || '',
-      race: profile?.race || '',
-      livingType: profile?.living_type || '',
-      pledgeClass: profile?.pledge_class || '',
-    });
-    setIsEditing(true);
-  }, [profile]);
-
-  const cancelEdit = useCallback(() => {
-    setIsEditing(false);
-    setFormData({});
-  }, []);
-
-  const saveProfile = useCallback(async () => {
-    setSaving(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      if (!formData.firstName?.trim() || !formData.lastName?.trim()) {
-        Alert.alert('Error', 'First name and last name are required');
-        setSaving(false);
-        return;
-      }
-
-      const dbData = {
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        email: formData.email,
-        phone_number: formData.phoneNumber,
-        uid: formData.uid,
-        majors: formData.selectedMajors?.join(', ') || '',
-        minors: formData.minors,
-        expected_graduation: formData.expectedGraduation,
-        house_membership: formData.houseMembership,
-        pronouns: formData.pronouns,
-        gender: formData.gender,
-        sexual_orientation: formData.sexualOrientation,
-        race: formData.race,
-        living_type: formData.livingType,
-        pledge_class: formData.pledgeClass,
-      };
-
-      const filteredData = await filterDataByConsent(dbData);
-
-      const { error } = await supabase
-        .from('users')
-        .update({
-          ...filteredData,
-          last_profile_update: new Date().toISOString(),
-        })
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      Alert.alert('Success', 'Profile updated successfully');
-      setIsEditing(false);
-      fetchAccountData();
-    } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to save');
-    } finally {
-      setSaving(false);
-    }
-  }, [formData, fetchAccountData]);
-
-  const updateField = useCallback((field: string, value: any) => {
-    setFormData((prev: any) => ({ ...prev, [field]: value }));
-  }, []);
-
-  // ==================== CONSENT MANAGEMENT ====================
-  const handleConsentAccept = useCallback(async (consentOptions: { demographics: boolean; academic: boolean; housing: boolean; analytics: boolean }) => {
-    try {
-      const consent: ConsentPreferences = {
-        ...consentOptions,
-        timestamp: Date.now(),
-        version: '1.0.0',
-      };
-      
-      await saveConsentPreferences(consent);
-      setUserConsent(consent);
-      setConsentModalVisible(false);
-      
-      const majorsArray: string[] = profile?.majors ? profile.majors.split(',').map((m: string) => m.trim()) : [];
-      
-      setFormData({
-        firstName: profile?.first_name || '',
-        lastName: profile?.last_name || '',
-        email: profile?.email || '',
-        phoneNumber: profile?.phone_number || '',
-        uid: profile?.uid || '',
-        selectedMajors: majorsArray,
-        minors: profile?.minors || '',
-        expectedGraduation: profile?.expected_graduation || '',
-        houseMembership: profile?.house_membership || '',
-        pronouns: profile?.pronouns || '',
-        gender: profile?.gender || '',
-        sexualOrientation: profile?.sexual_orientation || '',
-        race: profile?.race || '',
-        livingType: profile?.living_type || '',
-        pledgeClass: profile?.pledge_class || '',
-      });
-      setIsEditing(true);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to save consent preferences');
-    }
-  }, [profile]);
-
-  const handleConsentDecline = useCallback(async () => {
-    const declinedConsent: ConsentPreferences = {
-      demographics: false,
-      academic: false,
-      housing: false,
-      analytics: false,
-      timestamp: Date.now(),
-      version: '1.0.0',
-    };
-    
-    try {
-      await saveConsentPreferences(declinedConsent);
-      setUserConsent(declinedConsent);
-      setConsentModalVisible(false);
-      
-      setFormData({
-        firstName: profile?.first_name || '',
-        lastName: profile?.last_name || '',
-        email: profile?.email || '',
-        phoneNumber: profile?.phone_number || '',
-        uid: profile?.uid || '',
-        pledgeClass: profile?.pledge_class || '',
-      });
-      setIsEditing(true);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to save preferences');
-    }
-  }, [profile]);
-
-  // ==================== EVENT HANDLERS ====================
-  const handleFeedbackPress = useCallback((event: any) => {
-    setSelectedFeedbackEvent(event);
-    setFeedbackModalVisible(true);
-  }, []);
-
-  const handleAppealPress = useCallback((event: any) => {
-    setSelectedAppealEvent(event);
-    setAppealModalVisible(true);
-  }, []);
-
-  const handleOpenTestBankModal = useCallback(() => {
-    setTestBankModalVisible(true);
-  }, []);
-
-  const handleSubmitFeedback = useCallback(async () => {
-    if (!selectedFeedbackEvent || feedbackData.rating === 0) {
-      Alert.alert('Error', 'Please provide a rating');
-      return;
-    }
-
-    setSubmittingFeedback(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { error } = await supabase
-        .from('event_feedback')
-        .insert({
-          event_id: selectedFeedbackEvent.id,
-          user_id: user.id,
-          rating: feedbackData.rating,
-          would_attend_again: feedbackData.would_attend_again,
-          well_organized: feedbackData.well_organized,
-          comments: feedbackData.comments,
-        });
-
-      if (error) throw error;
-
-      Alert.alert('Success', 'Feedback submitted successfully');
-      setFeedbackModalVisible(false);
-      setFeedbackData({ rating: 0, would_attend_again: null, well_organized: null, comments: '' });
-      fetchAccountData();
-    } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to submit');
-    } finally {
-      setSubmittingFeedback(false);
-    }
-  }, [selectedFeedbackEvent, feedbackData, fetchAccountData]);
-
-  const handleUpdateFeedback = useCallback(<K extends keyof typeof feedbackData>(
-    field: K,
-    value: typeof feedbackData[K]
-  ) => {
-    setFeedbackData((prev) => ({ ...prev, [field]: value }));
-  }, [feedbackData]);
-
-  const handleSubmitAppeal = useCallback(async () => {
-    if (!selectedAppealEvent || !appealReason.trim()) {
-      Alert.alert('Error', 'Please provide a reason for your appeal');
-      return;
-    }
-
-    setSubmittingAppeal(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { error } = await supabase
-        .from('point_appeal')
-        .insert({
-          event_id: selectedAppealEvent.id,
-          user_id: user.id,
-          appeal_reason: appealReason,
-          picture_url: appealPictureUrl,
-          status: 'pending',
-        });
-
-      if (error) throw error;
-
-      Alert.alert('Success', 'Appeal submitted successfully');
-      setAppealModalVisible(false);
-      setAppealReason('');
-      setAppealPictureUrl('');
-      fetchAccountData();
-    } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to submit');
-    } finally {
-      setSubmittingAppeal(false);
-    }
-  }, [selectedAppealEvent, appealReason, appealPictureUrl, fetchAccountData]);
-
-  const handleTestBankSubmit = useCallback(async () => {
-    if (!testBankClassCode.trim() || !testBankSelectedFile) {
-      Alert.alert('Error', 'Please provide class code and select a file');
-      return;
-    }
-
-    setUploadingTestBank(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const fileUrl = await uploadFileToStorage(
-        testBankSelectedFile.uri,
-        testBankSelectedFile.name,
-        testBankSelectedFile.type || 'application/pdf',
-        'test-bank',
-        user.id
-      );
-
-      const { error } = await supabase
-        .from('test_bank')
-        .insert({
-          class_code: testBankClassCode,
-          file_type: testBankFileType,
-          file_url: fileUrl,
-          original_file_name: testBankSelectedFile.name,
-          submitted_by: user.id,
-          status: 'pending',
-        });
-
-      if (error) throw error;
-
-      Alert.alert('Success', 'Test bank submission successful');
-      setTestBankModalVisible(false);
-      setTestBankClassCode('');
-      setTestBankSelectedFile(null);
-      fetchAccountData();
-    } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to upload');
-    } finally {
-      setUploadingTestBank(false);
-    }
-  }, [testBankClassCode, testBankFileType, testBankSelectedFile, fetchAccountData]);
-
-  // ==================== UTILITY FUNCTIONS ====================
-  const canEdit = useCallback(() => {
-    if (!profile?.last_profile_update) return true;
-    const daysSince = Math.floor(
-      (Date.now() - new Date(profile.last_profile_update).getTime()) / (1000 * 60 * 60 * 24)
-    );
-    return daysSince >= 7;
-  }, [profile]);
-
-  const nextEditDate = useCallback(() => {
-    if (!profile?.last_profile_update) return null;
-    const next = new Date(profile.last_profile_update);
-    next.setDate(next.getDate() + 7);
-    return next;
-  }, [profile]);
-
-  const daysUntilEdit = useCallback(() => {
-    if (!profile?.last_profile_update) return 0;
-    const daysSince = Math.floor(
-      (Date.now() - new Date(profile.last_profile_update).getTime()) / (1000 * 60 * 60 * 24)
-    );
-    return Math.max(0, 7 - daysSince);
-  }, [profile]);
-
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchAccountData();
-  }, [fetchAccountData]);
-
-  // ==================== EFFECTS ====================
-  useEffect(() => {
-    fetchAccountData();
-  }, [fetchAccountData]);
-
-  useEffect(() => {
-    const loadConsentPreferences = async () => {
-      const consent = await getConsentPreferences();
-      setUserConsent(consent);
-    };
-    loadConsentPreferences();
-  }, []);
-
-  // ==================== RETURN ALL STATE & FUNCTIONS ====================
   return {
-    // State
     loading,
-    refreshing,
-    saving,
     error,
     profile,
-    analytics,
     events,
+    analytics,
     appeals,
     appealableEvents,
-    testBankSubmissions,
-    submittedFeedback,
-    userConsent,
-    isEditing,
-    formData,
-    eventsExpanded,
-    achievementsExpanded,
-    testBankExpanded,
-    consentModalVisible,
-    testBankModalVisible,
-    appealModalVisible,
-    feedbackModalVisible,
-    selectedAppealEvent,
-    selectedFeedbackEvent,
-    appealReason,
-    appealPictureUrl,
-    submittingAppeal,
-    testBankClassCode,
-    testBankFileType,
-    testBankSelectedFile,
-    uploadingTestBank,
-    feedbackData,
-    submittingFeedback,
-    
-    // Actions
-    fetchAccountData,
-    startEditing,
-    cancelEdit,
-    saveProfile,
-    updateField,
-    handleConsentAccept,
-    handleConsentDecline,
-    handleFeedbackPress,
-    handleAppealPress,
-    handleOpenTestBankModal,
-    handleSubmitFeedback,
-    handleUpdateFeedback,
-    handleSubmitAppeal,
-    handleTestBankSubmit,
-    canEdit: canEdit(),
-    nextEditDate: nextEditDate(),
-    daysUntilEdit: daysUntilEdit(),
-    handleRefresh,
-    
-    // Setters for modals
-    setConsentModalVisible,
-    setTestBankModalVisible,
-    setAppealModalVisible,
-    setFeedbackModalVisible,
-    setEventsExpanded,
-    setAchievementsExpanded,
-    setTestBankExpanded,
-    setAppealReason,
-    setAppealPictureUrl,
-    setTestBankClassCode,
-    setTestBankFileType,
-    setTestBankSelectedFile,
-    setFeedbackData,
+    submittedFeedbackEvents,
+    refreshData,
   };
-}
+};
