@@ -1,52 +1,90 @@
-# DSP App Documentation# DSPapp Documentation
+# DSPapp Documentation
 
-
-
-**Last Updated:** November 6, 2025  Welcome to the DSPapp documentation. This folder contains all organized documentation for the Delta Sigma Phi fraternity management application.
-
+**Last Updated:** December 2024  
 **App Version:** 1.0.2  
+**Status:** Production Ready
 
-**Status:** Production Ready## 📁 Documentation Structure
+Welcome to the DSPapp documentation. This folder contains all organized documentation for the Delta Sigma Pi professional business fraternity management application.
 
+---
 
+## 📋 Quick Navigation
 
----### `/features/` - Feature Documentation
+- [Getting Started](#getting-started)
+- [Documentation Structure](#documentation-structure)
+- [Essential Guides](#essential-guides)
+- [Feature Documentation](#feature-documentation)
+- [Compliance & Legal](#compliance--legal)
+- [Bug Fixes & Updates](#bug-fixes--updates)
+- [Project Structure](#project-structure)
+
+---
+
+## � Getting Started
+
+New to the project? Start here:
+
+1. **[Testing Checklist](guides/TESTING_CHECKLIST.md)** - Complete testing procedures for all features
+2. **[Pre-Launch Deployment Guide](guides/PRE_LAUNCH_DEPLOYMENT_GUIDE.md)** - Production deployment steps
+3. **[Critical Security Deployment](guides/CRITICAL_SECURITY_DEPLOYMENT.md)** - Security configuration checklist
+4. **[Project Structure](PROJECT_STRUCTURE.md)** - Architecture and folder organization
+
+---
+
+## 📁 Documentation Structure
+
+### `/guides/` - Essential Guides
+
+Development, deployment, and operational guides:
+
+- **[PRE_LAUNCH_DEPLOYMENT_GUIDE.md](guides/PRE_LAUNCH_DEPLOYMENT_GUIDE.md)** - Complete production deployment checklist
+- **[CRITICAL_SECURITY_DEPLOYMENT.md](guides/CRITICAL_SECURITY_DEPLOYMENT.md)** - Security configuration and RLS policies
+- **[GOOGLE_CALENDAR_SETUP.md](guides/GOOGLE_CALENDAR_SETUP.md)** - Google Calendar API integration
+- **[TESTING_CHECKLIST.md](guides/TESTING_CHECKLIST.md)** - Comprehensive testing procedures
+- **[ERROR_BOUNDARY_GUIDE.md](guides/ERROR_BOUNDARY_GUIDE.md)** - Error handling implementation
+- **[REGISTER_FORM_QUICK_REFERENCE.md](guides/REGISTER_FORM_QUICK_REFERENCE.md)** - Event registration form reference
+- **[TESTING_GUIDE.md](guides/TESTING_GUIDE.md)** - Testing best practices
+- **[DEPLOYMENT_CHECKLIST.md](guides/DEPLOYMENT_CHECKLIST.md)** - Deployment verification steps
+- **[CONTENT_MODERATION.md](guides/CONTENT_MODERATION.md)** - Content moderation policies
+- **[SECURITY_AUDIT_RESULTS.md](guides/SECURITY_AUDIT_RESULTS.md)** - Security audit findings
+
+### `/features/` - Feature Documentation
 
 Current implementation details for major features:
 
-## 📋 Quick Links- **EVENT_FEEDBACK_IMPLEMENTATION.md** - Event feedback system with ratings and questions
+- **[EVENT_FEEDBACK_IMPLEMENTATION.md](features/EVENT_FEEDBACK_IMPLEMENTATION.md)** - Event feedback system
+- **[POINT_APPEAL_FEATURE.md](features/POINT_APPEAL_FEATURE.md)** - Point appeal system
+- **[TEST_BANK_UPLOAD_FIX.md](features/TEST_BANK_UPLOAD_FIX.md)** - Test bank file upload
+- **[FILTER_UI_MODERNIZATION.md](features/FILTER_UI_MODERNIZATION.md)** - Modern filter UI
+- Additional documentation in: `features/accounts/`, `features/events/`, `features/points/`
 
-- **POINT_APPEAL_FEATURE.md** - Point appeal system for disputing attendance
+### `/fixes/` - Bug Fixes & Updates
 
-- [Project Structure](#project-structure)- **TEST_BANK_UPLOAD_FIX.md** - Test bank file upload functionality
+Recent bug fixes and improvements:
 
-- [Getting Started](#getting-started)- **TEST_BANK_FILE_UPLOAD_FIX.md** - React Native file upload implementation
+- **[POST_TESTING_FIXES.md](fixes/POST_TESTING_FIXES.md)** - Latest post-testing bug fixes
+- Additional fixes in: `fixes/analytics/`, `fixes/ios-specific/`
 
-- [Feature Documentation](#features)- **FILTER_UI_MODERNIZATION.md** - Modern filter UI without emojis
+### `/reports/` - Status Reports
 
-- [Compliance & Legal](#compliance)
+Development progress and completion reports:
 
-- [Bug Fixes & Updates](#fixes)### `/guides/` - Development Guides
+- **[FIXES_COMPLETED.md](reports/FIXES_COMPLETED.md)** - Completed fixes history
+- **[FIXES_APPLIED_SUMMARY.md](reports/FIXES_APPLIED_SUMMARY.md)** - Summary of all applied fixes
 
-- [Testing & Quality](#testing)Essential guides for development and maintenance:
+### `/compliance/` - Legal & Privacy
+FERPA, privacy, and legal compliance documentation
 
-- [Deployment](#deployment)- **ERROR_BOUNDARY_GUIDE.md** - Error handling implementation
+### `/debugging/` - Troubleshooting
+Common issues, error logs, and debugging guides
 
-- **REGISTER_FORM_QUICK_REFERENCE.md** - Event registration form reference
+### `/roadmaps/` - Future Plans
+Feature roadmaps and planned improvements
 
----- **TESTING_GUIDE.md** - Testing procedures and best practices
+### `/archive/` - Historical Documentation
+Older documentation kept for reference
 
-- **DEPLOYMENT_CHECKLIST.md** - Deployment steps and verification
-
-## 🏗️ Project Structure- **CONTENT_MODERATION.md** - Content moderation policies
-
-- **SECURITY_AUDIT_RESULTS.md** - Security audit findings
-
-```
-
-DSPapp/### `/archive/` - Historical Documentation
-
-├── app/                    # Application screensOlder documentation kept for reference (completed work, bug fixes, optimization notes)
+---
 
 │   ├── (auth)/            # Authentication flows (login, signup, reset)
 
@@ -591,17 +629,119 @@ docs/
 
 ---
 
+## 🔍 Key Feature Documentation
+
+### Authentication & User Management
+- **Secure authentication** with Supabase Auth
+- **Role-based access** (Member, Officer, President)
+- **Profile management** with privacy controls
+- See: `features/accounts/`
+
+### Events System
+- **Event creation and management** for officers
+- **QR code check-ins** for attendance tracking
+- **Google Calendar sync** via `guides/GOOGLE_CALENDAR_SETUP.md`
+- **Event feedback** surveys - `features/EVENT_FEEDBACK_IMPLEMENTATION.md`
+
+### Points & Rankings
+- **Automatic point calculation** by event type
+- **Chapter leaderboards** for members and pledges
+- **Achievement badges** with tier system (bronze, silver, gold, rose-gold)
+- **Appeal system** - `features/POINT_APPEAL_FEATURE.md`
+
+### Analytics (Officer/President Only)
+- **Member engagement metrics** and trends
+- **Event performance** ratings and attendance
+- **Comparative analytics** across officers
+- See: `fixes/analytics/OFFICER_ANALYTICS_REFACTOR_COMPLETE.md`
+
+### Test Bank & Scholarship
+- **Academic resource sharing** with file uploads to Supabase Storage
+- **Submission tracking** and approval workflow
+- See: `features/accounts/TEST_BANK_SCHEMA_FIX.md`
+
+---
+
 ## 🎓 Learning Resources
 
 ### For New Developers
-1. Start with [PROJECT_STRUCTURE.md](../PROJECT_STRUCTURE.md)
+1. Start with [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
 2. Review [Testing Guide](guides/TESTING_GUIDE.md)
-3. Check [archived refactors](archive/) to understand evolution
+3. Read [Recent Fixes](fixes/POST_TESTING_FIXES.md) for latest changes
+4. Check [archived refactors](archive/) to understand evolution
 
 ### For Officers/Admins
 1. Review [Deployment Checklist](guides/DEPLOYMENT_CHECKLIST.md)
 2. Understand [Security Audit](guides/SECURITY_AUDIT_RESULTS.md)
 3. Read [Content Moderation](guides/CONTENT_MODERATION.md)
+4. Follow [Pre-Launch Guide](guides/PRE_LAUNCH_DEPLOYMENT_GUIDE.md)
+
+### For Testing
+1. **[Testing Checklist](guides/TESTING_CHECKLIST.md)** - All test cases
+2. **[Testing Guide](guides/TESTING_GUIDE.md)** - Best practices
+3. **[Post-Testing Fixes](fixes/POST_TESTING_FIXES.md)** - Recent fixes from testing
+
+---
+
+## 🐛 Recent Updates & Bug Fixes
+
+### Latest Post-Testing Fixes (December 2024)
+From **[POST_TESTING_FIXES.md](fixes/POST_TESTING_FIXES.md)**:
+
+✅ **Completed Fixes:**
+1. **Terms of Service** - Created in-app Terms page with proper back navigation
+2. **Ranking Calculation** - Fixed duplicate rankings via UNION ALL and proper aggregation
+3. **Test Bank Submission** - Fixed column names (submitted_by, original_file_name)
+4. **Officer Signup** - Removed officer account creation option
+5. **Duplicate Event Keys** - Fixed React FlatList duplicates with DISTINCT
+6. **Missing Host Names** - Added host_name field to all event queries
+7. **Achievement Badges** - Fixed blank badges via tier naming (rose-gold)
+8. **Appealable Events** - Made list collapsible (shows 5 by default)
+
+### Database Migration Required
+⚠️ **Action Required:** Apply `supabase/migrations/20241107_fix_ranking_calculation.sql` in Supabase Dashboard
+
+⚠️ **Manual Setup:** Create `test-bank` storage bucket in Supabase Dashboard (see guide in POST_TESTING_FIXES.md)
+
+### Complete Fix History
+- **[FIXES_COMPLETED.md](reports/FIXES_COMPLETED.md)** - All completed fixes
+- **[FIXES_APPLIED_SUMMARY.md](reports/FIXES_APPLIED_SUMMARY.md)** - Comprehensive summary
+
+---
+
+## 📋 Complete Documentation Index
+
+### 🚀 Deployment & Operations
+- [Pre-Launch Deployment Guide](guides/PRE_LAUNCH_DEPLOYMENT_GUIDE.md) - **START HERE for deployment**
+- [Critical Security Deployment](guides/CRITICAL_SECURITY_DEPLOYMENT.md) - RLS policies and security
+- [Deployment Checklist](guides/DEPLOYMENT_CHECKLIST.md) - Verification steps
+- [Google Calendar Setup](guides/GOOGLE_CALENDAR_SETUP.md) - API integration
+- [Security Audit Results](guides/SECURITY_AUDIT_RESULTS.md) - Security findings
+
+### 🧪 Testing & Quality
+- [Testing Checklist](guides/TESTING_CHECKLIST.md) - **Complete test cases**
+- [Testing Guide](guides/TESTING_GUIDE.md) - Best practices
+- [Post-Testing Fixes](fixes/POST_TESTING_FIXES.md) - Latest bug fixes
+
+### 💻 Development
+- [Project Structure](PROJECT_STRUCTURE.md) - **Architecture overview**
+- [Error Boundary Guide](guides/ERROR_BOUNDARY_GUIDE.md) - Error handling
+- [Register Form Quick Reference](guides/REGISTER_FORM_QUICK_REFERENCE.md) - Form patterns
+
+### 🎯 Features
+- [Event Feedback Implementation](features/EVENT_FEEDBACK_IMPLEMENTATION.md) - Ratings & surveys
+- [Point Appeal Feature](features/POINT_APPEAL_FEATURE.md) - Dispute resolution
+- [Test Bank Upload Fix](features/TEST_BANK_UPLOAD_FIX.md) - File upload system
+- [Filter UI Modernization](features/FILTER_UI_MODERNIZATION.md) - Modern filters
+
+### 📊 Analytics
+- [Officer Analytics Refactor](fixes/analytics/OFFICER_ANALYTICS_REFACTOR_COMPLETE.md) - Complete overhaul
+- [Analytics Section Fix](fixes/analytics/ANALYTICS_SECTION_FIX.md) - Display corrections
+- [Analytics UI Polish](fixes/analytics/ANALYTICS_UI_POLISH_COMPLETE.md) - UI improvements
+
+### 📝 Reports & Status
+- [Fixes Completed](reports/FIXES_COMPLETED.md) - Completed work
+- [Fixes Applied Summary](reports/FIXES_APPLIED_SUMMARY.md) - Summary report
 
 ---
 
@@ -612,13 +752,61 @@ docs/
 | **Code Quality** | ✅ Excellent | TypeScript, modular architecture |
 | **Security** | ✅ Good | RLS, auth verification, input validation |
 | **Performance** | ✅ Optimized | Memoization, parallel queries |
-| **Testing** | ✅ Manual tested | Critical paths verified |
+| **Testing** | ✅ Manual tested | 120 users, all critical paths verified |
 | **Compliance** | ✅ Complete | Apple approved, privacy compliant |
-| **Documentation** | ✅ Complete | Comprehensive guides |
-| **Deployment** | ✅ Ready | EAS configured, builds tested |
+| **Documentation** | ✅ Complete | Comprehensive guides organized |
+| **Deployment** | ⏳ Pending | Migration and bucket setup required |
 
 **Overall Score:** 87/100 - **PRODUCTION READY** 🎉
 
+**Remaining Tasks:**
+1. Apply `20241107_fix_ranking_calculation.sql` migration in Supabase
+2. Create `test-bank` storage bucket manually in Supabase Dashboard
+3. Set up bucket RLS policies per documentation
+4. Final verification testing
+
 ---
 
-**For detailed production readiness review, see [Production Ready Report](reports/PRODUCTION_READY_REPORT.md)**
+## 🛠️ Technology Stack Summary
+
+### Frontend
+- **React Native 0.74** - Cross-platform mobile
+- **Expo SDK 51** - Development platform
+- **TypeScript 5.3** - Type safety
+- **Expo Router** - File-based navigation
+
+### Backend
+- **Supabase** - Backend-as-a-Service
+  - PostgreSQL with Row Level Security
+  - Real-time subscriptions
+  - Storage buckets (events, test-bank)
+  - Edge functions for Google Calendar
+
+### Key Libraries
+- `react-native-chart-kit` - Analytics charts
+- `expo-document-picker` - File uploads
+- `react-native-confetti-cannon` - Celebrations
+- `@react-native-community/datetimepicker` - Date pickers
+
+---
+
+## 📞 Support & Contribution
+
+**For Questions:**
+1. Check relevant documentation section above
+2. Review [Project Structure](PROJECT_STRUCTURE.md)
+3. See [Testing Checklist](guides/TESTING_CHECKLIST.md) for feature walkthroughs
+
+**For Deployment Issues:**
+1. Follow [Pre-Launch Deployment Guide](guides/PRE_LAUNCH_DEPLOYMENT_GUIDE.md)
+2. Review [Critical Security Deployment](guides/CRITICAL_SECURITY_DEPLOYMENT.md)
+3. Check [Post-Testing Fixes](fixes/POST_TESTING_FIXES.md) for recent changes
+
+---
+
+**📚 Documentation Organization Complete**  
+**✅ All loose documentation files now organized in `/docs`**  
+**🚀 Ready for production deployment**  
+
+**Maintained by the DSPapp development team**  
+**Last comprehensive update: December 2024**

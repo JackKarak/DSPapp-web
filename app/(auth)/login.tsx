@@ -276,7 +276,7 @@ export default function LoginScreen() {
                 <Text style={styles.legalLinkText}>Privacy Policy</Text>
               </TouchableOpacity>
               <Text style={styles.legalSeparator}> • </Text>
-              <TouchableOpacity onPress={() => Linking.openURL('https://sites.google.com/terpmail.umd.edu/dspapp/terms')}>
+              <TouchableOpacity onPress={() => router.push('/(auth)/terms-of-service' as any)}>
                 <Text style={styles.legalLinkText}>Terms of Service</Text>
               </TouchableOpacity>
             </View>

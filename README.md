@@ -91,6 +91,25 @@ Choose your preferred development environment:
 - **Physical Device**: Scan the QR code with Expo Go app
 - **Web Browser**: Press `w` for web development
 
+## 📚 Documentation
+
+All comprehensive documentation is organized in the `/docs` directory:
+
+### Essential Guides
+- **[Pre-Launch Deployment](docs/guides/PRE_LAUNCH_DEPLOYMENT_GUIDE.md)** - Complete production deployment checklist
+- **[Critical Security Deployment](docs/guides/CRITICAL_SECURITY_DEPLOYMENT.md)** - Security configuration and best practices
+- **[Google Calendar Setup](docs/guides/GOOGLE_CALENDAR_SETUP.md)** - Google Calendar API integration
+- **[Testing Checklist](docs/guides/TESTING_CHECKLIST.md)** - Comprehensive testing procedures
+
+### Recent Updates
+- **[Post-Testing Fixes](docs/fixes/POST_TESTING_FIXES.md)** - Latest bug fixes and improvements
+- **[Fixes Completed](docs/reports/FIXES_COMPLETED.md)** - Completed fix history
+- **[Fixes Applied Summary](docs/reports/FIXES_APPLIED_SUMMARY.md)** - Summary of all applied fixes
+
+### Additional Resources
+- **[Full Documentation Index](docs/README.md)** - Complete documentation navigation
+- **[Project Structure](docs/PROJECT_STRUCTURE.md)** - Detailed architecture and folder organization
+
 ## 🏗️ Technical Architecture
 
 ### Frontend Stack

@@ -468,11 +468,10 @@ export default function EventApproval() {
             isAllDay: false
           });
 
-          if (calendarResult.success) {
-            console.log('✅ Event added to Google Calendar:', calendarResult.eventId);
-          } else {
+          // Don't show success/failure to user - calendar integration is optional
+          if (!calendarResult.success) {
+            // Continue with approval even if calendar fails
             console.warn('⚠️ Failed to add to Google Calendar:', calendarResult.error);
-            // Don't show error to user as the event was still approved in database
           }
         } catch (calendarError) {
           console.error('Calendar integration error:', calendarError);

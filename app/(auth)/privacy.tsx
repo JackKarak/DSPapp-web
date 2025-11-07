@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { ScrollView, Text, View, StyleSheet, TouchableOpacity, Linking } from 'react-native';
+import { ScrollView, Text, View, StyleSheet, TouchableOpacity, Linking, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -18,15 +18,20 @@ export default function PrivacyPolicyScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity 
+          onPress={() => router.back()} 
+          style={styles.backButton}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+        >
           <Ionicons name="arrow-back" size={24} color="#330066" />
         </TouchableOpacity>
         <Text style={styles.title}>Privacy Policy</Text>
       </View>
 
-      <View style={styles.content}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         <Text style={styles.lastUpdated}>Last Updated: October 23, 2025</Text>
 
         <Text style={styles.sectionTitle}>1. Information We Collect</Text>
@@ -109,7 +114,7 @@ export default function PrivacyPolicyScreen() {
           Questions about privacy? Contact us at:
         </Text>
         <Text style={styles.bullet}>• Email: privacy@deltasigmapi.org</Text>
-        <Text style={styles.bullet}>• Chapter: Delta Sigma Pi - Zeta Sigma Chapter</Text>
+        <Text style={styles.bullet}>• Chapter: Delta Sigma Pi - Gamma Sigma Chapter</Text>
 
         <TouchableOpacity style={styles.linkButton} onPress={openFullPolicy}>
           <Text style={styles.linkText}>View Full Policy Online</Text>
@@ -121,8 +126,8 @@ export default function PrivacyPolicyScreen() {
             By using this app, you agree to this Privacy Policy and our Terms of Service.
           </Text>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -134,21 +139,28 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 16,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
   backButton: {
     marginRight: 16,
+    padding: 4,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#330066',
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
     padding: 20,
+    paddingBottom: 40,
   },
   lastUpdated: {
     fontSize: 12,

@@ -4,7 +4,7 @@
  * Displays user's point appeals and appealable events
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { formatDateInEST } from '../../lib/dateUtils';
 import { getPointTypeColors, formatPointTypeText } from '../../lib/pointTypeColors';
@@ -26,7 +26,7 @@ interface PointAppeal {
   status: 'pending' | 'approved' | 'denied';
   created_at: string;
   reviewed_at?: string;
-  review_notes?: string;
+  admin_response?: string;
   event?: {
     id: string;
     title: string;
@@ -96,10 +96,10 @@ const AppealRow: React.FC<{ appeal: PointAppeal }> = ({ appeal }) => {
       <Text style={styles.appealDate}>
         Submitted: {formatDateInEST(appeal.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
       </Text>
-      {appeal.review_notes && (
+      {appeal.admin_response && (
         <View style={styles.reviewNotesContainer}>
-          <Text style={styles.reviewNotesLabel}>Review Notes:</Text>
-          <Text style={styles.reviewNotes}>{appeal.review_notes}</Text>
+          <Text style={styles.reviewNotesLabel}>Admin Response:</Text>
+          <Text style={styles.reviewNotes}>{appeal.admin_response}</Text>
         </View>
       )}
     </View>
@@ -152,10 +152,17 @@ export const AppealsSection: React.FC<AppealsSectionProps> = ({
   onAppealPress,
   userRole,
 }) => {
+  const [appealableExpanded, setAppealableExpanded] = useState(false);
+  
   // Pledges cannot submit appeals
   if (userRole === 'pledge') {
     return null;
   }
+
+  // Show only 5 most recent appealable events by default
+  const displayedAppealableEvents = appealableExpanded 
+    ? appealableEvents 
+    : appealableEvents.slice(0, 5);
 
   return (
     <View style={styles.container}>
@@ -192,15 +199,32 @@ export const AppealsSection: React.FC<AppealsSectionProps> = ({
             </Text>
           </View>
         ) : (
-          <FlatList
-            data={appealableEvents}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <AppealableEventRow event={item} onPress={onAppealPress} />
+          <>
+            <FlatList
+              data={displayedAppealableEvents}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <AppealableEventRow event={item} onPress={onAppealPress} />
+              )}
+              scrollEnabled={false}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+            />
+            
+            {/* Show More/Less Button */}
+            {appealableEvents.length > 5 && (
+              <TouchableOpacity
+                style={styles.expandButton}
+                onPress={() => setAppealableExpanded(!appealableExpanded)}
+              >
+                <Text style={styles.expandButtonText}>
+                  {appealableExpanded 
+                    ? 'Show Less' 
+                    : `Show All (${appealableEvents.length - 5} more)`
+                  }
+                </Text>
+              </TouchableOpacity>
             )}
-            scrollEnabled={false}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-          />
+          </>
         )}
       </View>
     </View>
@@ -352,6 +376,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  expandButton: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+  },
+  expandButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
   },
   separator: {
     height: 8,

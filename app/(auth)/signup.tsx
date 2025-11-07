@@ -32,7 +32,6 @@ export default function SignupScreen() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [pledgeClass, setPledgeClass] = useState('');
-  const [officerPosition, setOfficerPosition] = useState('');
   const [expectedGraduation, setExpectedGraduation] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,52 +40,22 @@ export default function SignupScreen() {
 
   // Helper function to create role-specific user data
   const createUserData = (authUserId: string) => {
-    const baseData = {
+    return {
       user_id: authUserId,
       first_name: firstName.trim(),
       last_name: lastName.trim(),
       email: email.toLowerCase().trim(),
       role,
+      phone_number: phoneNumber.trim(), // Keep as string to match database TEXT type
+      uid: uid.trim(), // Keep as string to match database TEXT type
+      pledge_class: pledgeClass || null,
+      expected_graduation: expectedGraduation ? parseInt(expectedGraduation) : null,
     };
-
-    // Add role-specific fields
-    if (role === 'brother' || role === 'pledge') {
-      return {
-        ...baseData,
-        phone_number: parseInt(phoneNumber),
-        uid: parseInt(uid),
-        pledge_class: pledgeClass || null,
-        expected_graduation: expectedGraduation ? parseInt(expectedGraduation) : null,
-      };
-    } else if (role === 'officer') {
-      return {
-        ...baseData,
-        officer_position: officerPosition || null,
-      };
-    } else {
-      // Admin only needs basic fields
-      return baseData;
-    }
-    
   };
 
   const handleRoleSelection = async (selectedRole: string) => {
-    // Block admin self-registration - admins must be created by existing admins
-    if (selectedRole === 'admin') {
-      Alert.alert(
-        'Admin Access Restricted',
-        'Admin accounts must be created by existing administrators. Please contact chapter leadership for admin access.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    
     setRole(selectedRole);
-    if (selectedRole === 'brother' || selectedRole === 'pledge') {
-      setStep(2); // Go to phone/UID collection
-    } else if (selectedRole === 'officer') {
-      setStep(3); // Go directly to form completion
-    }
+    setStep(2); // Go to phone/UID collection
   };
 
   const handlePhoneUidSubmit = async () => {
@@ -96,10 +65,13 @@ export default function SignupScreen() {
     }
 
     setLoading(true);
-    try {      // Convert to numbers for the query since they're NUMERIC columns
-      const phoneNum = parseInt(phoneNumber);
-      const uidNum = parseInt(uid);      // Check if conversion was successful
-      if (isNaN(phoneNum) || isNaN(uidNum)) {
+    try {
+      // Trim and clean the input (phone_number and uid are TEXT columns in database)
+      const phoneNum = phoneNumber.trim();
+      const uidNum = uid.trim();
+      
+      // Basic validation - ensure they're numeric strings
+      if (!/^\d+$/.test(phoneNum) || !/^\d+$/.test(uidNum)) {
         Alert.alert(
           'Invalid Input',
           'Please enter valid numbers for phone number and UID.',
@@ -109,7 +81,7 @@ export default function SignupScreen() {
       }
 
       // Basic validation for phone number length
-      if (phoneNumber.length < 10 || phoneNumber.length > 15) {
+      if (phoneNum.length < 10 || phoneNum.length > 15) {
         Alert.alert(
           'Invalid Phone Number',
           'Please enter a valid phone number (10-15 digits).',
@@ -150,12 +122,18 @@ export default function SignupScreen() {
       // Check the appropriate table based on role
       if (role === 'pledge') {
         // Check pledge table for pledges
-        const { data: pledgeData, error: pledgeError } = await supabase
+        // Use LIKE to handle any whitespace in database
+        const { data: pledgeResults, error: pledgeError } = await supabase
           .from('pledge')
           .select('*')
-          .eq('phone_number', phoneNum)
-          .eq('UID', uidNum)
-          .single();
+          .ilike('phone_number', phoneNum)
+          .ilike('UID', uidNum);
+        
+        // Filter and trim manually since database might have leading/trailing spaces
+        const pledgeData = pledgeResults?.find(row => 
+          row.phone_number?.trim() === phoneNum && 
+          row.UID?.trim() === uidNum
+        ) || null;
 
         if (pledgeError && pledgeError.code !== 'PGRST116') {
           console.error('Pledge query error:', pledgeError);
@@ -237,12 +215,18 @@ export default function SignupScreen() {
         );
       } else if (role === 'brother') {
         // Check brother table for brothers
-        const { data: brotherData, error: brotherError } = await supabase
+        // Use LIKE with TRIM to handle any whitespace in database
+        const { data: brotherResults, error: brotherError } = await supabase
           .from('brother')
           .select('*')
-          .eq('phone_number', phoneNum)
-          .eq('uid', uidNum)
-          .single();
+          .ilike('phone_number', phoneNum)
+          .ilike('uid', uidNum);
+        
+        // Filter and trim manually since database has leading spaces
+        const brotherData = brotherResults?.find(row => 
+          row.phone_number?.trim() === phoneNum && 
+          row.uid?.trim() === uidNum
+        ) || null;
 
         if (brotherError && brotherError.code !== 'PGRST116') {
           console.error('Brother query error:', brotherError);
@@ -382,20 +366,10 @@ export default function SignupScreen() {
   }
 
   // Role-specific validation
-  if (role === 'brother' || role === 'pledge') {
-    if (!phoneNumber || !uid) {
-      Alert.alert('Missing Information', 'Phone number and UID are required for brothers and pledges.');
-      return;
-    }
+  if (!phoneNumber || !uid) {
+    Alert.alert('Missing Information', 'Phone number and UID are required.');
+    return;
   }
-  
-  if (role === 'officer') {
-    if (!officerPosition) {
-      Alert.alert('Missing Information', 'Officer position is required for officers.');
-      return;
-    }
-  }
-  // Admin role only needs basic fields (no additional validation needed)
 
   setLoading(true);
 
@@ -403,10 +377,15 @@ export default function SignupScreen() {
     let authUserId: string;
 
     if (existingUser) {
-      // For existing brothers: create auth account
+      // For existing brothers: create auth account with auto-confirmation
+      // Since we've verified phone + UID, skip email confirmation for efficiency
+      
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
         password,
+        options: {
+          emailRedirectTo: undefined, // No email confirmation needed
+        }
       });
 
       if (signUpError) {
@@ -415,11 +394,10 @@ export default function SignupScreen() {
             signUpError.message.includes('already been taken') ||
             signUpError.message.includes('already registered')) {
           Alert.alert(
-            'Email Already Registered',
-            'This email is already registered. Would you like to sign in instead?',
+            'Email Already Exists',
+            'This email is registered in the authentication system. If you recently tried to sign up and it failed, please use a different email or contact support to clean up the old account.',
             [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Sign In', onPress: () => router.replace('/(auth)/login') }
+              { text: 'OK' }
             ]
           );
           return;
@@ -455,65 +433,21 @@ export default function SignupScreen() {
         // Don't throw error here as the main operation succeeded
       }
 
-      // Sign out after successful operations
-      await supabase.auth.signOut();
-
-    } else {
-      // For officers: create new auth user
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: email.toLowerCase().trim(),
-        password,
-      });
-
-      if (signUpError) {
-        if (signUpError.message.includes('User already registered') || 
-            signUpError.message.includes('already been taken') ||
-            signUpError.message.includes('already registered')) {
-          throw new Error('This email is already registered. Please try logging in instead.');
-        } else {
-          throw new Error(signUpError.message);
-        }
-      }
-
-      if (!signUpData?.user?.id) {
-        throw new Error('Failed to create user account.');
-      }
-
-      authUserId = signUpData.user.id;
-
-      // Create new user entry while user is still signed in for RLS
-      const userData = createUserData(authUserId);
-      const { error: insertError } = await supabase.from('users').insert(userData);
-
-      if (insertError) {
-        console.error('Insert Error:', insertError);
-        throw new Error(insertError.message || 'Could not create user profile.');
-      }
-
-      // Sign out after successful operations
-      await supabase.auth.signOut();
+      // Keep user signed in - they're ready to go!
+      // No need to sign out since we verified their identity via phone + UID
     }
 
-    // Role-specific success messages
-    let successMessage = '';
-    if (existingUser) {
-      successMessage = 'Welcome! Your information has been transferred and your account is ready. You can now login with your new password.';
-    } else {
-      switch (role) {
-        case 'officer':
-          successMessage = 'Officer account created successfully! You can now login and access officer features.';
-          break;
-        case 'brother':
-        case 'pledge':
-          successMessage = 'Your account was created successfully! Welcome to the brotherhood.';
-          break;
-        default:
-          successMessage = 'Your account was created successfully.';
-      }
-    }
+    // Success message
+    const successMessage = existingUser 
+      ? 'Welcome! Your account is ready. Redirecting you now...'
+      : 'Your account was created successfully! Welcome to the brotherhood. Redirecting...';
 
     Alert.alert('Success!', successMessage);
-    router.replace('/(auth)/login');
+    
+    // Give user a moment to read the message before redirecting
+    setTimeout(() => {
+      router.replace('/(tabs)');
+    }, 1500);
   } catch (error: any) {
     console.error('Signup error:', error);
     Alert.alert(
@@ -567,7 +501,6 @@ export default function SignupScreen() {
               <Picker.Item label="Select Role" value="" />
               <Picker.Item label="Brother" value="brother" />
               <Picker.Item label="Pledge" value="pledge" />
-              <Picker.Item label="Officer" value="officer" />
             </Picker>
           </>
         )}
@@ -604,9 +537,7 @@ export default function SignupScreen() {
 
         {step === 3 && (
           <>
-            <Text style={styles.stepTitle}>
-              {role === 'officer' ? 'Officer Registration' : 'Complete Your Profile'}
-            </Text>
+            <Text style={styles.stepTitle}>Complete Your Profile</Text>
             <TextInput
               placeholder="First Name"
               value={firstName}
@@ -631,69 +562,31 @@ export default function SignupScreen() {
               placeholderTextColor="#999"
             />
 
-            {role === 'officer' && (
-              <>
-                <Text style={styles.label}>Officer Position</Text>
-                <Picker
-                  selectedValue={officerPosition}
-                  onValueChange={setOfficerPosition}
-                  style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
-                  itemStyle={styles.pickerItem}
-                >
-                  <Picker.Item label="Select Position" value="" />
-                  <Picker.Item label="Chancellor" value="chancellor" />
-                  <Picker.Item label="Senior Vice President" value="svp" />
-                  <Picker.Item label="VP Operations" value="vp_operations" />
-                  <Picker.Item label="VP Finance" value="vp_finance" />
-                  <Picker.Item label="VP Pledge Education" value="vp_pledgeed" />
-                  <Picker.Item label="VP Scholarship" value="vp_scholarship" />
-                  <Picker.Item label="VP Media" value="vp_media" />
-                  <Picker.Item label="VP Service" value="vp_service" />
-                  <Picker.Item label="VP DEI" value="vp_dei" />
-                  <Picker.Item label="Fundraising Chair" value="fundraising" />
-                  <Picker.Item label="Social Chair" value="social" />
-                  <Picker.Item label="Historian" value="historian" />
-                  <Picker.Item label="Wellness Chair" value="wellness" />
-                  <Picker.Item label="Brotherhood Chair" value="brotherhood" />
-                  <Picker.Item label="Risk Management" value="risk" />
-                  <Picker.Item label="Marketing Chair" value="marketing" />
-                </Picker>
-              </>
-            )}
+            <Text style={styles.label}>Pledge Class</Text>
+            <Picker
+              selectedValue={pledgeClass}
+              onValueChange={setPledgeClass}
+              style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
+              itemStyle={styles.pickerItem}
+            >
+              <Picker.Item label="Select Pledge Class" value="" />
+              <Picker.Item label="Rho" value="rho" />
+              <Picker.Item label="Sigma" value="sigma" />
+              <Picker.Item label="Tau" value="tau" />
+              <Picker.Item label="Upsilon" value="upsilon" />
+              <Picker.Item label="Phi" value="phi" />
+              <Picker.Item label="Chi" value="chi" />
+            </Picker>
 
-            {(role === 'brother' || role === 'pledge') && (
-              <>
-                <Text style={styles.label}>Pledge Class</Text>
-                <Picker
-                  selectedValue={pledgeClass}
-                  onValueChange={setPledgeClass}
-                  style={[styles.picker, Platform.OS === 'ios' && { height: 200 }]}
-                  itemStyle={styles.pickerItem}
-                >
-                  <Picker.Item label="Select Pledge Class" value="" />
-                  <Picker.Item label="Rho" value="rho" />
-                  <Picker.Item label="Sigma" value="sigma" />
-                  <Picker.Item label="Tau" value="tau" />
-                  <Picker.Item label="Upsilon" value="upsilon" />
-                  <Picker.Item label="Phi" value="phi" />
-                  <Picker.Item label="Chi" value="chi" />
-                </Picker>
-              </>
-            )}
-
-            {(role === 'brother' || role === 'pledge') && (
-              <>
-                <Text style={styles.label}>Expected Graduation</Text>
-                <TextInput
-                  placeholder="e.g. 2026"
-                  value={expectedGraduation}
-                  onChangeText={setExpectedGraduation}
-                  keyboardType="numeric"
-                  style={styles.input}
-                  placeholderTextColor="#999"
-                />
-              </>
-            )}
+            <Text style={styles.label}>Expected Graduation</Text>
+            <TextInput
+              placeholder="e.g. 2026"
+              value={expectedGraduation}
+              onChangeText={setExpectedGraduation}
+              keyboardType="numeric"
+              style={styles.input}
+              placeholderTextColor="#999"
+            />
 
             <TextInput
               placeholder="Password"

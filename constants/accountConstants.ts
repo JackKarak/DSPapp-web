@@ -81,24 +81,24 @@ export const ACHIEVEMENTS = {
   streak_starter: { title: 'Streak Starter', description: '3+ event streak', tier: 'bronze', icon: '🥉' },
   iron_brother: { title: 'Iron Brother', description: '10+ event streak', tier: 'silver', icon: '🥈' },
   unstoppable: { title: 'Unstoppable', description: '20+ event streak', tier: 'gold', icon: '🥇' },
-  legend_streak: { title: 'Legend Streak', description: '30+ event streak', tier: 'rose_gold', icon: '🌹' },
+  legend_streak: { title: 'Legend Streak', description: '30+ event streak', tier: 'rose-gold', icon: '🌹' },
   
   // Milestone Attendance
   first_timer: { title: 'First Timer', description: '1st event this semester', tier: 'bronze', icon: '🎉' },
   ten_strong: { title: 'Ten Strong', description: '10+ events this semester', tier: 'bronze', icon: '💪' },
   silver_brother: { title: 'Silver Brother', description: '25+ events this semester', tier: 'silver', icon: '🥈' },
   gold_brother: { title: 'Gold Brother', description: '50+ events this semester', tier: 'gold', icon: '🥇' },
-  diamond_brother: { title: 'Diamond Brother', description: '100+ events this semester', tier: 'rose_gold', icon: '💎' },
+  diamond_brother: { title: 'Diamond Brother', description: '100+ events this semester', tier: 'rose-gold', icon: '💎' },
   
   // Points-based
   points_50: { title: 'Rising Star', description: '50+ points earned', tier: 'bronze', icon: '⭐' },
   points_100: { title: 'Point Hunter', description: '100+ points earned', tier: 'silver', icon: '🎯' },
   points_250: { title: 'Point Master', description: '250+ points earned', tier: 'gold', icon: '👑' },
-  points_500: { title: 'Point Legend', description: '500+ points earned', tier: 'rose_gold', icon: '🏆' },
+  points_500: { title: 'Point Legend', description: '500+ points earned', tier: 'rose-gold', icon: '🏆' },
   
   // Attendance rate
   punctual_pro: { title: 'Punctual Pro', description: '75%+ attendance rate', tier: 'silver', icon: '⏰' },
-  perfect_semester: { title: 'Perfect Semester', description: '100% attendance rate', tier: 'rose_gold', icon: '✨' },
+  perfect_semester: { title: 'Perfect Semester', description: '100% attendance rate', tier: 'rose-gold', icon: '✨' },
   
   // Monthly performance
   monthly_champion: { title: 'Monthly Champion', description: '5+ events this month', tier: 'bronze', icon: '📅' },
@@ -109,8 +109,8 @@ export const ACHIEVEMENTS = {
   dedicated_member: { title: 'Dedicated Member', description: '15+ events this semester', tier: 'silver', icon: '💙' },
   
   // Special Rose Gold
-  fraternity_legend: { title: 'Fraternity Legend', description: '1000+ points, 95%+ attendance, 75+ events', tier: 'rose_gold', icon: '🌟' },
-  mentor_master: { title: 'Mentor Master', description: 'Top 2 in class, 50+ events, 4+ event types', tier: 'rose_gold', icon: '🎓' },
+  fraternity_legend: { title: 'Fraternity Legend', description: '1000+ points, 95%+ attendance, 75+ events', tier: 'rose-gold', icon: '🌟' },
+  mentor_master: { title: 'Mentor Master', description: 'Top 2 in class, 50+ events, 4+ event types', tier: 'rose-gold', icon: '🎓' },
 } as const;
 
 // Available majors for multi-select

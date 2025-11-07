@@ -265,12 +265,17 @@ export const useAccount = () => {
       // Fetch test bank submissions
       const { data: testBankData, error: testBankError } = await supabase
         .from('test_bank')
-        .select('id, class_code, file_type, status, created_at')
-        .eq('user_id', user.id)
+        .select('id, class_code, file_type, status, original_file_name, created_at')
+        .eq('submitted_by', user.id)
         .order('created_at', { ascending: false });
 
       if (!testBankError && testBankData) {
-        setTestBankSubmissions(testBankData);
+        // Map created_at to uploaded_at for component compatibility
+        const mappedData = testBankData.map(item => ({
+          ...item,
+          uploaded_at: item.created_at
+        }));
+        setTestBankSubmissions(mappedData);
       }
 
     } catch (err) {
@@ -466,8 +471,8 @@ export const useAccount = () => {
           submitted_by: authResult.user.id,
           class_code: testBankClassCode,
           file_type: testBankFileType,
-          file_name: testBankSelectedFile.name,
-          file_url: result.filePath,
+          original_file_name: testBankSelectedFile.name,
+          stored_file_name: result.filePath,
         });
 
       if (insertError) throw insertError;
