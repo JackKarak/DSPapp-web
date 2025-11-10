@@ -144,7 +144,7 @@ export default function BrotherLayout() {
           options={attendanceOptions} 
         />
         <Tabs.Screen 
-          name="points/index" 
+          name="points" 
           options={pointsOptions}
         />
         <Tabs.Screen 
@@ -152,7 +152,7 @@ export default function BrotherLayout() {
           options={newsOptions} 
         />
         <Tabs.Screen 
-          name="account/index" 
+          name="account" 
           options={accountOptions}
         />
       </Tabs>
