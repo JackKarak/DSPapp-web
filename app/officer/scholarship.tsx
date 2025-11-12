@@ -89,7 +89,7 @@ export default function ScholarshipTab() {
 
   // Check access permissions - memoized
   const checkAccess = useCallback(() => {
-    const validPositions = ['scholarship', 'vp_scholarship', 'president'];
+    const validPositions = ['vp_scholarship', 'president'];
     if (!validPositions.includes(role.position?.toLowerCase() || '')) {
       Alert.alert('Access Denied', 'You do not have permission to access the scholarship test bank.');
       router.replace('/officer/' as any);

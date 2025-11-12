@@ -135,6 +135,7 @@ export default function BrotherLayout() {
   return (
     <ErrorBoundary>
       <Tabs screenOptions={screenOptions}>
+        {/* Only these 5 screens will be visible */}
         <Tabs.Screen 
           name="index" 
           options={calendarOptions} 
@@ -154,6 +155,55 @@ export default function BrotherLayout() {
         <Tabs.Screen 
           name="account" 
           options={accountOptions}
+        />
+        {/* Hide all other routes - comprehensive list */}
+        <Tabs.Screen 
+          name="points/index" 
+          options={{ href: null }}
+        />
+        <Tabs.Screen 
+          name="points/_components/HeaderSection" 
+          options={{ href: null }}
+        />
+        <Tabs.Screen 
+          name="points/_components/Leaderboard" 
+          options={{ href: null }}
+        />
+        <Tabs.Screen 
+          name="account/index" 
+          options={{ href: null }}
+        />
+        <Tabs.Screen 
+          name="account/_components/AccountDeletionModal" 
+          options={{ href: null }}
+        />
+        <Tabs.Screen 
+          name="account/_components/AccountDetailsModal" 
+          options={{ href: null }}
+        />
+        <Tabs.Screen 
+          name="account/_components/EventFeedbackModal" 
+          options={{ href: null }}
+        />
+        <Tabs.Screen 
+          name="account/_components/PointAppealModal" 
+          options={{ href: null }}
+        />
+        <Tabs.Screen 
+          name="account/_components/TestBankModal" 
+          options={{ href: null }}
+        />
+        <Tabs.Screen 
+          name="account/_hooks/useAccount" 
+          options={{ href: null }}
+        />
+        <Tabs.Screen 
+          name="account/_styles/styles" 
+          options={{ href: null }}
+        />
+        <Tabs.Screen 
+          name="account/README" 
+          options={{ href: null }}
         />
       </Tabs>
     </ErrorBoundary>
