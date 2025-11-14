@@ -16,10 +16,10 @@
 
 import { useCallback, useState, useEffect } from 'react';
 import { Alert } from 'react-native';
-import { supabase } from '../../../../lib/supabase';
-import { checkAuthentication, handleAuthenticationRedirect } from '../../../../lib/auth';
-import { UserProfile, Analytics } from '../../../../types/hooks';
-import { Event, PointAppeal } from '../../../../types/account';
+import { supabase } from '../../../lib/supabase';
+import { checkAuthentication, handleAuthenticationRedirect } from '../../../lib/auth';
+import { UserProfile, Analytics } from '../../../types/hooks';
+import { Event, PointAppeal } from '../../../types/account';
 
 interface UseAccountDataReturn {
   loading: boolean;

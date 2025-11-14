@@ -13,13 +13,13 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Alert } from 'react-native';
-import { supabase } from '../../../../lib/supabase';
-import { checkAuthentication, handleAuthenticationRedirect } from '../../../../lib/auth';
-import { formatDateInEST } from '../../../../lib/dateUtils';
-import { uploadFileToStorage } from '../../../../lib/fileUpload';
-import { saveConsentPreferences } from '../../../../lib/dataConsent';
-import { UserProfile, Analytics, ProfileFormData } from '../../../../types/hooks';
-import { Event, PointAppeal } from '../../../../types/account';
+import { supabase } from '../../../lib/supabase';
+import { checkAuthentication, handleAuthenticationRedirect } from '../../../lib/auth';
+import { formatDateInEST } from '../../../lib/dateUtils';
+import { uploadFileToStorage } from '../../../lib/fileUpload';
+import { saveConsentPreferences } from '../../../lib/dataConsent';
+import { UserProfile, Analytics, ProfileFormData } from '../../../types/hooks';
+import { Event, PointAppeal } from '../../../types/account';
 
 // Profile edit cooldown in days
 const PROFILE_EDIT_COOLDOWN_DAYS = 7;
@@ -618,7 +618,7 @@ export const useAccount = () => {
   useEffect(() => {
     const loadConsentPreferences = async () => {
       try {
-        const { getConsentPreferences } = await import('../../../../lib/dataConsent');
+        const { getConsentPreferences } = await import('../../../lib/dataConsent');
         const savedPreferences = await getConsentPreferences();
         
         if (savedPreferences) {
