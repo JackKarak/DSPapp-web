@@ -33,7 +33,7 @@ export default function OfficerAnalytics() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#1a73e8" />
+        <ActivityIndicator size="large" color="#330066" />
         <Text style={styles.loadingText}>Loading analytics...</Text>
       </View>
     );
@@ -62,6 +62,13 @@ export default function OfficerAnalytics() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <HeaderSection position={dashboardData.officer_position || 'Officer'} />
+      
+      {/* Add position-based context message */}
+      <View style={styles.contextBanner}>
+        <Text style={styles.contextText}>
+          📊 Showing all events created by the {dashboardData.officer_position} position
+        </Text>
+      </View>
 
       <KPIRowSection
         avgRating={feedback_stats.avg_rating}
@@ -124,6 +131,21 @@ const styles = StyleSheet.create({
   errorSubtext: {
     fontSize: 14,
     color: '#80868b',
+    textAlign: 'center',
+  },
+  contextBanner: {
+    backgroundColor: '#330066',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 16,
+    borderRadius: 8,
+  },
+  contextText: {
+    color: '#F7B910',
+    fontSize: 13,
+    fontWeight: '600',
     textAlign: 'center',
   },
 });

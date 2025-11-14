@@ -1,7 +1,7 @@
 /**
  * PointAppealModal Component
  * 
- * Modal for submitting point appeals with reason and picture URL
+ * Modal for submitting point appeals with a reason
  */
 
 import React from 'react';
@@ -57,19 +57,6 @@ export const PointAppealModal: React.FC<PointAppealModalProps> = ({
       return;
     }
 
-    if (!appealPictureUrl.trim()) {
-      Alert.alert('Validation Error', 'Please provide a picture URL as evidence.');
-      return;
-    }
-
-    // Validate URL format
-    try {
-      new URL(appealPictureUrl.trim());
-    } catch (e) {
-      Alert.alert('Invalid URL', 'Please provide a valid picture URL (must start with http:// or https://).');
-      return;
-    }
-
     onSubmit();
   };
 
@@ -112,26 +99,11 @@ export const PointAppealModal: React.FC<PointAppealModalProps> = ({
               textAlignVertical="top"
             />
 
-            {/* Picture URL */}
-            <Text style={styles.label}>Picture URL (Evidence) *</Text>
-            <Text style={styles.helperText}>
-              Link to a photo showing you at the event (e.g., from Google Drive, Imgur)
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={appealPictureUrl}
-              onChangeText={onUpdatePictureUrl}
-              placeholder="https://drive.google.com/..."
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-            />
-
             {/* Info Box */}
             <View style={styles.infoBox}>
               <Text style={styles.infoIcon}>ℹ️</Text>
               <Text style={styles.infoText}>
-                Your appeal will be reviewed by an officer. Make sure your evidence clearly shows your attendance.
+                Your appeal will be reviewed by an officer or admin.
               </Text>
             </View>
 

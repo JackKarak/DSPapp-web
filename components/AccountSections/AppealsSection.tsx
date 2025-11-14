@@ -22,7 +22,7 @@ interface PointAppeal {
   id: string;
   event_id: string;
   appeal_reason: string;
-  picture_url: string;
+  picture_url?: string; // Optional
   status: 'pending' | 'approved' | 'denied';
   created_at: string;
   reviewed_at?: string;

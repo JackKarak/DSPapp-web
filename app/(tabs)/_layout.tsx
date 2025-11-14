@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
-import { Alert, StyleSheet, TouchableOpacity } from 'react-native';
+import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
@@ -19,9 +19,9 @@ export default function BrotherLayout() {
     });
     
     return () => {
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
-  }, [router]);
+  }, []); // router.replace is stable, no need for dependency
 
   // Memoized sign out handler - prevents recreation on every render
   const handleSignOut = useCallback(async () => {
@@ -59,19 +59,64 @@ export default function BrotherLayout() {
   }, [router, isSigningOut]);
 
   // Memoized header right component - prevents recreation on every render
-  const HeaderRightComponent = useCallback(() => (
-    <TouchableOpacity 
-      onPress={handleSignOut} 
-      style={styles.headerButton}
-      disabled={isSigningOut}
-    >
-      <Ionicons 
-        name="log-out-outline" 
-        size={24} 
-        color={isSigningOut ? '#999' : '#fff'} 
-      />
-    </TouchableOpacity>
-  ), [handleSignOut, isSigningOut]);
+  const HeaderRightComponent = useCallback(() => {
+    const [userRole, setUserRole] = useState<string | null>(null);
+
+    useEffect(() => {
+      async function fetchRole() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data } = await supabase
+          .from('users')
+          .select('role')
+          .eq('user_id', user.id)
+          .single();
+
+        if (data) {
+          setUserRole(data.role);
+        }
+      }
+      fetchRole();
+    }, []);
+
+    const canSwitchView = userRole === 'officer' || userRole === 'admin';
+
+    return (
+      <View style={{ flexDirection: 'row', gap: 10, marginRight: 16 }}>
+        {canSwitchView && (
+          <TouchableOpacity
+            onPress={() => {
+              if (userRole === 'admin') {
+                router.push('/president/presidentindex' as any);
+              } else {
+                router.push('/officer/officerspecs' as any);
+              }
+            }}
+            style={styles.headerButton}
+            disabled={isSigningOut}
+          >
+            <Ionicons 
+              name="swap-horizontal-outline" 
+              size={24} 
+              color={isSigningOut ? '#999' : '#fff'} 
+            />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity 
+          onPress={handleSignOut} 
+          style={styles.headerButton}
+          disabled={isSigningOut}
+        >
+          <Ionicons 
+            name="log-out-outline" 
+            size={24} 
+            color={isSigningOut ? '#999' : '#fff'} 
+          />
+        </TouchableOpacity>
+      </View>
+    );
+  }, [handleSignOut, isSigningOut, router]);
 
   // Memoized screen options - prevents recreation on every render
   const screenOptions = useMemo(() => ({
@@ -155,55 +200,6 @@ export default function BrotherLayout() {
         <Tabs.Screen 
           name="account" 
           options={accountOptions}
-        />
-        {/* Hide all other routes - comprehensive list */}
-        <Tabs.Screen 
-          name="points/index" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="points/_components/HeaderSection" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="points/_components/Leaderboard" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/index" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/_components/AccountDeletionModal" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/_components/AccountDetailsModal" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/_components/EventFeedbackModal" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/_components/PointAppealModal" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/_components/TestBankModal" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/_hooks/useAccount" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/_styles/styles" 
-          options={{ href: null }}
-        />
-        <Tabs.Screen 
-          name="account/README" 
-          options={{ href: null }}
         />
       </Tabs>
     </ErrorBoundary>

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { ActivityIndicator, Alert, TouchableOpacity, View } from 'react-native';
 import { useOfficerRole } from '../../hooks/shared';
 import { supabase } from '../../lib/supabase';
@@ -10,6 +10,7 @@ export default function OfficerLayout() {
   const router = useRouter();
   const { role, loading } = useOfficerRole();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const hasRouted = useRef(false);
 
   const handleSignOut = useCallback(async () => {
     if (isSigningOut) return; // Prevent duplicate requests
@@ -77,14 +78,10 @@ export default function OfficerLayout() {
     { name: 'officerspecs', title: 'Officer Control', icon: 'settings-outline' as const, hidden: true },
   ], []);
 
-  useEffect(() => {
-    if (!loading && (!role?.is_officer || !role?.position)) {
-      router.replace('/');
-    }
-  }, [role, loading, router]);
+  // Removed auto-redirect logic to allow officers to access both member and officer views
 
-  // Conditional render AFTER all hooks
-  if (loading || !role?.is_officer || !role?.position) {
+  // Show loading indicator while checking role
+  if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#330066" />
@@ -103,17 +100,28 @@ export default function OfficerLayout() {
         headerTintColor: 'white',
         tabBarLabelStyle: { fontWeight: 'bold' },
         headerRight: () => (
-          <TouchableOpacity 
-            onPress={handleSignOut} 
-            style={{ marginRight: 16 }}
-            disabled={isSigningOut}
-          >
-            <Ionicons 
-              name="log-out-outline" 
-              size={24} 
-              color={isSigningOut ? '#999' : '#fff'} 
-            />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 10, marginRight: 16 }}>
+            <TouchableOpacity 
+              onPress={() => router.push('/(tabs)')} 
+              disabled={isSigningOut}
+            >
+              <Ionicons 
+                name="people-outline" 
+                size={24} 
+                color={isSigningOut ? '#999' : '#fff'} 
+              />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={handleSignOut} 
+              disabled={isSigningOut}
+            >
+              <Ionicons 
+                name="log-out-outline" 
+                size={24} 
+                color={isSigningOut ? '#999' : '#fff'} 
+              />
+            </TouchableOpacity>
+          </View>
         ),
       }}
     >

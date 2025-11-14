@@ -170,7 +170,7 @@ export const usePointAppeals = (
         user_id: authResult.user.id,
         event_id: selectedEvent!.id,
         appeal_reason: appealData.reason.trim(),
-        picture_url: appealData.pictureUrl.trim(),
+        picture_url: appealData.pictureUrl.trim() || null, // Optional
       };
 
       // Submit to database

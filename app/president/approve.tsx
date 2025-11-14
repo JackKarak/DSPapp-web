@@ -440,12 +440,21 @@ export default function EventApproval() {
       // Generate a unique 5-letter check-in code for the event
       const checkInCode = generateRandomCode();
 
+      // For Points Only events (non-events), set start_time to now when approved
+      const updateData: any = {
+        status: 'approved',
+        code: checkInCode,
+        approved_at: new Date().toISOString()
+      };
+
+      // If this is a Points Only event, set start_time to the approval time
+      if (eventToApprove.is_non_event) {
+        updateData.start_time = new Date().toISOString();
+      }
+
       const { error } = await supabase
         .from('events')
-        .update({ 
-          status: 'approved',
-          code: checkInCode
-        })
+        .update(updateData)
         .eq('id', eventId);
 
       if (error) {

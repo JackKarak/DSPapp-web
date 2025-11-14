@@ -1,12 +1,13 @@
 import { useFonts } from 'expo-font';
 import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { ActivityIndicator, ImageBackground, StyleSheet, View } from 'react-native';
 import { MD3LightTheme, PaperProvider } from 'react-native-paper';
 import * as Sentry from '@sentry/react-native';
 import backgroundImage from '../assets/images/background.png'; // Adjust if path differs
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { useNotifications } from '../hooks/useNotifications';
 
 // Initialize Sentry for production error tracking
 Sentry.init({
@@ -34,6 +35,9 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
+
+  // Initialize notifications
+  useNotifications();
 
   if (!fontsLoaded) {
     return (

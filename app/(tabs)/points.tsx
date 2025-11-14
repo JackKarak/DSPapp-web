@@ -9,12 +9,12 @@ import React from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StatusBar, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import ConfettiCannon from 'react-native-confetti-cannon';
-import { Colors } from '../../../constants/colors';
-import { usePointsData } from '../../../hooks/points/usePointsData';
-import { HeaderSection } from '../../../components/PointsComponents/HeaderSection';
-import { PointCategories } from '../../../components/PointsComponents/PointCategories';
-import { Leaderboard } from '../../../components/PointsComponents/Leaderboard';
-import { styles } from '../../../styles/points/pointsStyles';
+import { Colors } from '../../constants/colors';
+import { usePointsData } from '../../hooks/points/usePointsData';
+import { HeaderSection } from '../../components/PointsComponents/HeaderSection';
+import { PointCategories } from '../../components/PointsComponents/PointCategories';
+import { Leaderboard } from '../../components/PointsComponents/Leaderboard';
+import { styles } from '../../styles/points/pointsStyles';
 
 export default function PointsScreen() {
   const colors = Colors['light'];

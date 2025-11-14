@@ -11,6 +11,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { getDateInEST } from '../../lib/dateUtils';
+import { scheduleUpcomingEventNotifications } from '../../lib/scheduleNotifications';
 
 // Components
 import { EventCard, EventCardData } from '../../components/EventCard';
@@ -188,9 +189,10 @@ export default function CalendarTab() {
 
       if (usersError) {
         console.error('Users fetch error:', usersError);
+        // Continue with empty map - non-critical error
       }
 
-      // Build users map
+      // Build users map with fallback to empty object
       const usersMap = usersData?.reduce((acc, user) => {
         const fullName = user.first_name && user.last_name 
           ? `${user.first_name} ${user.last_name}` 
@@ -199,8 +201,8 @@ export default function CalendarTab() {
         return acc;
       }, {} as Record<string, string>) || {};
 
-      // PRE-COMPUTE dates for all events (performance optimization)
-      const enrichedEvents = eventsData.map((event: any) => ({
+      // PRE-COMPUTE dates for all events (performance optimization) with null safety
+      const enrichedEvents = (eventsData || []).map((event: any) => ({
         ...event,
         host_name: usersMap[event.created_by] || 'Unknown',
         is_registerable: event.is_registerable ?? true,
@@ -231,6 +233,12 @@ export default function CalendarTab() {
           userId: user.id, // Cache user ID for later mutations
           pendingFeedbacks,
         },
+      });
+
+      // Schedule notifications for upcoming events with points (async, don't block UI)
+      scheduleUpcomingEventNotifications().catch(err => {
+        console.error('Failed to schedule notifications:', err);
+        // Silent failure - notifications are nice-to-have, not critical
       });
       
     } catch (error: any) {

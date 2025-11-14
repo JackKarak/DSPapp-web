@@ -224,6 +224,13 @@ export const useEventForm = () => {
         endTimeString = getESTISOString(deadline);
       }
 
+      // Get user's officer position for position-based analytics
+      const { data: userData } = await supabase
+        .from('users')
+        .select('officer_position')
+        .eq('user_id', user.id)
+        .single();
+
       const { error } = await supabase.from('events').insert({
         title,
         description,
@@ -233,6 +240,7 @@ export const useEventForm = () => {
         start_time: startTimeString,
         end_time: endTimeString,
         created_by: user.id,
+        created_by_position: userData?.officer_position || null,
         is_registerable: mode === 'event' ? isRegisterable : false,
         available_to_pledges: availableToPledges,
         is_non_event: mode === 'points',

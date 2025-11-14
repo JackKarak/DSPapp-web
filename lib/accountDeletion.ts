@@ -223,7 +223,7 @@ export class AccountDeletionService {
         supabase.from('users').select('*').eq('user_id', userId).single(),
         supabase.from('event_attendance').select('*, events(*)').eq('user_id', userId),
         supabase.from('points').select('*').eq('user_id', userId),
-        supabase.from('point_appeals').select('*').eq('user_id', userId),
+        supabase.from('point_appeal').select('*').eq('user_id', userId),
         supabase.from('event_feedback').select('*').eq('user_id', userId)
       ]);
 

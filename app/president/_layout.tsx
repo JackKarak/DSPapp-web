@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
-import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
@@ -31,23 +31,44 @@ const RegisterIcon = memo(({ color, size }: { color: string; size: number }) => 
 ));
 RegisterIcon.displayName = 'RegisterIcon';
 
-// Memoized SignOut button component
-const SignOutButton = memo(({ onPress, isLoading }: { onPress: () => void; isLoading: boolean }) => (
-  <TouchableOpacity 
-    onPress={onPress} 
-    style={styles.signOutButton}
-    disabled={isLoading}
-    accessibilityLabel="Sign out"
-    accessibilityRole="button"
-  >
-    {isLoading ? (
-      <ActivityIndicator size="small" color="#fff" />
-    ) : (
-      <Ionicons name="log-out-outline" size={24} color="#fff" />
-    )}
-  </TouchableOpacity>
+// Memoized header buttons component
+const HeaderButtons = memo(({ 
+  onSignOut, 
+  onSwitchView, 
+  isLoading 
+}: { 
+  onSignOut: () => void; 
+  onSwitchView: () => void;
+  isLoading: boolean;
+}) => (
+  <View style={{ flexDirection: 'row', gap: 10, marginRight: 16 }}>
+    <TouchableOpacity 
+      onPress={onSwitchView} 
+      disabled={isLoading}
+      accessibilityLabel="Switch to member view"
+      accessibilityRole="button"
+    >
+      <Ionicons 
+        name="people-outline" 
+        size={24} 
+        color={isLoading ? '#999' : '#fff'} 
+      />
+    </TouchableOpacity>
+    <TouchableOpacity 
+      onPress={onSignOut} 
+      disabled={isLoading}
+      accessibilityLabel="Sign out"
+      accessibilityRole="button"
+    >
+      {isLoading ? (
+        <ActivityIndicator size="small" color="#fff" />
+      ) : (
+        <Ionicons name="log-out-outline" size={24} color="#fff" />
+      )}
+    </TouchableOpacity>
+  </View>
 ));
-SignOutButton.displayName = 'SignOutButton';
+HeaderButtons.displayName = 'HeaderButtons';
 
 function PresidentLayout() {
   const router = useRouter();
@@ -60,31 +81,49 @@ function PresidentLayout() {
     setIsSigningOut(true);
     
     try {
-      const { error } = await supabase.auth.signOut();
+      const { error } = await Promise.race([
+        supabase.auth.signOut(),
+        new Promise<{ error: Error }>((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 10000)
+        )
+      ]);
       
       if (error) {
-        console.error('Sign out error:', error);
-        // Non-blocking error notification - could be replaced with toast/snackbar
-        setTimeout(() => {
-          // Use setTimeout to prevent blocking the UI thread
-          if (__DEV__) {
-            console.warn('Sign out failed:', error.message);
-          }
-        }, 0);
-      } else {
-        router.replace('/(auth)/login');
+        throw error;
       }
-    } catch (error) {
-      console.error('Unexpected sign out error:', error);
+      
+      router.replace('/(auth)/login');
+    } catch (error: any) {
+      Alert.alert(
+        'Sign Out Failed', 
+        error.message === 'Request timeout' 
+          ? 'Network timeout. Please try again.'
+          : error.message,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: handleSignOut }
+        ]
+      );
     } finally {
       setIsSigningOut(false);
     }
   }, [isSigningOut, router]);
 
+  // Memoized switch view handler
+  const handleSwitchView = useCallback(() => {
+    router.push('/(tabs)');
+  }, [router]);
+
   // Memoized header right component
   const headerRight = useCallback(
-    () => <SignOutButton onPress={handleSignOut} isLoading={isSigningOut} />,
-    [handleSignOut, isSigningOut]
+    () => (
+      <HeaderButtons 
+        onSignOut={handleSignOut} 
+        onSwitchView={handleSwitchView}
+        isLoading={isSigningOut} 
+      />
+    ),
+    [handleSignOut, handleSwitchView, isSigningOut]
   );
 
   // Memoized screen options to prevent recreation on every render

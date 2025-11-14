@@ -17,27 +17,27 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '../../../lib/supabase';
-import { Colors } from '../../../constants/colors';
+import { supabase } from '../../lib/supabase';
+import { Colors } from '../../constants/colors';
 import * as DocumentPicker from 'expo-document-picker';
-import { AccountDeletionService } from '../../../lib/accountDeletion';
+import { AccountDeletionService } from '../../lib/accountDeletion';
 
 // Components
-import { ProfileSection } from '../../../components/AccountSections/ProfileSection';
-import { UserHeader } from '../../../components/AccountSections/UserHeader';
-import { AnalyticsSection } from '../../../components/AccountSections/AnalyticsSection';
-import { EventsSection } from '../../../components/AccountSections/EventsSection';
-import { AppealsSection } from '../../../components/AccountSections/AppealsSection';
-import { TestBankSection } from '../../../components/AccountSections/TestBankSection';
-import { SettingsSection } from '../../../components/AccountSections/SettingsSection';
-import { TestBankModal } from '../../../components/AccountModals/TestBankModal';
-import { PointAppealModal } from '../../../components/AccountModals/PointAppealModal';
-import { EventFeedbackModal } from '../../../components/AccountModals/EventFeedbackModal';
-import { DataConsentModal } from '../../../components/DataConsentModal';
-import { AccountDeletionModal } from '../../../components/AccountModals/AccountDeletionModal';
+import { ProfileSection } from '../../components/AccountSections/ProfileSection';
+import { UserHeader } from '../../components/AccountSections/UserHeader';
+import { AnalyticsSection } from '../../components/AccountSections/AnalyticsSection';
+import { EventsSection } from '../../components/AccountSections/EventsSection';
+import { AppealsSection } from '../../components/AccountSections/AppealsSection';
+import { TestBankSection } from '../../components/AccountSections/TestBankSection';
+import { SettingsSection } from '../../components/AccountSections/SettingsSection';
+import { TestBankModal } from '../../components/AccountModals/TestBankModal';
+import { PointAppealModal } from '../../components/AccountModals/PointAppealModal';
+import { EventFeedbackModal } from '../../components/AccountModals/EventFeedbackModal';
+import { DataConsentModal } from '../../components/DataConsentModal';
+import { AccountDeletionModal } from '../../components/AccountModals/AccountDeletionModal';
 
 // Hook
-import { useAccount } from './_hooks/useAccount';
+import { useAccount } from './_account/hooks/useAccount';
 
 export default function AccountTab() {
   const account = useAccount();

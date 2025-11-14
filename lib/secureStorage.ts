@@ -20,6 +20,9 @@ export const STORAGE_KEYS = {
   BIOMETRIC_ENABLED: 'dsp_biometric_enabled',
   USER_PREFERENCES: 'dsp_user_preferences',
   CACHED_PROFILE: 'dsp_cached_profile',
+  SAVED_EMAIL: 'dsp_saved_email',
+  SAVED_PASSWORD: 'dsp_saved_password',
+  REMEMBER_ME: 'dsp_remember_me',
 } as const;
 
 /**

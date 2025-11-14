@@ -13,13 +13,28 @@ BEGIN
     -- Verify the user exists and get basic info
     SELECT first_name, last_name, email INTO deletion_record
     FROM users 
-    WHERE user_id = user_uuid AND deleted_at IS NULL;
+    WHERE user_id = user_uuid;
     
     IF NOT FOUND THEN
         RETURN jsonb_build_object(
             'success', false,
-            'error', 'User not found or already deleted'
+            'error', 'User not found'
         );
+    END IF;
+    
+    -- Check if user already deleted (if column exists)
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'users' 
+        AND column_name = 'deleted_at'
+    ) THEN
+        IF EXISTS (SELECT 1 FROM users WHERE user_id = user_uuid AND deleted_at IS NOT NULL) THEN
+            RETURN jsonb_build_object(
+                'success', false,
+                'error', 'User already deleted'
+            );
+        END IF;
     END IF;
     
     -- Log the deletion request
@@ -45,17 +60,34 @@ BEGIN
         'warning'
     );
     
-    -- Step 1: Soft delete the user first (marks as deleted but preserves for audit)
-    UPDATE users 
-    SET 
-        deleted_at = NOW(),
-        status = 'deleted',
-        -- Anonymize sensitive data immediately
-        email = 'deleted_' || user_uuid || '@deleted.local',
-        phone_number = NULL,
-        first_name = 'Deleted',
-        last_name = 'User'
-    WHERE user_id = user_uuid;
+    -- Step 1: Soft delete the user (if deleted_at column exists, otherwise skip)
+    -- and anonymize sensitive data immediately
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'users' 
+        AND column_name = 'deleted_at'
+    ) THEN
+        -- Update with deleted_at and status columns
+        UPDATE users 
+        SET 
+            deleted_at = NOW(),
+            status = 'deleted',
+            email = 'deleted_' || user_uuid || '@deleted.local',
+            phone_number = NULL,
+            first_name = 'Deleted',
+            last_name = 'User'
+        WHERE user_id = user_uuid;
+    ELSE
+        -- Update without deleted_at column
+        UPDATE users 
+        SET 
+            email = 'deleted_' || user_uuid || '@deleted.local',
+            phone_number = NULL,
+            first_name = 'Deleted',
+            last_name = 'User'
+        WHERE user_id = user_uuid;
+    END IF;
     
     GET DIAGNOSTICS affected_rows = ROW_COUNT;
     
@@ -63,7 +95,7 @@ BEGIN
     DELETE FROM organization_members WHERE user_id = user_uuid;
     
     -- Step 3: Anonymize point appeals (keep for audit but remove personal info)
-    UPDATE point_appeals 
+    UPDATE point_appeal 
     SET 
         appeal_reason = '[REDACTED - User deleted]',
         picture_url = NULL
@@ -214,7 +246,7 @@ BEGIN
     -- Complete removal of all user data
     DELETE FROM event_attendance WHERE user_id = user_uuid;
     DELETE FROM points WHERE user_id = user_uuid;
-    DELETE FROM point_appeals WHERE user_id = user_uuid;
+    DELETE FROM point_appeal WHERE user_id = user_uuid;
     DELETE FROM notifications WHERE user_id = user_uuid;
     DELETE FROM event_feedback WHERE user_id = user_uuid;
     DELETE FROM admin_feedback WHERE user_id = user_uuid;

@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { checkAuthentication } from '../lib/secureAuth';
 import { supabase } from '../lib/supabase';
 import { logger } from '../lib/logger';
+import { deleteSecureItem, STORAGE_KEYS } from '../lib/secureStorage';
 
 interface AuthContextType {
   user: any | null;
@@ -72,6 +73,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) {
         console.error('Sign out error:', error);
       }
+      
+      // Clear saved credentials on sign out
+      try {
+        await deleteSecureItem(STORAGE_KEYS.SAVED_EMAIL);
+        await deleteSecureItem(STORAGE_KEYS.SAVED_PASSWORD);
+        await deleteSecureItem(STORAGE_KEYS.REMEMBER_ME);
+      } catch (storageError) {
+        console.error('Error clearing saved credentials:', storageError);
+        // Don't block sign out if storage clear fails
+      }
+      
       setUser(null);
       setSession(null);
     } catch (error) {
@@ -82,12 +94,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
+    let initialCheckComplete = false;
+    
     // Initial auth check
-    refreshAuth();
+    refreshAuth().then(() => {
+      initialCheckComplete = true;
+    });
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      async (event, session) => {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           if (session?.user) {
             setUser(session.user);
             setSession(session);
@@ -97,7 +114,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setSession(null);
         }
         
-        setIsLoading(false);
+        // Only update loading state after initial check completes
+        if (initialCheckComplete) {
+          setIsLoading(false);
+        }
       }
     );
 

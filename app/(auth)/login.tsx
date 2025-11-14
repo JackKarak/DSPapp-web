@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,11 +13,13 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  Switch
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { logger, sanitizeForLog } from '../../lib/logger';
 import { validateInput, checkRateLimit } from '../../lib/secureAuth';
+import { getSecureItem, setSecureItem, deleteSecureItem, STORAGE_KEYS } from '../../lib/secureStorage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -27,7 +29,49 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const router = useRouter();
+
+  // Load saved credentials on mount
+  useEffect(() => {
+    loadSavedCredentials();
+  }, []);
+
+  const loadSavedCredentials = async () => {
+    try {
+      const savedRememberMe = await getSecureItem<boolean>(STORAGE_KEYS.REMEMBER_ME);
+      
+      if (savedRememberMe) {
+        const savedEmail = await getSecureItem<string>(STORAGE_KEYS.SAVED_EMAIL);
+        const savedPassword = await getSecureItem<string>(STORAGE_KEYS.SAVED_PASSWORD);
+        
+        if (savedEmail) setEmail(savedEmail);
+        if (savedPassword) setPassword(savedPassword);
+        setRememberMe(true);
+      }
+    } catch (error) {
+      console.error('Error loading saved credentials:', error);
+      // Silently fail - user can still login manually
+    }
+  };
+
+  const saveCredentials = async (email: string, password: string) => {
+    try {
+      if (rememberMe) {
+        await setSecureItem(STORAGE_KEYS.SAVED_EMAIL, email);
+        await setSecureItem(STORAGE_KEYS.SAVED_PASSWORD, password);
+        await setSecureItem(STORAGE_KEYS.REMEMBER_ME, true);
+      } else {
+        // Clear saved credentials if remember me is unchecked
+        await deleteSecureItem(STORAGE_KEYS.SAVED_EMAIL);
+        await deleteSecureItem(STORAGE_KEYS.SAVED_PASSWORD);
+        await deleteSecureItem(STORAGE_KEYS.REMEMBER_ME);
+      }
+    } catch (error) {
+      console.error('Error saving credentials:', error);
+      // Don't block login on save failure
+    }
+  };
 
   const handleLogin = useCallback(async () => {
     // Input validation
@@ -57,7 +101,7 @@ export default function LoginScreen() {
       });
 
       if (authError || !authData?.user) {
-        logger.error('Login error', sanitizeForLog(authError));
+        logger.error('Login authentication failed', sanitizeForLog(authError));
         // ALWAYS use generic message - don't reveal if user exists
         throw new Error('Invalid email or password. Please try again.');
       }
@@ -88,25 +132,24 @@ export default function LoginScreen() {
         throw new Error('Account setup incomplete. Please contact support.');
       }
 
-      // Navigate based on role (from authenticated user data)
-      switch (userData.role) {
-        case 'officer':
-          router.replace('/officer/officerspecs');
-          break;
-        case 'admin':
-          router.replace('/president/presidentindex');
-          break;
-        default:
-          router.replace('/(tabs)');
-      }
+      // Save credentials if login successful and remember me is checked
+      await saveCredentials(email, password);
+
+      // Everyone goes to member tabs by default
+      // Officers and admins can switch views using the header button
+      router.replace('/(tabs)');
     } catch (error: any) {
-      logger.error('Login error', sanitizeForLog(error));
+      // Handle Error objects properly - extract message
+      const errorInfo = error instanceof Error 
+        ? { message: error.message, name: error.name }
+        : error;
+      logger.error('Login error', sanitizeForLog(errorInfo));
       // Always show generic error to prevent user enumeration
       Alert.alert('Login Failed', 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [email, password, router]);
+  }, [email, password, router, rememberMe]);
 
   const goToSignUp = () => {
     router.push('/(auth)/signup');
@@ -218,6 +261,19 @@ export default function LoginScreen() {
                   <Text style={styles.eyeText}>{showPassword ? '👁️‍🗨️' : '👁️‍🗨️'}</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+
+            {/* Remember Me Checkbox */}
+            <View style={styles.rememberMeContainer}>
+              <Switch
+                value={rememberMe}
+                onValueChange={setRememberMe}
+                trackColor={{ false: '#d1d5db', true: '#F7B910' }}
+                thumbColor={rememberMe ? '#330066' : '#f3f4f6'}
+                ios_backgroundColor="#d1d5db"
+                disabled={loading || resetLoading}
+              />
+              <Text style={styles.rememberMeText}>Remember me</Text>
             </View>
 
             <TouchableOpacity
@@ -426,6 +482,18 @@ const styles = StyleSheet.create({
   },
   eyeText: {
     fontSize: 18,
+  },
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  rememberMeText: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '500',
+    marginLeft: 12,
   },
   loginButton: {
     backgroundColor: '#8b5cf6',
