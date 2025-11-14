@@ -6,6 +6,11 @@ import { supabase } from '../../lib/supabase';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { Colors } from '../../constants/colors';
 
+export const unstable_settings = {
+  // Ensure tabs remain static and don't auto-generate
+  initialRouteName: 'index',
+};
+
 export default function BrotherLayout() {
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
