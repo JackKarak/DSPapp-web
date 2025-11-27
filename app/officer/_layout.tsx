@@ -61,6 +61,10 @@ export default function OfficerLayout() {
       case 'historian':
         return new Set([...baseTabs, 'historian']);
         
+      // VP Operations gets additional members tab
+      case 'vp_operations':
+        return new Set([...baseTabs, 'members']);
+        
       // All other officers get base tabs
       default:
         return new Set(baseTabs);
@@ -75,6 +79,7 @@ export default function OfficerLayout() {
     { name: 'register', title: 'Register', icon: 'person-add-outline' as const },
     { name: 'scholarship', title: 'Testbank', icon: 'library-outline' as const, path: '/officer/scholarship' },
     { name: 'historian', title: 'Marketing', icon: 'megaphone-outline' as const, path: '/officer/historian' },
+    { name: 'members', title: 'Members', icon: 'people-outline' as const, path: '/officer/members' },
     { name: 'officerspecs', title: 'Officer Control', icon: 'settings-outline' as const, hidden: true },
   ], []);
 

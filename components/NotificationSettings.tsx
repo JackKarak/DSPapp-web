@@ -8,6 +8,7 @@ import { View, Text, Switch, StyleSheet, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { registerForPushNotifications, cancelAllNotifications } from '../lib/notifications';
 import { scheduleUpcomingEventNotifications } from '../lib/scheduleNotifications';
+import { cleanupDuplicateNotifications } from '../lib/cleanupNotifications';
 
 export function NotificationSettings() {
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -56,6 +57,9 @@ export function NotificationSettings() {
           setPushEnabled(false);
           return;
         }
+
+        // Clean up any existing duplicate notifications first
+        await cleanupDuplicateNotifications();
 
         // Schedule notifications for upcoming events
         await scheduleUpcomingEventNotifications();

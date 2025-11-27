@@ -117,7 +117,7 @@ export default function CalendarTab() {
       } = await supabase.auth.getUser();
 
       if (userError || !user) {
-        Alert.alert('Authentication Error', 'Please log in again.');
+        // User not authenticated - redirect to login without showing alert
         router.replace('/(auth)/login');
         return;
       }

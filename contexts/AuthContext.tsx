@@ -4,6 +4,7 @@ import { checkAuthentication } from '../lib/secureAuth';
 import { supabase } from '../lib/supabase';
 import { logger } from '../lib/logger';
 import { deleteSecureItem, STORAGE_KEYS } from '../lib/secureStorage';
+import { cleanupDuplicateNotifications } from '../lib/cleanupNotifications';
 
 interface AuthContextType {
   user: any | null;
@@ -108,6 +109,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (session?.user) {
             setUser(session.user);
             setSession(session);
+            
+            // Clean up any duplicate notifications on sign in
+            if (event === 'SIGNED_IN') {
+              cleanupDuplicateNotifications().catch(err => {
+                logger.error('Failed to cleanup duplicate notifications', err);
+              });
+            }
           }
         } else if (event === 'SIGNED_OUT') {
           setUser(null);

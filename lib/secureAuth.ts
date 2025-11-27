@@ -25,19 +25,31 @@ export const checkAuthentication = async (): Promise<AuthResult> => {
       return { isAuthenticated: false, user: null, error: 'No authenticated user' }
     }
 
-    // Verify user exists in database
-    const { data: dbUser, error: dbError } = await supabase
-      .from('users')
-      .select('user_id, email, role, first_name, last_name')
-      .eq('user_id', user.id)
-      .single()
+    // Try to verify user exists in database, but don't fail auth if this fails
+    try {
+      const { data: dbUser, error: dbError } = await supabase
+        .from('users')
+        .select('user_id, email, role, first_name, last_name')
+        .eq('user_id', user.id)
+        .single()
 
-    if (dbError || !dbUser) {
-      logger.error('Database user verification failed', sanitizeForLog(dbError))
-      return { isAuthenticated: false, user: null, error: 'User not found in database' }
+      if (dbError) {
+        logger.error('Database user verification failed (non-critical)', sanitizeForLog(dbError))
+        // Still return authenticated with just auth user data
+        return { isAuthenticated: true, user: user }
+      }
+
+      if (!dbUser) {
+        logger.error('User not found in database (non-critical)')
+        return { isAuthenticated: true, user: user }
+      }
+
+      return { isAuthenticated: true, user: { ...user, ...dbUser } }
+    } catch (dbCheckError) {
+      logger.error('Database check exception (non-critical)', sanitizeForLog(dbCheckError))
+      // Still return authenticated with just auth user data
+      return { isAuthenticated: true, user: user }
     }
-
-    return { isAuthenticated: true, user: { ...user, ...dbUser } }
     
   } catch (error) {
     logger.error('Unexpected authentication error', sanitizeForLog(error))

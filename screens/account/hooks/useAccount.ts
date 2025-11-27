@@ -184,6 +184,15 @@ export const useAccount = () => {
       };
       setProfile(userProfile);
 
+      // Load consent preferences from database (if available)
+      const loadedConsent = {
+        analytics: profileData.consent_analytics || false,
+        demographics: profileData.consent_demographics || false,
+        academic: profileData.consent_academic || false,
+        housing: profileData.consent_housing || false,
+      };
+      setUserConsent(loadedConsent);
+
       // Initialize form data from profile
       setFormData({
         majors: profileData.majors || '',
@@ -355,6 +364,12 @@ export const useAccount = () => {
         sexual_orientation: formData.sexualOrientation?.trim() || null,
         expected_graduation: formData.expectedGraduation?.trim() || null,
         last_profile_update: new Date().toISOString(),
+        // Include consent preferences in profile update
+        consent_analytics: userConsent.analytics,
+        consent_demographics: userConsent.demographics,
+        consent_academic: userConsent.academic,
+        consent_housing: userConsent.housing,
+        consent_updated_at: new Date().toISOString(),
       };
 
       const { error: updateError } = await supabase
@@ -377,7 +392,7 @@ export const useAccount = () => {
     } finally {
       setSaving(false);
     }
-  }, [formData, fetchAccountData]);
+  }, [formData, userConsent, fetchAccountData]);
 
   // ============================================================================
   // DATA CONSENT
