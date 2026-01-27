@@ -86,8 +86,8 @@ export const getDateInEST = (dateString: string): Date => {
 };
 
 /**
- * Converts a Date to EST timezone string in database format
- * Returns format: YYYY-MM-DD HH:MM:SS
+ * Converts a Date to EST timezone string in ISO 8601 format for database storage
+ * Returns format compatible with PostgreSQL TIMESTAMPTZ: YYYY-MM-DDTHH:MM:SS-05:00
  */
 export const getESTISOString = (date: Date): string => {
   // Check if the date is valid
@@ -115,7 +115,32 @@ export const getESTISOString = (date: Date): string => {
   const minute = parts.find(part => part.type === 'minute')?.value;
   const second = parts.find(part => part.type === 'second')?.value;
   
-  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+  // Determine if DST is in effect for EST/EDT offset
+  const isDST = isDateInDST(date);
+  const offset = isDST ? '-04:00' : '-05:00'; // EDT or EST
+  
+  // Return ISO 8601 format with timezone offset
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}${offset}`;
+};
+
+/**
+ * Checks if a date falls within Daylight Saving Time in Eastern timezone
+ */
+const isDateInDST = (date: Date): boolean => {
+  // DST in US: Second Sunday in March to First Sunday in November
+  const year = date.getFullYear();
+  
+  // Get second Sunday in March
+  const marchFirst = new Date(year, 2, 1); // March is month 2 (0-indexed)
+  const marchFirstDay = marchFirst.getDay();
+  const dstStart = new Date(year, 2, (14 - marchFirstDay) % 7 + 8, 2, 0, 0); // 2 AM EST
+  
+  // Get first Sunday in November
+  const novFirst = new Date(year, 10, 1); // November is month 10
+  const novFirstDay = novFirst.getDay();
+  const dstEnd = new Date(year, 10, (7 - novFirstDay) % 7 + 1, 2, 0, 0); // 2 AM EDT
+  
+  return date >= dstStart && date < dstEnd;
 };
 
 /**

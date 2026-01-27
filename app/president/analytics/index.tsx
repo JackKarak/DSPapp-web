@@ -7,9 +7,10 @@
  * - Top performers (member rankings)
  * - Recent events (event analytics)
  * - Diversity metrics (demographics and inclusion)
+ * - Member roster (full roster with points breakdown)
  */
 
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { View, ScrollView, ActivityIndicator, RefreshControl, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorBoundary } from '../../../components/ErrorBoundary';
@@ -19,14 +20,19 @@ import {
   useMemberPerformance, 
   useEventAnalytics, 
   useCategoryBreakdown, 
-  useDiversityMetrics 
+  useDiversityMetrics,
+  useMemberPoints
 } from '../../../hooks/analytics';
 import { FraternityHealth } from '../../../components/PresidentAnalyticsComponents/FraternityHealth';
 import { CategoryBreakdown } from '../../../components/PresidentAnalyticsComponents/CategoryBreakdown';
 import { TopPerformers } from '../../../components/PresidentAnalyticsComponents/TopPerformers';
 import { RecentEvents } from '../../../components/PresidentAnalyticsComponents/RecentEvents';
 import { DiversitySection } from '../../../components/PresidentAnalyticsComponents/DiversitySection';
+import { MemberRoster } from '../../../components/PresidentAnalyticsComponents/MemberRoster';
+import { MemberPointsModal } from '../../../components/PresidentAnalyticsComponents/MemberPointsModal';
+import { AnalyticsSection } from '../../../components/AnalyticsComponents';
 import { styles } from '../../../styles/presidentAnalytics/analyticsStyles';
+import type { Member } from '../../../types/analytics';
 
 function PresidentAnalyticsOptimized() {
   const { state, handleRefresh, handleLoadMoreEvents } = useAnalyticsData();
@@ -35,6 +41,32 @@ function PresidentAnalyticsOptimized() {
   const eventAnalytics = useEventAnalytics(state.events, state.attendance, state.members);
   const categoryBreakdown = useCategoryBreakdown(state.events, state.attendance, state.members);
   const diversityMetrics = useDiversityMetrics(state.members);
+  const { fetchMemberPoints, loading: pointsLoading } = useMemberPoints();
+
+  // State for member points modal
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [memberPoints, setMemberPoints] = useState<Record<string, number> | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+
+  // Handle member selection
+  const handleMemberPress = async (member: Member) => {
+    setSelectedMember(member);
+    setModalVisible(true);
+    setMemberPoints(null); // Reset previous points
+    
+    // Fetch points for selected member
+    const points = await fetchMemberPoints(member.user_id);
+    if (points) {
+      setMemberPoints(points.pointsByCategory);
+    }
+  };
+
+  // Handle modal close
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setSelectedMember(null);
+    setMemberPoints(null);
+  };
 
   // Loading state - show spinner for initial load
   if (state.loading && state.members.length === 0) {
@@ -85,6 +117,23 @@ function PresidentAnalyticsOptimized() {
       <DiversitySection 
         diversityMetrics={diversityMetrics}
         loading={state.loading}
+      />
+
+      {/* Member Roster Section */}
+      <AnalyticsSection title="Member Roster">
+        <MemberRoster 
+          members={state.members}
+          onMemberPress={handleMemberPress}
+        />
+      </AnalyticsSection>
+
+      {/* Member Points Modal */}
+      <MemberPointsModal
+        visible={modalVisible}
+        member={selectedMember}
+        pointsByCategory={memberPoints}
+        loading={pointsLoading}
+        onClose={handleCloseModal}
       />
     </ScrollView>
   );

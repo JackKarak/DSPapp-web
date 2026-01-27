@@ -9,3 +9,5 @@ export { CategoryBreakdown } from './CategoryBreakdown';
 export { TopPerformers } from './TopPerformers';
 export { RecentEvents } from './RecentEvents';
 export { DiversitySection } from './DiversitySection';
+export { MemberRoster } from './MemberRoster';
+export { MemberPointsModal } from './MemberPointsModal';

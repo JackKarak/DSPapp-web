@@ -12,11 +12,13 @@ import {
   TouchableOpacity,
   Switch,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { FormData, FormErrors, FormMode } from '../hooks/events/useEventForm';
 import { CustomDropdown } from './FormComponents';
 import { registerFormStyles as styles } from '../styles/registerForm.styles';
-import { POINT_TYPE_OPTIONS, roundToNearest15Minutes } from '../constants/formConstants';
+import { roundToNearest15Minutes } from '../constants/formConstants';
+import { usePointCategories } from '../hooks/shared/usePointCategories';
 
 // Helper functions
 const formatDate = (date: Date): string => {
@@ -132,44 +134,60 @@ export const PointsConfigSection: React.FC<PointsSectionProps> = ({
   formData,
   errors,
   onUpdate,
-}) => (
-  <View style={styles.section}>
-    <Text style={styles.sectionHeader}>Points Configuration</Text>
-    
-    {mode === 'event' && (
-      <View style={styles.switchRow}>
-        <View style={styles.switchLabelContainer}>
-          <Text style={styles.switchLabel}>Award Points</Text>
-          <Text style={styles.switchHint}>Give members points for attending</Text>
-        </View>
-        <Switch 
-          value={formData.awardPoints} 
-          onValueChange={(value) => {
-            onUpdate('awardPoints', value);
-            if (!value) {
-              onUpdate('pointType', '');
-            }
-          }}
-          thumbColor={formData.awardPoints ? '#8b5cf6' : '#f4f3f4'}
-          trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
-          accessibilityLabel="Award points"
-          accessibilityRole="switch"
-          accessibilityState={{ checked: formData.awardPoints }}
-        />
-      </View>
-    )}
+}) => {
+  const { categories, loading } = usePointCategories();
+  
+  // Convert categories to dropdown options
+  const pointTypeOptions = categories.map(cat => ({
+    label: cat.display_name,
+    value: cat.name,
+  }));
 
-    {formData.awardPoints && (
-      <CustomDropdown
-        label="Point Type"
-        value={formData.pointType}
-        options={POINT_TYPE_OPTIONS}
-        onValueChange={(value) => onUpdate('pointType', value)}
-        error={errors.pointType}
-      />
-    )}
-  </View>
-);
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionHeader}>Points Configuration</Text>
+      
+      {mode === 'event' && (
+        <View style={styles.switchRow}>
+          <View style={styles.switchLabelContainer}>
+            <Text style={styles.switchLabel}>Award Points</Text>
+            <Text style={styles.switchHint}>Give members points for attending</Text>
+          </View>
+          <Switch 
+            value={formData.awardPoints} 
+            onValueChange={(value) => {
+              onUpdate('awardPoints', value);
+              if (!value) {
+                onUpdate('pointType', '');
+              }
+            }}
+            thumbColor={formData.awardPoints ? '#8b5cf6' : '#f4f3f4'}
+            trackColor={{ false: '#d1d5db', true: '#c4b5fd' }}
+            accessibilityLabel="Award points"
+            accessibilityRole="switch"
+            accessibilityState={{ checked: formData.awardPoints }}
+          />
+        </View>
+      )}
+
+      {formData.awardPoints && (
+        loading ? (
+          <View style={{ padding: 20, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#8b5cf6" />
+          </View>
+        ) : (
+          <CustomDropdown
+            label="Point Type"
+            value={formData.pointType}
+            options={pointTypeOptions}
+            onValueChange={(value) => onUpdate('pointType', value)}
+            error={errors.pointType}
+          />
+        )
+      )}
+    </View>
+  );
+};
 
 // Access & Registration Section
 interface AccessSectionProps {

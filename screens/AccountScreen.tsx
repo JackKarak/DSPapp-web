@@ -242,6 +242,7 @@ export default function AccountTab() {
       {/* Data Consent Modal */}
       <DataConsentModal
         visible={account.consentModalVisible}
+        initialConsent={account.userConsent}
         onAccept={account.handleConsentAccept}
         onDecline={account.handleConsentDecline}
         onClose={() => account.setConsentModalVisible(false)}

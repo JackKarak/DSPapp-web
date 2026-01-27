@@ -31,6 +31,11 @@ const RegisterIcon = memo(({ color, size }: { color: string; size: number }) => 
 ));
 RegisterIcon.displayName = 'RegisterIcon';
 
+const ProgressIcon = memo(({ color, size }: { color: string; size: number }) => (
+  <Ionicons name="list-outline" size={size} color={color} />
+));
+ProgressIcon.displayName = 'ProgressIcon';
+
 // Memoized header buttons component
 const HeaderButtons = memo(({ 
   onSignOut, 
@@ -191,6 +196,16 @@ function PresidentLayout() {
     []
   );
 
+  const progressOptions = useMemo(
+    () => ({
+      title: 'Progress',
+      tabBarIcon: ({ color, size }: { color: string; size: number }) => (
+        <ProgressIcon color={color} size={size} />
+      ),
+    }),
+    []
+  );
+
   return (
     <ErrorBoundary>
       <Tabs screenOptions={screenOptions}>
@@ -202,6 +217,7 @@ function PresidentLayout() {
         <Tabs.Screen name="approve" options={approveOptions} />
         <Tabs.Screen name="override" options={overrideOptions} />
         <Tabs.Screen name="register" options={registerOptions} />
+        <Tabs.Screen name="progress" options={progressOptions} />
       </Tabs>
     </ErrorBoundary>
   );

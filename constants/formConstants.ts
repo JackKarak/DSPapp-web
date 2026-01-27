@@ -1,5 +1,20 @@
 /**
  * Form constants and configuration
+ * 
+ * NOTE: POINT_TYPE_OPTIONS is DEPRECATED as of January 27, 2026
+ * Point categories are now dynamically managed in the database.
+ * 
+ * @deprecated Use the usePointCategories() hook instead:
+ * ```typescript
+ * import { usePointCategories } from '../hooks/shared/usePointCategories';
+ * const { categories } = usePointCategories();
+ * ```
+ * 
+ * This constant is kept only for backward compatibility and will be
+ * removed in a future version.
+ * 
+ * @see hooks/shared/usePointCategories.ts
+ * @see docs/features/DYNAMIC_POINT_CATEGORIES.md
  */
 
 // Timing constants
@@ -11,7 +26,9 @@ export const REDIRECT_DELAY = 2000;
 // Time picker settings
 export const TIME_PICKER_INTERVAL = 15; // minutes
 
-// Point type options
+// DEPRECATED: Point type options are now dynamic from point_categories table
+// Use usePointCategories() hook instead
+// This is kept for backward compatibility only
 export const POINT_TYPE_OPTIONS: { label: string; value: string }[] = [
   { label: 'Brotherhood', value: 'brotherhood' },
   { label: 'Professional', value: 'professional' },

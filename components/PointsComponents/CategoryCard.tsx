@@ -8,7 +8,6 @@ import React from 'react';
 import { View, Text } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { styles } from '../../styles/points/pointsStyles';
-import { getCategoryInfo } from '../../constants/points/pointRequirements';
 
 interface CategoryCardProps {
   category: string;
@@ -16,6 +15,8 @@ interface CategoryCardProps {
     required: number;
     name: string;
     description: string;
+    color?: string;
+    icon?: string;
   };
   earned: number;
   colors: any;
@@ -29,7 +30,10 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
 }) => {
   const met = earned >= config.required;
   const progress = Math.min((earned / config.required) * 100, 100);
-  const categoryInfo = getCategoryInfo(category, colors.primary);
+  
+  // Use dynamic color and icon from config, with fallback
+  const categoryColor = config.color || colors.primary;
+  const categoryIcon = config.icon || '⭐';
 
   return (
     <View
@@ -40,8 +44,8 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
       ]}
     >
       <View style={styles.categoryHeader}>
-        <View style={[styles.categoryIconContainer, { backgroundColor: categoryInfo.color }]}>
-          <MaterialIcons name={categoryInfo.icon as any} size={24} color="white" />
+        <View style={[styles.categoryIconContainer, { backgroundColor: categoryColor }]}>
+          <Text style={{ fontSize: 24 }}>{categoryIcon}</Text>
         </View>
         <View style={styles.categoryInfo}>
           <Text style={[styles.categoryTitle, { color: colors.text }]}>
@@ -77,7 +81,7 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
               styles.progressBarFill, 
               { 
                 width: `${progress}%`,
-                backgroundColor: met ? colors.primary : categoryInfo.color
+                backgroundColor: met ? colors.primary : categoryColor
               }
             ]}
           />

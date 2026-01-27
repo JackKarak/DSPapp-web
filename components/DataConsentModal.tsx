@@ -29,6 +29,7 @@ const dspPurple = Colors.primary; // Use DSP Purple for consistency
 
 interface DataConsentModalProps {
   visible: boolean;
+  initialConsent?: ConsentOptions; // Add initial consent prop
   onAccept: (consent: ConsentOptions) => void;
   onDecline: () => void;
   onClose: () => void;
@@ -43,6 +44,7 @@ export interface ConsentOptions {
 
 export function DataConsentModal({
   visible,
+  initialConsent,
   onAccept,
   onDecline,
   onClose,
@@ -53,6 +55,13 @@ export function DataConsentModal({
     housing: false,
     analytics: false,
   });
+
+  // Update local state when modal opens or initialConsent changes
+  React.useEffect(() => {
+    if (visible && initialConsent) {
+      setConsent(initialConsent);
+    }
+  }, [visible, initialConsent]);
 
   const toggleConsent = (key: keyof ConsentOptions) => {
     setConsent(prev => ({ ...prev, [key]: !prev[key] }));

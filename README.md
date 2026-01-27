@@ -102,6 +102,9 @@ All comprehensive documentation is organized in the `/docs` directory:
 - **[Testing Checklist](docs/guides/TESTING_CHECKLIST.md)** - Comprehensive testing procedures
 
 ### Recent Updates
+- **[Dynamic Point Categories](docs/features/DYNAMIC_POINT_CATEGORIES.md)** - Complete category management system
+- **[Member Progress Table](docs/features/MEMBER_PROGRESS_TABLE.md)** - Excel-like progress tracking
+- **[Migration Cleanup](docs/fixes/MIGRATION_CLEANUP_20260127.md)** - Database migration consolidation
 - **[Post-Testing Fixes](docs/fixes/POST_TESTING_FIXES.md)** - Latest bug fixes and improvements
 - **[Fixes Completed](docs/reports/FIXES_COMPLETED.md)** - Completed fix history
 - **[Fixes Applied Summary](docs/reports/FIXES_APPLIED_SUMMARY.md)** - Summary of all applied fixes
@@ -257,6 +260,8 @@ npm test
 All development documentation is organized in the [`docs/`](docs/) folder:
 
 #### Features
+- [Dynamic Point Categories](docs/features/DYNAMIC_POINT_CATEGORIES.md) - VP Operations category management
+- [Member Progress Table](docs/features/MEMBER_PROGRESS_TABLE.md) - President member tracking
 - [Event Feedback Implementation](docs/features/EVENT_FEEDBACK_IMPLEMENTATION.md)
 - [Point Appeal System](docs/features/POINT_APPEAL_FEATURE.md)
 - [Test Bank Upload](docs/features/TEST_BANK_UPLOAD_FIX.md)

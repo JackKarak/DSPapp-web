@@ -85,13 +85,13 @@ export const KPIRowSection: React.FC<KPIRowSectionProps> = ({
 // ============================================================================
 
 type AttendanceTrendProps = {
-  attendanceTrend: { month: string; count: number }[];
+  attendanceTrend: { month: string; count: number }[] | null | undefined;
 };
 
 export const AttendanceTrendChart: React.FC<AttendanceTrendProps> = ({ attendanceTrend }) => (
   <View style={styles.chartCard}>
     <Text style={styles.chartTitle}>Event Activity</Text>
-    {attendanceTrend.length > 0 && (
+    {attendanceTrend && attendanceTrend.length > 0 && (
       <LineChart
         data={{
           labels: attendanceTrend.map((d) => d.month),
@@ -115,14 +115,14 @@ export const AttendanceTrendChart: React.FC<AttendanceTrendProps> = ({ attendanc
 // ============================================================================
 
 type DemographicsChartProps = {
-  byPledgeClass: Record<string, number>;
+  byPledgeClass: Record<string, number> | null | undefined;
 };
 
 export const DemographicsChart: React.FC<DemographicsChartProps> = ({ byPledgeClass }) => (
   <View style={styles.chartCard}>
     <Text style={styles.chartTitle}>👥 Regular Member Demographics by Pledge Class</Text>
     <Text style={styles.chartSubtitle}>Attendees of your events (excluding officers/admins)</Text>
-    {Object.keys(byPledgeClass).length > 0 ? (
+    {byPledgeClass && Object.keys(byPledgeClass).length > 0 ? (
       <BarChart
         data={{
           labels: Object.keys(byPledgeClass).slice(0, 6),
@@ -151,17 +151,17 @@ export const DemographicsChart: React.FC<DemographicsChartProps> = ({ byPledgeCl
 // ============================================================================
 
 type EventTypeDistributionProps = {
-  byPointType: Record<string, number>;
+  byPointType: Record<string, number> | null | undefined;
 };
 
 export const EventTypeDistributionChart: React.FC<EventTypeDistributionProps> = ({ byPointType }) => {
-  const pointDistribution = Object.entries(byPointType || {}).map(([name, points], i) => ({
+  const pointDistribution = byPointType ? Object.entries(byPointType).map(([name, points], i) => ({
     name,
     points: points as number,
     color: CHART_COLOR_ARRAYS.pie[i % CHART_COLOR_ARRAYS.pie.length],
     legendFontColor: '#333',
     legendFontSize: 13,
-  }));
+  })) : [];
 
   return (
     <View style={styles.chartCard}>
@@ -290,14 +290,14 @@ type FeedbackSectionProps = {
     rating: number;
     comments: string;
     created_at: string;
-  }>;
+  }> | null | undefined;
   formatDate: (date: string) => string;
 };
 
 export const FeedbackSection: React.FC<FeedbackSectionProps> = ({ recentComments, formatDate }) => (
   <View style={styles.chartCard}>
     <Text style={styles.chartTitle}>Recent Feedback</Text>
-    {recentComments.length > 0 ? (
+    {recentComments && recentComments.length > 0 ? (
       <View style={styles.feedbackList}>
         {recentComments.slice(0, 3).map((feedback, index) => (
           <FeedbackItem
@@ -334,7 +334,7 @@ type EventsSectionProps = {
     creator_name: string;
     attendance_count: number;
     attendance_rate?: number;
-  }>;
+  }> | null | undefined;
   position: string;
   formatDate: (date: string) => string;
 };
@@ -342,7 +342,7 @@ type EventsSectionProps = {
 export const EventsSection: React.FC<EventsSectionProps> = ({ events, position, formatDate }) => (
   <View style={styles.chartCard}>
     <Text style={styles.chartTitle}>Your Events</Text>
-    {events.length > 0 ? (
+    {events && events.length > 0 ? (
       <View style={styles.eventsGrid}>
         {events.map((event) => (
           <OfficerEventCard

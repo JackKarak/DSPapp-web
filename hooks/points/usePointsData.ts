@@ -8,7 +8,7 @@
 import { useCallback, useReducer, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
-import { POINT_REQUIREMENTS } from '../../constants/points/pointRequirements';
+import { usePointThresholds } from './usePointThresholds';
 
 // State type
 export type PointsState = {
@@ -78,6 +78,9 @@ const initialState: PointsState = {
 
 export function usePointsData() {
   const [state, dispatch] = useReducer(reducer, initialState);
+  
+  // Get dynamic point requirements from database
+  const { pointRequirements, loading: thresholdsLoading } = usePointThresholds();
 
   // Fetch all data using SINGLE RPC call
   const fetchAllData = useCallback(async () => {
@@ -110,8 +113,8 @@ export function usePointsData() {
       const userRank = dashboardData.userRank || null;
       const leaderboard = dashboardData.leaderboard || [];
 
-      // Calculate pillars met
-      const metCount = Object.entries(POINT_REQUIREMENTS).reduce((count, [cat, config]) => {
+      // Calculate pillars met using dynamic requirements
+      const metCount = Object.entries(pointRequirements).reduce((count, [cat, config]) => {
         return (categoryPoints[cat] || 0) >= config.required ? count + 1 : count;
       }, 0);
 
@@ -134,14 +137,17 @@ export function usePointsData() {
         error: error.message || 'An unexpected error occurred. Please try again.' 
       });
     }
-  }, [state.pillarsMet]);
+  }, [state.pillarsMet, pointRequirements]);
 
   // Use focus-aware loading instead of useEffect
   useFocusEffect(
     useCallback(() => {
-      dispatch({ type: 'SET_LOADING', loading: true });
-      fetchAllData();
-    }, [fetchAllData])
+      // Wait for thresholds to load before fetching data
+      if (!thresholdsLoading) {
+        dispatch({ type: 'SET_LOADING', loading: true });
+        fetchAllData();
+      }
+    }, [fetchAllData, thresholdsLoading])
   );
 
   // Refresh handler
@@ -151,14 +157,14 @@ export function usePointsData() {
   }, [fetchAllData]);
 
   // Calculate confetti trigger - must be memoized
-  const totalPillars = Object.keys(POINT_REQUIREMENTS).length;
+  const totalPillars = Object.keys(pointRequirements).length;
   const triggerConfetti = useMemo(() => {
     return state.previousPillarsMet < totalPillars && state.pillarsMet >= totalPillars;
   }, [state.previousPillarsMet, state.pillarsMet, totalPillars]);
 
   // Calculate completion percentage
   const completionPercentage = useMemo(() => {
-    return (state.pillarsMet / totalPillars) * 100;
+    return totalPillars > 0 ? (state.pillarsMet / totalPillars) * 100 : 0;
   }, [state.pillarsMet, totalPillars]);
 
   return {

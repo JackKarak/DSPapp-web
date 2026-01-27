@@ -404,7 +404,32 @@ export const useAccount = () => {
     analytics: boolean;
   }) => {
     try {
-      // Save to secure storage
+      // Check authentication
+      const authResult = await checkAuthentication();
+      if (!authResult.isAuthenticated) {
+        handleAuthenticationRedirect();
+        return;
+      }
+
+      // Save to database
+      const { error: dbError } = await supabase
+        .from('users')
+        .update({
+          consent_analytics: consentOptions.analytics,
+          consent_demographics: consentOptions.demographics,
+          consent_academic: consentOptions.academic,
+          consent_housing: consentOptions.housing,
+          consent_updated_at: new Date().toISOString(),
+          privacy_policy_version: '1.0.0',
+        })
+        .eq('user_id', authResult.user.id);
+
+      if (dbError) {
+        console.error('Error saving consent to database:', dbError);
+        throw new Error('Failed to save preferences to database');
+      }
+      
+      // Save to secure storage (for offline access)
       await saveConsentPreferences(consentOptions);
       
       // Update local state
@@ -412,14 +437,24 @@ export const useAccount = () => {
       setConsentModalVisible(false);
       
       Alert.alert('Thank you!', 'Your data preferences have been saved.');
+      
+      // Refresh account data to reflect new consent preferences
+      await fetchAccountData();
     } catch (err) {
       console.error('Error saving consent:', err);
-      Alert.alert('Error', 'Failed to save preferences.');
+      Alert.alert('Error', 'Failed to save preferences. Please try again.');
     }
-  }, []);
+  }, [fetchAccountData]);
 
   const handleConsentDecline = useCallback(async () => {
     try {
+      // Check authentication
+      const authResult = await checkAuthentication();
+      if (!authResult.isAuthenticated) {
+        handleAuthenticationRedirect();
+        return;
+      }
+
       const allDeclined = {
         analytics: false,
         demographics: false,
@@ -427,7 +462,25 @@ export const useAccount = () => {
         housing: false,
       };
       
-      // Save to secure storage
+      // Save to database
+      const { error: dbError } = await supabase
+        .from('users')
+        .update({
+          consent_analytics: false,
+          consent_demographics: false,
+          consent_academic: false,
+          consent_housing: false,
+          consent_updated_at: new Date().toISOString(),
+          privacy_policy_version: '1.0.0',
+        })
+        .eq('user_id', authResult.user.id);
+
+      if (dbError) {
+        console.error('Error saving consent to database:', dbError);
+        throw new Error('Failed to save preferences to database');
+      }
+      
+      // Save to secure storage (for offline access)
       await saveConsentPreferences(allDeclined);
       
       // Update local state
@@ -435,11 +488,14 @@ export const useAccount = () => {
       setConsentModalVisible(false);
       
       Alert.alert('Preferences Saved', 'Your data will not be used for analytics.');
+      
+      // Refresh account data to reflect new consent preferences
+      await fetchAccountData();
     } catch (err) {
       console.error('Error saving consent:', err);
-      Alert.alert('Error', 'Failed to save preferences.');
+      Alert.alert('Error', 'Failed to save preferences. Please try again.');
     }
-  }, []);
+  }, [fetchAccountData]);
 
   // ============================================================================
   // TEST BANK

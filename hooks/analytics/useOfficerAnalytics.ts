@@ -145,8 +145,18 @@ export const useOfficerAnalytics = () => {
 
       const totalRegularUsers = regularUsers?.length || 1;
 
+      // Add null check for allEvents
+      if (!allEvents || allEvents.length === 0) {
+        setComparativeData({
+          allOfficersAvgAttendance: 0,
+          allOfficersAvgRating: 0,
+          allOfficersEngagementRate: 0,
+        });
+        return;
+      }
+
       // Calculate averages across all officers
-      const eventGroups = allEvents?.reduce((acc: any, event: any) => {
+      const eventGroups = allEvents.reduce((acc: any, event: any) => {
         const attendanceCount = event.event_attendance?.length || 0;
         const ratings = event.event_feedback?.map((f: any) => f.rating).filter((r: any) => r) || [];
         const avgRating = ratings.length > 0 ? ratings.reduce((sum: number, r: number) => sum + r, 0) / ratings.length : 0;
@@ -158,7 +168,7 @@ export const useOfficerAnalytics = () => {
         if (avgRating > 0) acc[event.created_by].ratings.push(avgRating);
         
         return acc;
-      }, {}) || {};
+      }, {});
 
       const officerMetrics = Object.values(eventGroups).map((officer: any) => ({
         avgAttendance: officer.attendances.reduce((sum: number, a: number) => sum + a, 0) / officer.attendances.length,
@@ -218,19 +228,19 @@ export const useOfficerAnalytics = () => {
     const { event_stats, attendance_stats, total_regular_users } = dashboardData;
     
     // Calculate average attendance per event
-    const totalAttendances = attendance_stats.total_attendances;
-    const eventCount = event_stats.total || 1;
+    const totalAttendances = attendance_stats?.total_attendances || 0;
+    const eventCount = event_stats?.total || 1;
     const averageAttendance = totalAttendances / eventCount;
 
     // Calculate engagement rate (capped at 100% to handle data anomalies)
     const engagementRate = total_regular_users > 0 
-      ? Math.min(100, (attendance_stats.unique_attendees / total_regular_users) * 100)
+      ? Math.min(100, ((attendance_stats?.unique_attendees || 0) / total_regular_users) * 100)
       : 0;
 
     // Calculate growth rate from attendance trend (only if sufficient data)
-    const trend = event_stats.attendance_trend || [];
+    const trend = event_stats?.attendance_trend || [];
     let growthRate = 0;
-    if (trend.length >= 6) {
+    if (trend && trend.length >= 6) {
       const currentQuarter = trend.slice(3).reduce((sum, m) => sum + m.count, 0);
       const previousQuarter = trend.slice(0, 3).reduce((sum, m) => sum + m.count, 0);
       growthRate = previousQuarter > 0 
@@ -238,8 +248,8 @@ export const useOfficerAnalytics = () => {
         : currentQuarter > 0 ? 100 : 0;
     }
 
-    // Enrich individual events with attendance rate
-    const enrichedEvents = dashboardData.individual_events.map(event => {
+    // Enrich individual events with attendance rate - add null check
+    const enrichedEvents = (dashboardData.individual_events || []).map(event => {
       const rate = total_regular_users > 0 
         ? Math.min(100, (event.attendance_count / total_regular_users) * 100)
         : 0;

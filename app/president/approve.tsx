@@ -1,11 +1,16 @@
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
+  ScrollView,
   StyleSheet,
+  Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View
 } from 'react-native';
@@ -54,6 +59,7 @@ interface ApprovalState {
   loading: boolean;
   processingEventIds: Set<string>;
   expandedCards: Set<string>;
+  editingEventId: string | null;
 }
 
 type ApprovalAction =
@@ -61,7 +67,8 @@ type ApprovalAction =
   | { type: 'SET_EVENTS'; payload: { pending: PendingEvent[]; all: any[] } }
   | { type: 'TOGGLE_PROCESSING'; payload: string }
   | { type: 'TOGGLE_EXPANDED'; payload: string }
-  | { type: 'CLEAR_PROCESSING'; payload: string };
+  | { type: 'CLEAR_PROCESSING'; payload: string }
+  | { type: 'SET_EDITING'; payload: string | null };
 
 function approvalReducer(state: ApprovalState, action: ApprovalAction): ApprovalState {
   switch (action.type) {
@@ -101,6 +108,9 @@ function approvalReducer(state: ApprovalState, action: ApprovalAction): Approval
       newSet.delete(action.payload);
       return { ...state, processingEventIds: newSet };
     }
+    
+    case 'SET_EDITING':
+      return { ...state, editingEventId: action.payload };
     
     default:
       return state;
@@ -255,10 +265,27 @@ export default function EventApproval() {
     loading: true,
     processingEventIds: new Set<string>(),
     expandedCards: new Set<string>(),
+    editingEventId: null,
   });
   
   const router = useRouter();
   const hasCheckedAccess = useRef(false);
+  
+  // Edit form state
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    description: '',
+    start_time: new Date(),
+    end_time: new Date(),
+    location: '',
+    point_type: '',
+    point_value: 0,
+    is_registerable: false,
+    available_to_pledges: false,
+    is_non_event: false,
+  });
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
 
   const fetchPendingEvents = useCallback(async () => {
     try {
@@ -535,8 +562,69 @@ export default function EventApproval() {
     dispatch({ type: 'TOGGLE_EXPANDED', payload: eventId });
   }, []);
 
+  const openEditModal = useCallback((event: PendingEvent) => {
+    setEditFormData({
+      title: event.title,
+      description: event.description || '',
+      start_time: new Date(event.start_time),
+      end_time: new Date(event.end_time),
+      location: event.location || '',
+      point_type: event.point_type,
+      point_value: event.point_value,
+      is_registerable: event.is_registerable,
+      available_to_pledges: event.available_to_pledges,
+      is_non_event: event.is_non_event || false,
+    });
+    dispatch({ type: 'SET_EDITING', payload: event.id });
+  }, []);
+
+  const closeEditModal = useCallback(() => {
+    dispatch({ type: 'SET_EDITING', payload: null });
+  }, []);
+
+  const saveEventChanges = useCallback(async () => {
+    if (!state.editingEventId) return;
+
+    try {
+      dispatch({ type: 'TOGGLE_PROCESSING', payload: state.editingEventId });
+
+      const { error } = await supabase
+        .from('events')
+        .update({
+          title: editFormData.title,
+          description: editFormData.description,
+          start_time: editFormData.start_time.toISOString(),
+          end_time: editFormData.end_time.toISOString(),
+          location: editFormData.location,
+          point_type: editFormData.point_type,
+          point_value: editFormData.point_value,
+          is_registerable: editFormData.is_registerable,
+          available_to_pledges: editFormData.available_to_pledges,
+          is_non_event: editFormData.is_non_event,
+        })
+        .eq('id', state.editingEventId);
+
+      if (error) {
+        console.error('Update Error:', error);
+        Alert.alert('Error', 'Failed to update event.');
+        return;
+      }
+
+      Alert.alert('Success', 'Event updated successfully!');
+      closeEditModal();
+      fetchPendingEvents();
+    } catch (error) {
+      console.error('Error updating event:', error);
+      Alert.alert('Error', 'Failed to update event.');
+    } finally {
+      if (state.editingEventId) {
+        dispatch({ type: 'CLEAR_PROCESSING', payload: state.editingEventId });
+      }
+    }
+  }, [state.editingEventId, editFormData, closeEditModal, fetchPendingEvents]);
+
   // Destructure state for easier access (must be before using in renderEventCard)
-  const { pendingEvents, allEvents, loading, processingEventIds, expandedCards } = state;
+  const { pendingEvents, allEvents, loading, processingEventIds, expandedCards, editingEventId } = state;
 
   const renderEventCard = useCallback(({ item }: { item: PendingEvent }) => {
     // Use pre-computed data instead of computing on each render
@@ -693,6 +781,14 @@ export default function EventApproval() {
             {/* Action Buttons */}
             <View style={styles.actionSection}>
               <TouchableOpacity
+                style={[styles.editButton, isProcessing && styles.disabledButton]}
+                onPress={() => openEditModal(item)}
+                disabled={isProcessing}
+              >
+                <Text style={styles.editButtonText}>✎ Edit</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
                 style={[styles.approveButton, isProcessing && styles.disabledButton]}
                 onPress={() => confirmEvent(item.id)}
                 disabled={isProcessing}
@@ -720,7 +816,7 @@ export default function EventApproval() {
         )}
       </View>
     );
-  }, [expandedCards, processingEventIds, toggleCardExpansion, confirmEvent, rejectEvent]);
+  }, [expandedCards, processingEventIds, toggleCardExpansion, confirmEvent, rejectEvent, openEditModal]);
 
   if (loading) {
     return (
@@ -759,6 +855,216 @@ export default function EventApproval() {
           updateCellsBatchingPeriod={50}
         />
       )}
+
+      {/* Edit Event Modal */}
+      <Modal
+        visible={editingEventId !== null}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeEditModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Event</Text>
+              <TouchableOpacity onPress={closeEditModal} style={styles.closeButton}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              {/* Title */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Event Title *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={editFormData.title}
+                  onChangeText={(text) => setEditFormData({ ...editFormData, title: text })}
+                  placeholder="Enter event title"
+                  placeholderTextColor="#9ca3af"
+                />
+              </View>
+
+              {/* Description */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Description</Text>
+                <TextInput
+                  style={[styles.formInput, styles.textArea]}
+                  value={editFormData.description}
+                  onChangeText={(text) => setEditFormData({ ...editFormData, description: text })}
+                  placeholder="Enter event description"
+                  placeholderTextColor="#9ca3af"
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              {/* Non-Event Toggle */}
+              <View style={styles.formGroup}>
+                <View style={styles.switchRow}>
+                  <View style={styles.switchLabelContainer}>
+                    <Text style={styles.formLabel}>Points Only (Non-Event)</Text>
+                    <Text style={styles.formHint}>This won't appear in calendar</Text>
+                  </View>
+                  <Switch
+                    value={editFormData.is_non_event}
+                    onValueChange={(value) => setEditFormData({ ...editFormData, is_non_event: value })}
+                    trackColor={{ false: '#d1d5db', true: '#86efac' }}
+                    thumbColor={editFormData.is_non_event ? '#10b981' : '#f3f4f6'}
+                  />
+                </View>
+              </View>
+
+              {/* Location (only for regular events) */}
+              {!editFormData.is_non_event && (
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Location *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={editFormData.location}
+                    onChangeText={(text) => setEditFormData({ ...editFormData, location: text })}
+                    placeholder="Enter event location"
+                    placeholderTextColor="#9ca3af"
+                  />
+                </View>
+              )}
+
+              {/* Start Time */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Start Time *</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowStartPicker(true)}
+                >
+                  <Text style={styles.dateButtonText}>
+                    {editFormData.start_time.toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </Text>
+                </TouchableOpacity>
+                {showStartPicker && (
+                  <DateTimePicker
+                    value={editFormData.start_time}
+                    mode="datetime"
+                    display="default"
+                    onChange={(event, date) => {
+                      setShowStartPicker(false);
+                      if (date) setEditFormData({ ...editFormData, start_time: date });
+                    }}
+                  />
+                )}
+              </View>
+
+              {/* End Time */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>End Time *</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowEndPicker(true)}
+                >
+                  <Text style={styles.dateButtonText}>
+                    {editFormData.end_time.toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </Text>
+                </TouchableOpacity>
+                {showEndPicker && (
+                  <DateTimePicker
+                    value={editFormData.end_time}
+                    mode="datetime"
+                    display="default"
+                    onChange={(event, date) => {
+                      setShowEndPicker(false);
+                      if (date) setEditFormData({ ...editFormData, end_time: date });
+                    }}
+                  />
+                )}
+              </View>
+
+              {/* Point Type */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Point Type *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={editFormData.point_type}
+                  onChangeText={(text) => setEditFormData({ ...editFormData, point_type: text })}
+                  placeholder="e.g., Professional, Service, Social"
+                  placeholderTextColor="#9ca3af"
+                />
+              </View>
+
+              {/* Point Value */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Point Value *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={String(editFormData.point_value)}
+                  onChangeText={(text) => setEditFormData({ ...editFormData, point_value: parseInt(text) || 0 })}
+                  placeholder="0"
+                  placeholderTextColor="#9ca3af"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* Registration Required */}
+              <View style={styles.formGroup}>
+                <View style={styles.switchRow}>
+                  <View style={styles.switchLabelContainer}>
+                    <Text style={styles.formLabel}>Registration Required</Text>
+                    <Text style={styles.formHint}>Members must register to attend</Text>
+                  </View>
+                  <Switch
+                    value={editFormData.is_registerable}
+                    onValueChange={(value) => setEditFormData({ ...editFormData, is_registerable: value })}
+                    trackColor={{ false: '#d1d5db', true: '#86efac' }}
+                    thumbColor={editFormData.is_registerable ? '#10b981' : '#f3f4f6'}
+                  />
+                </View>
+              </View>
+
+              {/* Available to Pledges */}
+              <View style={styles.formGroup}>
+                <View style={styles.switchRow}>
+                  <View style={styles.switchLabelContainer}>
+                    <Text style={styles.formLabel}>Available to Pledges</Text>
+                    <Text style={styles.formHint}>Pledge class can participate</Text>
+                  </View>
+                  <Switch
+                    value={editFormData.available_to_pledges}
+                    onValueChange={(value) => setEditFormData({ ...editFormData, available_to_pledges: value })}
+                    trackColor={{ false: '#d1d5db', true: '#86efac' }}
+                    thumbColor={editFormData.available_to_pledges ? '#10b981' : '#f3f4f6'}
+                  />
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={closeEditModal}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={saveEventChanges}
+              >
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1057,5 +1363,160 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
+  },
+  editButton: {
+    flex: 1,
+    backgroundColor: '#3b82f6',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  editButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    width: '90%',
+    maxHeight: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonText: {
+    fontSize: 20,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  modalContent: {
+    padding: 20,
+  },
+  formGroup: {
+    marginBottom: 20,
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  formHint: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  formInput: {
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#1f2937',
+  },
+  textArea: {
+    minHeight: 100,
+    paddingTop: 12,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    padding: 16,
+    borderRadius: 10,
+  },
+  switchLabelContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  dateButton: {
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: '#1f2937',
+    fontWeight: '500',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    padding: 20,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    color: '#374151',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  saveButton: {
+    flex: 1,
+    backgroundColor: '#3b82f6',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  saveButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

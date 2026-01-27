@@ -43,18 +43,23 @@ export const styles = StyleSheet.create({
   
   // Header Section
   headerSection: {
-    marginHorizontal: 20,
-    marginTop: Platform.OS === 'ios' ? 10 : 20,
-    marginBottom: 20,
-    borderRadius: 20,
+    marginHorizontal: 16,
+    marginTop: Platform.OS === 'ios' ? 10 : 16,
+    marginBottom: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  heroBackground: {
+    paddingTop: 24,
+    paddingBottom: 32,
+    paddingHorizontal: 20,
   },
   headerContent: {
-    padding: 24,
     alignItems: 'center',
   },
   iconContainer: {
@@ -63,81 +68,101 @@ export const styles = StyleSheet.create({
     borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 6,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontWeight: '800',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 12,
+    fontSize: 14,
     textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   
-  // Progress Overview
-  progressOverview: {
-    width: '100%',
-    borderRadius: 16,
+  // Stats Container
+  statsContainer: {
     padding: 20,
-    marginTop: 8,
+    paddingTop: 24,
   },
-  progressStats: {
+  statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 20,
+    gap: 12,
   },
-  statItem: {
-    alignItems: 'center',
+  statCard: {
     flex: 1,
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  statIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   statNumber: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 4,
-    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 2,
   },
   statLabel: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    textAlign: 'center',
   },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 16,
+  
+  // Progress Section
+  progressSection: {
+    marginTop: 4,
   },
-  progressContainer: {
-    width: '100%',
-    alignItems: 'center',
+  progressBarContainer: {
+    marginBottom: 12,
   },
   progressBar: {
     width: '100%',
-    height: 12,
-    borderRadius: 6,
+    height: 10,
+    borderRadius: 5,
     overflow: 'hidden',
-    marginBottom: 12,
   },
   progressFill: {
     height: '100%',
-    borderRadius: 6,
+    borderRadius: 5,
+    shadowColor: '#F7B910',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
-  progressText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
+  completionBadge: {
+    backgroundColor: '#10B981',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignSelf: 'center',
+  },
+  completionText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   
   // Audit Section
