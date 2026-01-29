@@ -411,18 +411,20 @@ export const useAccount = () => {
         return;
       }
 
-      // Save to database
+      // Save to database (upsert in case user record doesn't exist yet)
       const { error: dbError } = await supabase
         .from('users')
-        .update({
+        .upsert({
+          user_id: authResult.user.id,
           consent_analytics: consentOptions.analytics,
           consent_demographics: consentOptions.demographics,
           consent_academic: consentOptions.academic,
           consent_housing: consentOptions.housing,
           consent_updated_at: new Date().toISOString(),
           privacy_policy_version: '1.0.0',
-        })
-        .eq('user_id', authResult.user.id);
+        }, {
+          onConflict: 'user_id'
+        });
 
       if (dbError) {
         console.error('Error saving consent to database:', dbError);
@@ -462,18 +464,20 @@ export const useAccount = () => {
         housing: false,
       };
       
-      // Save to database
+      // Save to database (upsert in case user record doesn't exist yet)
       const { error: dbError } = await supabase
         .from('users')
-        .update({
+        .upsert({
+          user_id: authResult.user.id,
           consent_analytics: false,
           consent_demographics: false,
           consent_academic: false,
           consent_housing: false,
           consent_updated_at: new Date().toISOString(),
           privacy_policy_version: '1.0.0',
-        })
-        .eq('user_id', authResult.user.id);
+        }, {
+          onConflict: 'user_id'
+        });
 
       if (dbError) {
         console.error('Error saving consent to database:', dbError);

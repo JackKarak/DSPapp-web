@@ -141,8 +141,7 @@ export const MemberPointsModal: React.FC<MemberPointsModalProps> = ({
                   <View style={styles.infoCard}>
                     <Text style={styles.infoText}>
                       Points are calculated based on event attendance and participation. 
-                      Registered attendance earns 1.5× the event's point value, while 
-                      walk-in attendance earns the base point value.
+                      Each event attendance earns the event's point value.
                     </Text>
                   </View>
                 </View>

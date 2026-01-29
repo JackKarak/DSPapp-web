@@ -93,9 +93,8 @@ export function useMemberPoints() {
 
         const normalizedCategory = normalizeCategory(event.point_type);
         
-        // Calculate points: 1.5x if registered, 1x if not
-        const pointMultiplier = registeredEventIds.has(attendance.event_id) ? 1.5 : 1;
-        const points = (event.point_value || 0) * pointMultiplier;
+        // Calculate points from event value
+        const points = event.point_value || 0;
 
         if (categoryPoints.hasOwnProperty(normalizedCategory)) {
           categoryPoints[normalizedCategory] += points;

@@ -226,8 +226,8 @@ export default function CalendarTab() {
         data: {
           events: enrichedEvents,
           registeredEventIds: registrations?.map((r: any) => r.event_id) || [],
-          brotherName: profile.first_name && profile.last_name 
-            ? `${profile.first_name} ${profile.last_name}` 
+          brotherName: profile.first_name 
+            ? `Brother ${profile.first_name}` 
             : 'Brother',
           userRole: profile.role,
           userId: user.id, // Cache user ID for later mutations
@@ -434,7 +434,7 @@ export default function CalendarTab() {
 
       {state.loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8b5cf6" />
+          <ActivityIndicator size="large" color="#330066" />
           <Text style={styles.loadingText}>Loading events...</Text>
         </View>
       ) : filteredEvents.length === 0 ? (
@@ -462,33 +462,38 @@ export default function CalendarTab() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f5f3f7',
     padding: 16
   },
   header: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1a1a1a',
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#330066',
     marginBottom: 20,
-    marginTop: 8
+    marginTop: 8,
+    textShadowColor: 'rgba(51, 0, 102, 0.1)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   toggleBtn: {
-    backgroundColor: '#8b5cf6',
-    paddingVertical: 14,
+    backgroundColor: '#330066',
+    paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#8b5cf6',
+    marginBottom: 16,
+    shadowColor: '#330066',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
+    borderWidth: 2,
+    borderColor: '#F7B910',
   },
   toggleText: {
     color: '#fff',
-    fontWeight: '600',
-    fontSize: 16
+    fontWeight: '700',
+    fontSize: 15
   },
   loadingContainer: {
     flex: 1,
@@ -499,24 +504,29 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#6b7280',
-    fontWeight: '500',
+    color: '#330066',
+    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 60,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    marginTop: 20,
+    borderWidth: 2,
+    borderColor: '#d8d0e0',
   },
   emptyText: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: '700',
+    color: '#330066',
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 16,
-    color: '#9ca3af',
+    color: '#6b5b7a',
     textAlign: 'center',
   },
   errorContainer: {
@@ -538,7 +548,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   retryButton: {
-    backgroundColor: '#8b5cf6',
+    backgroundColor: '#330066',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 12,

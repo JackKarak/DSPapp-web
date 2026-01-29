@@ -48,7 +48,7 @@ export function useMemberPerformance(
     const performance: MemberPerformance[] = [];
     memberStats.forEach((stats, userId) => {
       const member = memberLookup.get(userId);
-      if (member && member.role === 'brother') { // Only include brothers in leaderboard
+      if (member && (member.role === 'brother' || member.role === 'officer' || member.role === 'president')) {
         performance.push({
           userId,
           name: `${member.first_name} ${member.last_name}`,

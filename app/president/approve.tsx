@@ -186,8 +186,14 @@ const detectRedFlags = (event: PendingEvent, allEvents: PendingEvent[]): RedFlag
     const overlappingEvents = allEvents.filter(otherEvent => {
       if (otherEvent.id === event.id || otherEvent.is_non_event) return false;
       
+      // Only check against approved events (ignore pending/rejected)
+      if (otherEvent.status !== 'approved') return false;
+      
       const otherStart = new Date(otherEvent.start_time);
       const otherEnd = new Date(otherEvent.end_time);
+      
+      // Ignore events that have already ended
+      if (otherEnd < now) return false;
       
       return (eventStart < otherEnd && eventEnd > otherStart);
     });
@@ -317,7 +323,7 @@ export default function EventApproval() {
         
         supabase
           .from('events')
-          .select('id, title, start_time, end_time, status')
+          .select('id, title, start_time, end_time, status, is_non_event')
           .order('start_time', { ascending: true })
       ]);
 

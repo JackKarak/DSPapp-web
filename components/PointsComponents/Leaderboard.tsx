@@ -72,7 +72,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
               { color: index < 3 ? colors.primary : colors.text },
               index < 3 && styles.topThreePoints
             ]}>
-              {user.totalPoints.toFixed(1)}
+              {(user.totalPoints ?? 0).toFixed(1)}
             </Text>
             <Text style={[styles.pointsLabel, { color: colors.icon }]}>pts</Text>
           </View>
@@ -106,7 +106,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
             </Text>
             <View style={styles.pointsContainer}>
               <Text style={[styles.userRankPoints, { color: colors.primary }]}>
-                {userRank.totalPoints.toFixed(1)}
+                {(userRank.totalPoints ?? 0).toFixed(1)}
               </Text>
               <Text style={[styles.pointsLabel, { color: colors.icon }]}>pts</Text>
             </View>

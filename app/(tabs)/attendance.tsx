@@ -2,12 +2,12 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Button,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
@@ -166,7 +166,7 @@ export default function AttendanceScreen() {
 
       {isLoading && (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6C4AB6" />
+          <ActivityIndicator size="large" color="#330066" />
           <Text style={styles.loadingText}>
             {state === 'validating' ? 'Validating code...' : 'Submitting check-in...'}
           </Text>
@@ -178,19 +178,20 @@ export default function AttendanceScreen() {
         value={code}
         onChangeText={setCode}
         style={styles.input}
-        placeholderTextColor="#aaa"
+        placeholderTextColor="#9980b3"
         autoCapitalize="characters"
         editable={!isLoading}
       />
 
-      <View style={styles.button}>
-        <Button
-          title={isLoading ? 'Processing...' : 'Submit'}
-          onPress={handleSubmit}
-          color="#6C4AB6"
-          disabled={isLoading}
-        />
-      </View>
+      <TouchableOpacity
+        style={[styles.button, isLoading && styles.buttonDisabled]}
+        onPress={handleSubmit}
+        disabled={isLoading}
+      >
+        <Text style={styles.buttonText}>
+          {isLoading ? 'Processing...' : 'Submit'}
+        </Text>
+      </TouchableOpacity>
     </KeyboardAvoidingView>
   );
 }
@@ -198,38 +199,74 @@ export default function AttendanceScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f5f3f7',
     padding: 24,
     justifyContent: 'center',
   },
   title: {
-    fontSize: 24,
-    color: '#6C4AB6',
-    fontWeight: 'bold',
-    marginBottom: 24,
+    fontSize: 28,
+    color: '#330066',
+    fontWeight: '800',
+    marginBottom: 32,
     textAlign: 'center',
+    textShadowColor: 'rgba(51, 0, 102, 0.1)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   loadingContainer: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
+    backgroundColor: 'white',
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#330066',
+    shadowColor: '#330066',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 14,
-    color: '#6C4AB6',
-    fontWeight: '500',
+    fontSize: 15,
+    color: '#330066',
+    fontWeight: '600',
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    backgroundColor: '#f8f6ff',
-    padding: 14,
-    borderRadius: 10,
-    fontSize: 16,
-    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#330066',
+    backgroundColor: 'white',
+    padding: 18,
+    borderRadius: 12,
+    fontSize: 18,
+    marginBottom: 24,
+    color: '#330066',
+    fontWeight: '600',
+    textAlign: 'center',
+    shadowColor: '#330066',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   button: {
-    borderRadius: 10,
-    overflow: 'hidden',
+    borderRadius: 12,
+    backgroundColor: '#330066',
+    paddingVertical: 16,
+    shadowColor: '#330066',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
   },
 });

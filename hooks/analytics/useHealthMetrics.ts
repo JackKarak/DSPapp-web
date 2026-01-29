@@ -28,18 +28,35 @@ export function useHealthMetrics(
     const safeAttendance = attendance || [];
     const safeEvents = events || [];
     
-    const totalMembers = members.length;
-    const activeMembers = members.filter((m) => m.role !== 'inactive').length;
+    // Total members: brothers and officers only
+    const brothers = members.filter(m => m.role === 'brother' || m.role === 'officer');
+    const totalMembers = brothers.length;
+    
+    // Active members: attended at least 1 event OR 5% of events (whichever is greater)
+    const eventCount = safeEvents.length;
+    const attendanceThreshold = Math.max(1, Math.ceil(eventCount * 0.05));
+    
+    // Count each member's attendance
+    const memberAttendanceCounts = new Map<string, number>();
+    safeAttendance.forEach(att => {
+      if (att.attended) {
+        const count = memberAttendanceCounts.get(att.user_id) || 0;
+        memberAttendanceCounts.set(att.user_id, count + 1);
+      }
+    });
+    
+    const activeMembers = brothers.filter(m => {
+      const attendedCount = memberAttendanceCounts.get(m.user_id) || 0;
+      return attendedCount >= attendanceThreshold;
+    }).length;
+    
     const retentionRate = totalMembers > 0 ? (activeMembers / totalMembers) * 100 : 0;
-
-    // Only count brothers (not inactive members)
-    const brothers = getActiveBrothers(members);
     const brotherIds = new Set(brothers.map(b => b.user_id));
     
     // Get unique user-event combinations to avoid double counting
     const uniqueAttendances = new Map<string, boolean>();
     safeAttendance.forEach((att) => {
-      // Only count attendance for current brothers
+      // Only count attendance for active members
       if (brotherIds.has(att.user_id)) {
         const key = `${att.user_id}-${att.event_id}`;
         if (!uniqueAttendances.has(key)) {
@@ -51,7 +68,7 @@ export function useHealthMetrics(
     // Count how many people actually attended (not just RSVP'd)
     const actualAttendances = Array.from(uniqueAttendances.values()).filter(attended => attended).length;
     
-    // Calculate attendance rate: actual attendances / total possible (brothers × events)
+    // Calculate attendance rate: actual attendances / total possible (active members × events)
     const totalPossibleAttendances = brothers.length * safeEvents.length;
     const avgAttendanceRate = totalPossibleAttendances > 0 
       ? (actualAttendances / totalPossibleAttendances) * 100 
@@ -71,7 +88,7 @@ export function useHealthMetrics(
       }
     });
 
-    // Calculate average points: sum all brother points / total brothers (including those with 0)
+    // Calculate average points: sum all active member points / total active members (including those with 0)
     let totalPoints = 0;
     brothers.forEach(brother => {
       totalPoints += memberPoints.get(brother.user_id) || 0;

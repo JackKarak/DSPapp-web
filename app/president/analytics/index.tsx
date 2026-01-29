@@ -11,7 +11,7 @@
  */
 
 import React, { memo, useState } from 'react';
-import { View, ScrollView, ActivityIndicator, RefreshControl, Text } from 'react-native';
+import { View, ScrollView, ActivityIndicator, RefreshControl, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorBoundary } from '../../../components/ErrorBoundary';
 import { 
@@ -23,6 +23,7 @@ import {
   useDiversityMetrics,
   useMemberPoints
 } from '../../../hooks/analytics';
+import { SemesterReportModal } from '../../../components/PresidentAnalyticsComponents/SemesterReportModal';
 import { FraternityHealth } from '../../../components/PresidentAnalyticsComponents/FraternityHealth';
 import { CategoryBreakdown } from '../../../components/PresidentAnalyticsComponents/CategoryBreakdown';
 import { TopPerformers } from '../../../components/PresidentAnalyticsComponents/TopPerformers';
@@ -47,6 +48,9 @@ function PresidentAnalyticsOptimized() {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [memberPoints, setMemberPoints] = useState<Record<string, number> | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  
+  // State for semester report modal
+  const [reportModalVisible, setReportModalVisible] = useState(false);
 
   // Handle member selection
   const handleMemberPress = async (member: Member) => {
@@ -99,9 +103,19 @@ function PresidentAnalyticsOptimized() {
         />
       }
     >
+      {/* End Semester Report Button */}
+      <TouchableOpacity 
+        style={styles.reportButton}
+        onPress={() => setReportModalVisible(true)}
+      >
+        <Ionicons name="document-text" size={24} color="#fff" />
+        <Text style={styles.reportButtonText}>End Semester Report</Text>
+        <Ionicons name="chevron-forward" size={24} color="#fff" />
+      </TouchableOpacity>
+
       <FraternityHealth 
         healthMetrics={healthMetrics} 
-        totalEvents={state.events.length} 
+        totalEvents={state.events.filter(e => !e.is_non_event).length} 
       />
       
       <CategoryBreakdown categoryBreakdown={categoryBreakdown} />
@@ -125,6 +139,12 @@ function PresidentAnalyticsOptimized() {
           members={state.members}
           onMemberPress={handleMemberPress}
         />
+
+      {/* Semester Report Modal */}
+      <SemesterReportModal
+        visible={reportModalVisible}
+        onClose={() => setReportModalVisible(false)}
+      />
       </AnalyticsSection>
 
       {/* Member Points Modal */}

@@ -6,18 +6,21 @@
  * - Event details (title, time, location)
  * - Type tags and status badges
  * - Registration button (for registerable events)
+ * - Registered users list
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { formatDateInEST } from '../lib/dateUtils';
 import { getPointTypeColors, formatPointTypeText } from '../lib/pointTypeColors';
+import { supabase } from '../lib/supabase';
 
 // Type definitions
 export type EventCardData = {
@@ -51,6 +54,64 @@ export const EventCard: React.FC<EventCardProps> = ({
 }) => {
   const now = new Date();
   const isUpcoming = event.startDate > now;
+  const [showRegistrations, setShowRegistrations] = useState(false);
+  const [registrations, setRegistrations] = useState<string[]>([]);
+  const [loadingRegistrations, setLoadingRegistrations] = useState(false);
+  const [registrationCount, setRegistrationCount] = useState(0);
+
+  // Fetch registration count on mount
+  useEffect(() => {
+    if (event.is_registerable) {
+      fetchRegistrationCount();
+    }
+  }, [event.id]);
+
+  const fetchRegistrationCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('event_registration')
+        .select('*', { count: 'exact', head: true })
+        .eq('event_id', event.id);
+
+      if (!error && count !== null) {
+        setRegistrationCount(count);
+      }
+    } catch (err) {
+      console.error('Error fetching registration count:', err);
+    }
+  };
+
+  const fetchRegistrations = async () => {
+    if (registrations.length > 0) {
+      setShowRegistrations(!showRegistrations);
+      return;
+    }
+
+    setLoadingRegistrations(true);
+    setShowRegistrations(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('event_registration')
+        .select(`
+          user_id,
+          users!inner(first_name, last_name)
+        `)
+        .eq('event_id', event.id);
+
+      if (error) throw error;
+
+      const names = (data || []).map((reg: any) => 
+        `${reg.users.first_name} ${reg.users.last_name}`
+      );
+      
+      setRegistrations(names);
+    } catch (err) {
+      console.error('Error fetching registrations:', err);
+    } finally {
+      setLoadingRegistrations(false);
+    }
+  };
 
   const handleCardPress = () => {
     router.push({
@@ -66,9 +127,17 @@ export const EventCard: React.FC<EventCardProps> = ({
     e.stopPropagation();
     if (isRegistered) {
       onUnregister(event.id);
+      setRegistrationCount(prev => Math.max(0, prev - 1));
+      setRegistrations(prev => prev.filter((_, i) => i !== 0)); // Remove current user (simplified)
     } else {
       onRegister(event.id);
+      setRegistrationCount(prev => prev + 1);
     }
+  };
+
+  const handleViewRegistrations = (e: any) => {
+    e.stopPropagation();
+    fetchRegistrations();
   };
 
   return (
@@ -158,6 +227,38 @@ export const EventCard: React.FC<EventCardProps> = ({
               {isRegistered ? 'Unregister' : 'Register Now'}
             </Text>
           </TouchableOpacity>
+
+          {/* View Registrations Button */}
+          {registrationCount > 0 && (
+            <TouchableOpacity
+              style={styles.viewRegistrationsButton}
+              onPress={handleViewRegistrations}
+            >
+              <Text style={styles.viewRegistrationsText}>
+                👥 {registrationCount} {registrationCount === 1 ? 'person' : 'people'} registered
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Registrations List */}
+          {showRegistrations && (
+            <View style={styles.registrationsList}>
+              {loadingRegistrations ? (
+                <ActivityIndicator size="small" color="#330066" />
+              ) : registrations.length > 0 ? (
+                <>
+                  <Text style={styles.registrationsTitle}>Registered Members:</Text>
+                  {registrations.map((name, index) => (
+                    <Text key={index} style={styles.registrationName}>
+                      • {name}
+                    </Text>
+                  ))}
+                </>
+              ) : (
+                <Text style={styles.noRegistrationsText}>No registrations yet</Text>
+              )}
+            </View>
+          )}
         </View>
       )}
     </TouchableOpacity>
@@ -167,20 +268,20 @@ export const EventCard: React.FC<EventCardProps> = ({
 const styles = StyleSheet.create({
   eventCard: {
     backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 16,
+    padding: 18,
     marginBottom: 4,
-    shadowColor: '#000',
+    shadowColor: '#330066',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.15,
     shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
+    elevation: 5,
+    borderWidth: 2,
+    borderColor: '#330066',
   },
   pastEventCard: {
     opacity: 0.7,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#faf8fc',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -188,24 +289,26 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   dateContainer: {
-    backgroundColor: '#d97706',
-    borderRadius: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
     padding: 12,
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 60,
     marginRight: 16,
+    borderWidth: 2,
+    borderColor: '#330066',
   },
   dateDay: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: '800',
+    color: '#330066',
     lineHeight: 28,
   },
   dateMonth: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#fef3c7',
+    fontWeight: '700',
+    color: '#330066',
     letterSpacing: 0.5,
   },
   eventInfo: {
@@ -215,19 +318,19 @@ const styles = StyleSheet.create({
   eventTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1f2937',
+    color: '#330066',
     marginBottom: 6,
     lineHeight: 24,
   },
   eventTime: {
     fontSize: 14,
-    color: '#6b7280',
-    fontWeight: '500',
+    color: '#6b5b7a',
+    fontWeight: '600',
     marginBottom: 4,
   },
   eventLocation: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: '#9980b3',
     fontWeight: '500',
   },
   cardDetails: {
@@ -266,23 +369,24 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   registeredTag: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#fff8e6',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#16a34a',
+    borderColor: '#F7B910',
   },
   registeredTagText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#15803d',
+    color: '#330066',
     letterSpacing: 0.5,
   },
   hostText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#6b5b7a',
     fontStyle: 'italic',
+    fontWeight: '500',
   },
   cardActions: {
     marginTop: 4,
@@ -292,14 +396,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: '#330066',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
   },
   registerButton: {
-    backgroundColor: '#8b5cf6',
+    backgroundColor: '#330066',
+    borderWidth: 2,
+    borderColor: '#F7B910',
   },
   unregisterButton: {
     backgroundColor: '#fff',
@@ -308,12 +414,53 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   registerButtonText: {
     color: '#fff',
   },
   unregisterButtonText: {
     color: '#ef4444',
+  },
+  viewRegistrationsButton: {
+    marginTop: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff8e6',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F7B910',
+    alignItems: 'center',
+  },
+  viewRegistrationsText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#330066',
+  },
+  registrationsList: {
+    marginTop: 12,
+    padding: 14,
+    backgroundColor: '#faf8fc',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d8d0e0',
+  },
+  registrationsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#330066',
+    marginBottom: 8,
+  },
+  registrationName: {
+    fontSize: 13,
+    color: '#6b5b7a',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  noRegistrationsText: {
+    fontSize: 13,
+    color: '#9980b3',
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });

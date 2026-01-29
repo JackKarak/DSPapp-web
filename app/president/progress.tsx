@@ -10,7 +10,6 @@
  * - Horizontal scrolling for many categories
  * - Real-time calculation of points including:
  *   - Base points from event attendance
- *   - 1.5x bonus for registered events
  *   - Approved appeal points
  * 
  * @access President role only
@@ -129,11 +128,7 @@ export default function MemberProgressScreen() {
           if (eventDate > new Date()) return;
 
           const category = event.point_type;
-          const basePoints = event.point_value || 0;
-          
-          // Apply 1.5x multiplier if registered
-          const wasRegistered = registrationMap.get(member.user_id)?.has(att.event_id);
-          const points = wasRegistered ? basePoints * 1.5 : basePoints;
+          const points = event.point_value || 0;
 
           if (categoryPoints[category] !== undefined) {
             categoryPoints[category] += points;
@@ -215,17 +210,17 @@ export default function MemberProgressScreen() {
     <View style={styles.container}>
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+        <Ionicons name="search" size={22} color="#330066" />
         <TextInput
           style={styles.searchInput}
           placeholder="Search by name or pledge class..."
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholderTextColor="#999"
+          placeholderTextColor="#9980b3"
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={20} color="#666" />
+            <Ionicons name="close-circle" size={22} color="#F7B910" />
           </TouchableOpacity>
         )}
       </View>
@@ -333,18 +328,19 @@ export default function MemberProgressScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fafafa',
+    backgroundColor: '#f5f3f7',
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fafafa',
+    backgroundColor: '#f5f3f7',
   },
   loadingText: {
     marginTop: 12,
     fontSize: 15,
-    color: '#5f6368',
+    color: '#330066',
+    fontWeight: '500',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -352,28 +348,40 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     margin: 16,
     marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#330066',
+    shadowColor: '#330066',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 10,
+    color: '#330066',
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
+    color: '#330066',
+    fontWeight: '500',
   },
   countContainer: {
     paddingHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 12,
+    backgroundColor: '#F7B910',
+    paddingVertical: 8,
+    marginHorizontal: 16,
+    borderRadius: 8,
   },
   countText: {
     fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+    color: '#330066',
+    fontWeight: '700',
+    textAlign: 'center',
   },
   horizontalScroll: {
     flex: 1,
@@ -381,19 +389,24 @@ const styles = StyleSheet.create({
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#330066',
-    borderBottomWidth: 2,
+    borderBottomWidth: 3,
     borderBottomColor: '#F7B910',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
   },
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#d8d0e0',
   },
   evenRow: {
     backgroundColor: 'white',
   },
   oddRow: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#faf8fc',
   },
   cell: {
     padding: 12,
@@ -405,76 +418,93 @@ const styles = StyleSheet.create({
   nameCell: {
     width: 180,
     borderRightWidth: 1,
-    borderRightColor: '#e0e0e0',
+    borderRightColor: '#d8d0e0',
   },
   pledgeCell: {
     width: 100,
     borderRightWidth: 1,
-    borderRightColor: '#e0e0e0',
+    borderRightColor: '#d8d0e0',
   },
   pointCell: {
     width: 120,
     alignItems: 'center',
     borderRightWidth: 1,
-    borderRightColor: '#e0e0e0',
+    borderRightColor: '#d8d0e0',
   },
   totalCell: {
     width: 100,
     alignItems: 'center',
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#fff8e6',
+    borderLeftWidth: 2,
+    borderLeftColor: '#F7B910',
   },
   headerText: {
-    color: 'white',
+    color: '#F7B910',
     fontWeight: '700',
     fontSize: 14,
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   cellText: {
     fontSize: 14,
-    color: '#333',
+    color: '#330066',
+    fontWeight: '500',
   },
   metThreshold: {
-    color: '#10b981',
-    fontWeight: '600',
-  },
-  belowThreshold: {
-    color: '#ef4444',
-    fontWeight: '600',
-  },
-  totalText: {
+    color: '#059669',
     fontWeight: '700',
     fontSize: 15,
+  },
+  belowThreshold: {
+    color: '#dc2626',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  totalText: {
+    fontWeight: '800',
+    fontSize: 16,
     color: '#330066',
   },
   emptyContainer: {
-    padding: 32,
+    padding: 48,
     alignItems: 'center',
+    backgroundColor: 'white',
+    margin: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#d8d0e0',
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
+    color: '#330066',
+    fontWeight: '500',
   },
   legend: {
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingVertical: 12,
-    backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    gap: 24,
+    paddingVertical: 14,
+    backgroundColor: '#330066',
+    borderTopWidth: 3,
+    borderTopColor: '#F7B910',
+    gap: 32,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: 'white',
   },
   legendText: {
     fontSize: 13,
-    color: '#666',
+    color: '#F7B910',
+    fontWeight: '600',
   },
 });

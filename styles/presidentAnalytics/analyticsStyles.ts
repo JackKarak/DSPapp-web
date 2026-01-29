@@ -197,4 +197,29 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  
+  // Semester Report Button
+  reportButton: {
+    backgroundColor: '#330066',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  reportButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+    flex: 1,
+    marginLeft: 12,
+  },
 });

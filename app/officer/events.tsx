@@ -37,7 +37,6 @@ type Registration = {
   user_id: string;
   full_name: string;
   email: string;
-  registered_at: string;
 };
 
 type Attendance = {
@@ -147,7 +146,7 @@ export default function OfficerEventsManagement() {
       if (registerableEventIds.length > 0) {
         const { data: registrations, error: regError } = await supabase
           .from('event_registration')
-          .select('id, event_id, user_id, registered_at')
+          .select('id, event_id, user_id')
           .in('event_id', registerableEventIds);
 
         if (regError) {
@@ -183,7 +182,6 @@ export default function OfficerEventsManagement() {
               user_id: reg.user_id,
               full_name: fullName,
               email: user?.email || 'Unknown Email',
-              registered_at: reg.registered_at
             });
           });
         }
@@ -448,9 +446,6 @@ export default function OfficerEventsManagement() {
                       <View key={registration.id} style={styles.listItem}>
                         <Text style={styles.memberName}>{registration.full_name}</Text>
                         <Text style={styles.memberEmail}>{registration.email}</Text>
-                        <Text style={styles.memberDate}>
-                          Registered: {formatDateTimeInEST(registration.registered_at)}
-                        </Text>
                       </View>
                     ))}
                   </>

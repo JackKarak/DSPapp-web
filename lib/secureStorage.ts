@@ -48,7 +48,17 @@ export async function setSecureItem(key: string, value: any): Promise<void> {
     await SecureStore.setItemAsync(key, JSON.stringify(payload), {
       keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
     });
-  } catch (error) {
+  } catch (error: any) {
+    const errorMessage = error?.message || String(error);
+    
+    // Device locked - this is a recoverable error
+    if (errorMessage.includes('User interaction is not allowed') || 
+        errorMessage.includes('WHEN_UNLOCKED') ||
+        errorMessage.includes('device is locked')) {
+      console.warn('[SecureStorage] Device locked, cannot store item at this time');
+      throw new Error('Device must be unlocked to save data');
+    }
+    
     console.error('[SecureStorage] Error storing item:', error);
     throw new Error(`Failed to securely store ${key}`);
   }
@@ -87,7 +97,18 @@ export async function getSecureItem<T = any>(key: string): Promise<T | null> {
       // If it's not JSON, return as-is
       return payload.data as T;
     }
-  } catch (error) {
+  } catch (error: any) {
+    // Silently handle common secure storage errors
+    const errorMessage = error?.message || String(error);
+    
+    // Device locked or user interaction not allowed - this is normal
+    if (errorMessage.includes('User interaction is not allowed') || 
+        errorMessage.includes('WHEN_UNLOCKED') ||
+        errorMessage.includes('device is locked')) {
+      return null;
+    }
+    
+    // Log other unexpected errors
     console.error('[SecureStorage] Error retrieving item:', error);
     return null;
   }
