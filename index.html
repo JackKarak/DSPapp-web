@@ -54,6 +54,13 @@
         animation: spin 1s linear infinite;
       }
       
+      .loading-text {
+        margin-top: 20px;
+        color: #330066;
+        font-size: 16px;
+        font-weight: 500;
+      }
+      
       @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
@@ -65,6 +72,7 @@
     <div id="root">
       <div class="loading-container">
         <div class="loading-spinner"></div>
+        <div class="loading-text">Loading DSP App...</div>
       </div>
     </div>
     
