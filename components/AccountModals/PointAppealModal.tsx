@@ -78,7 +78,7 @@ export const PointAppealModal: React.FC<PointAppealModalProps> = ({
             <Text style={styles.eventDetails}>
               {event.date} • {event.host_name}
             </Text>
-            {event.point_value && (
+            {event.point_value !== undefined && event.point_value !== null && (
               <Text style={styles.pointValue}>
                 Worth: {event.point_value} point{event.point_value !== 1 ? 's' : ''}
               </Text>

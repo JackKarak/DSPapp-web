@@ -11,18 +11,16 @@ export type Member = {
   pledge_class: string;
   grad_year: number;
   role: string;
-  major?: string;
   majors?: string;
-  selectedMajors?: string;
   minors?: string;
   gender?: string;
   pronouns?: string;
-  housing?: string;
   living_type?: string;
+  house_membership?: string;
   race?: string;
-  sexualOrientation?: string;
-  houseMembership?: string;
-  expectedGraduation?: number;
+  sexual_orientation?: string;
+  expected_graduation?: string;
+  officer_position?: string;
 };
 
 export type Event = {
@@ -34,6 +32,7 @@ export type Event = {
   point_type: string;
   creator_id: string;
   status?: string;
+  is_non_event?: boolean;
 };
 
 export type Attendance = {

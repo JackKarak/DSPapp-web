@@ -3,8 +3,8 @@
  * Small, focused components for analytics display
  */
 
-import React, { memo } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { memo, useState } from 'react';
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { MemberPerformance, EventAnalytics } from '../../types/analytics';
 import { formatTime } from '../../hooks/analytics';
@@ -181,21 +181,44 @@ interface AnalyticsSectionProps {
   title: string;
   children: React.ReactNode;
   error?: string | null;
+  defaultCollapsed?: boolean;
 }
 
-export const AnalyticsSection = memo<AnalyticsSectionProps>(({ title, children, error }) => (
-  <View style={styles.section}>
-    <Text style={styles.sectionTitle}>{title}</Text>
-    {error ? (
-      <View style={styles.errorContainer}>
-        <Ionicons name="alert-circle" size={24} color={DSP_CHART_COLORS.error} />
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    ) : (
-      children
-    )}
-  </View>
-));
+export const AnalyticsSection = memo<AnalyticsSectionProps>(({ 
+  title, 
+  children, 
+  error,
+  defaultCollapsed = false 
+}) => {
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
+
+  return (
+    <View style={styles.section}>
+      <TouchableOpacity 
+        style={styles.sectionHeader}
+        onPress={() => setIsCollapsed(!isCollapsed)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <Ionicons 
+          name={isCollapsed ? 'chevron-down' : 'chevron-up'} 
+          size={24} 
+          color={DSP_CHART_COLORS.purple} 
+        />
+      </TouchableOpacity>
+      {!isCollapsed && (
+        error ? (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle" size={24} color={DSP_CHART_COLORS.error} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : (
+          children
+        )
+      )}
+    </View>
+  );
+});
 AnalyticsSection.displayName = 'AnalyticsSection';
 
 // ============================================================================
@@ -412,12 +435,19 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 24,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
     color: '#1a1a1a',
-    marginBottom: 16,
-    paddingHorizontal: 16,
+    flex: 1,
   },
   errorContainer: {
     flexDirection: 'row',

@@ -21,7 +21,9 @@ import {
   useEventAnalytics, 
   useCategoryBreakdown, 
   useDiversityMetrics,
-  useMemberPoints
+  useMemberPoints,
+  useHouseMembershipPoints,
+  usePledgeClassPoints
 } from '../../../hooks/analytics';
 import { SemesterReportModal } from '../../../components/PresidentAnalyticsComponents/SemesterReportModal';
 import { FraternityHealth } from '../../../components/PresidentAnalyticsComponents/FraternityHealth';
@@ -31,6 +33,8 @@ import { RecentEvents } from '../../../components/PresidentAnalyticsComponents/R
 import { DiversitySection } from '../../../components/PresidentAnalyticsComponents/DiversitySection';
 import { MemberRoster } from '../../../components/PresidentAnalyticsComponents/MemberRoster';
 import { MemberPointsModal } from '../../../components/PresidentAnalyticsComponents/MemberPointsModal';
+import { HouseMembershipSection } from '../../../components/PresidentAnalyticsComponents/HouseMembershipSection';
+import { PledgeClassSection } from '../../../components/PresidentAnalyticsComponents/PledgeClassSection';
 import { AnalyticsSection } from '../../../components/AnalyticsComponents';
 import { styles } from '../../../styles/presidentAnalytics/analyticsStyles';
 import type { Member } from '../../../types/analytics';
@@ -42,6 +46,8 @@ function PresidentAnalyticsOptimized() {
   const eventAnalytics = useEventAnalytics(state.events, state.attendance, state.members);
   const categoryBreakdown = useCategoryBreakdown(state.events, state.attendance, state.members);
   const diversityMetrics = useDiversityMetrics(state.members);
+  const houseMembershipPoints = useHouseMembershipPoints(state.members, state.attendance, state.events);
+  const pledgeClassPoints = usePledgeClassPoints(state.members, state.attendance, state.events);
   const { fetchMemberPoints, loading: pointsLoading } = useMemberPoints();
 
   // State for member points modal
@@ -118,7 +124,14 @@ function PresidentAnalyticsOptimized() {
         totalEvents={state.events.filter(e => !e.is_non_event).length} 
       />
       
-      <CategoryBreakdown categoryBreakdown={categoryBreakdown} />
+      <CategoryBreakdown 
+        categoryBreakdown={categoryBreakdown} 
+        totalMembers={state.members.length}
+      />
+      
+      <HouseMembershipSection data={houseMembershipPoints} />
+      
+      <PledgeClassSection data={pledgeClassPoints} />
       
       <TopPerformers topPerformers={topPerformers} />
       

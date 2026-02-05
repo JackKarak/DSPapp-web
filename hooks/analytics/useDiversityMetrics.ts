@@ -48,14 +48,14 @@ export function useDiversityMetrics(members: Member[]): DiversityMetrics {
     const genderDistribution = createDistribution('gender');
     const pronounDistribution = createDistribution('pronouns');
     const raceDistribution = createDistribution('race');
-    const sexualOrientationDistribution = createDistribution('sexualOrientation');
-    const majorDistribution = createDistribution('selectedMajors', true).slice(0, 10); // Top 10
+    const sexualOrientationDistribution = createDistribution('sexual_orientation');
+    const majorDistribution = createDistribution('majors', true).slice(0, 10); // Top 10
     const livingTypeDistribution = createDistribution('living_type');
-    const houseMembershipDistribution = createDistribution('houseMembership');
+    const houseMembershipDistribution = createDistribution('house_membership');
     const pledgeClassDistribution = createDistribution('pledge_class');
     
     // Graduation year distribution
-    const graduationYearDistribution = createDistribution('expectedGraduation')
+    const graduationYearDistribution = createDistribution('expected_graduation')
       .sort((a, b) => parseInt(a.label) - parseInt(b.label));
 
     // Calculate diversity score (Simpson's Diversity Index)

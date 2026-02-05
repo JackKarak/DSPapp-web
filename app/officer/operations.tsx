@@ -21,7 +21,9 @@ import { supabase } from '../../lib/supabase';
 import { OfficerManagementSection } from '../../components/OperationsComponents/OfficerManagementSection';
 import { PositionSelectorModal } from '../../components/OperationsComponents/PositionSelectorModal';
 import { ClearPositionsModal } from '../../components/OperationsComponents/ClearPositionsModal';
-import { Member } from '../../types/operations';
+import { CategoryManagementSection } from '../../components/OperationsComponents/CategoryManagementSection';
+import { CategoryFormModal } from '../../components/OperationsComponents/CategoryFormModal';
+import { Member, PointCategory } from '../../types/operations';
 
 export default function OperationsScreen() {
   const [loading, setLoading] = useState(true);
@@ -35,6 +37,13 @@ export default function OperationsScreen() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showPositionModal, setShowPositionModal] = useState(false);
   const [brotherSearch, setBrotherSearch] = useState('');
+
+  // Category management state
+  const [categories, setCategories] = useState<PointCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<PointCategory | null>(null);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [categorySaving, setCategorySaving] = useState(false);
 
   // Check VP Operations access
   const checkAccess = useCallback(async () => {
@@ -84,6 +93,26 @@ export default function OperationsScreen() {
     }
   }, []);
 
+  // Fetch point categories
+  const fetchCategories = useCallback(async () => {
+    try {
+      setCategoriesLoading(true);
+      const { data, error } = await supabase
+        .from('point_categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order');
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (err: any) {
+      console.error('Error fetching categories:', err);
+      Alert.alert('Error', 'Failed to load categories');
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }, []);
+
   // Load all data
   const loadData = useCallback(async () => {
     const hasAccess = await checkAccess();
@@ -92,9 +121,12 @@ export default function OperationsScreen() {
       return;
     }
 
-    await fetchMembers();
+    await Promise.all([
+      fetchMembers(),
+      fetchCategories()
+    ]);
     setLoading(false);
-  }, [checkAccess, fetchMembers]);
+  }, [checkAccess, fetchMembers, fetchCategories]);
 
   // Focus effect to reload data
   useFocusEffect(
@@ -198,6 +230,92 @@ export default function OperationsScreen() {
     setSelectedPosition('');
   };
 
+  // Category management handlers
+  const handleAddCategory = () => {
+    setSelectedCategory(null);
+    setShowCategoryModal(true);
+  };
+
+  const handleEditCategory = (category: PointCategory) => {
+    setSelectedCategory(category);
+    setShowCategoryModal(true);
+  };
+
+  const handleDeleteCategory = (category: PointCategory) => {
+    Alert.alert(
+      'Delete Category',
+      `Are you sure you want to delete "${category.display_name}"? This will hide it from all screens but preserve historical data.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase.rpc('delete_point_category', {
+                p_id: category.id,
+              });
+
+              if (error) throw error;
+
+              Alert.alert('Success', 'Category deleted successfully');
+              fetchCategories();
+            } catch (err: any) {
+              console.error('Error deleting category:', err);
+              Alert.alert('Error', err.message || 'Failed to delete category');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSaveCategory = async (data: any) => {
+    try {
+      setCategorySaving(true);
+
+      if (selectedCategory) {
+        // Update existing category
+        const { error } = await supabase.rpc('update_point_category', {
+          p_id: selectedCategory.id,
+          p_display_name: data.display_name,
+          p_threshold: data.threshold,
+          p_color: data.color,
+          p_icon: data.icon,
+        });
+
+        if (error) throw error;
+        Alert.alert('Success', 'Category updated successfully');
+      } else {
+        // Add new category
+        const { error } = await supabase.rpc('add_point_category', {
+          p_name: data.name,
+          p_display_name: data.display_name,
+          p_threshold: data.threshold,
+          p_color: data.color,
+          p_icon: data.icon,
+        });
+
+        if (error) throw error;
+        Alert.alert('Success', 'Category added successfully');
+      }
+
+      fetchCategories();
+      setShowCategoryModal(false);
+      setSelectedCategory(null);
+    } catch (err: any) {
+      console.error('Error saving category:', err);
+      Alert.alert('Error', err.message || 'Failed to save category');
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
+  const handleCloseCategoryModal = () => {
+    setShowCategoryModal(false);
+    setSelectedCategory(null);
+  };
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -214,6 +332,14 @@ export default function OperationsScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
+        <CategoryManagementSection
+          categories={categories}
+          loading={categoriesLoading}
+          onAddCategory={handleAddCategory}
+          onEditCategory={handleEditCategory}
+          onDeleteCategory={handleDeleteCategory}
+        />
+
         <OfficerManagementSection
           members={members}
           brotherSearch={brotherSearch}
@@ -223,6 +349,14 @@ export default function OperationsScreen() {
           onClearAll={() => setShowClearConfirm(true)}
         />
       </ScrollView>
+
+      <CategoryFormModal
+        visible={showCategoryModal}
+        category={selectedCategory}
+        saving={categorySaving}
+        onClose={handleCloseCategoryModal}
+        onSave={handleSaveCategory}
+      />
 
       <PositionSelectorModal
         visible={showPositionModal}

@@ -32,7 +32,8 @@ export function useEventAnalytics(
       });
       
       const uniqueAttendanceArray = Array.from(uniqueAttendance.values());
-      const attended = uniqueAttendanceArray.filter((a) => a.attended);
+      // All records in event_attendance represent actual attendance (attended_at is set)
+      const attended = uniqueAttendanceArray;
       const rsvped = uniqueAttendanceArray.filter((a) => a.rsvp);
       
       const attendanceCount = attended.length;

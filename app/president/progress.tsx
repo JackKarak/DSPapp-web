@@ -60,12 +60,13 @@ export default function MemberProgressScreen() {
 
       if (membersError) throw membersError;
 
-      // Fetch all attendance records with event details
+      // Fetch all attendance records with event details (approved events only)
       const { data: attendance, error: attendanceError } = await supabase
         .from('event_attendance')
         .select(`
           user_id,
           event_id,
+          attended_at,
           events!inner(
             id,
             point_type,
@@ -73,7 +74,9 @@ export default function MemberProgressScreen() {
             status,
             start_time
           )
-        `);
+        `)
+        .eq('events.status', 'approved')
+        .not('attended_at', 'is', null);
 
       if (attendanceError) throw attendanceError;
 
@@ -99,6 +102,16 @@ export default function MemberProgressScreen() {
 
       if (appealsError) throw appealsError;
 
+      console.log('Progress data fetched:', {
+        membersCount: members?.length,
+        attendanceCount: attendance?.length,
+        registrationsCount: registrations?.length,
+        appealsCount: appeals?.length,
+        sampleAttendance: attendance?.[0],
+        categoriesCount: categories.length,
+        categoryNames: categories.map(c => c.display_name)
+      });
+
       // Create registration map for bonus calculation
       const registrationMap = new Map<string, Set<string>>();
       registrations?.forEach(reg => {
@@ -112,16 +125,25 @@ export default function MemberProgressScreen() {
       const progressData: MemberProgress[] = (members || []).map(member => {
         const categoryPoints: Record<string, number> = {};
         
-        // Initialize all categories to 0
+        // Initialize all categories to 0 (use name to match event point_type)
         categories.forEach(cat => {
-          categoryPoints[cat.display_name] = 0;
+          categoryPoints[cat.name] = 0;
         });
 
-        // Calculate points from attendance
+        // Track which events we've already counted to avoid duplication
+        const countedEvents = new Set<string>();
+
+        // Calculate points from attendance (approved events only, past events only)
         const memberAttendance = attendance?.filter(a => a.user_id === member.user_id) || [];
         memberAttendance.forEach(att => {
           const event = (att as any).events as any;
-          if (!event || event.status !== 'approved') return;
+          if (!event) {
+            console.log('No event data for attendance:', att);
+            return;
+          }
+          
+          // Skip if already counted (prevents duplicate check-ins)
+          if (countedEvents.has(event.id)) return;
           
           // Only count past events
           const eventDate = new Date(event.start_time);
@@ -132,14 +154,20 @@ export default function MemberProgressScreen() {
 
           if (categoryPoints[category] !== undefined) {
             categoryPoints[category] += points;
+            countedEvents.add(event.id);
+          } else {
+            console.log('Category not found:', { category, availableCategories: Object.keys(categoryPoints) });
           }
         });
 
-        // Add points from approved appeals
+        // Add points from approved appeals (only if not already counted from attendance)
         const memberAppeals = appeals?.filter(a => a.user_id === member.user_id) || [];
         memberAppeals.forEach(appeal => {
           const event = (appeal as any).events as any;
           if (!event) return;
+
+          // Skip if already counted from attendance
+          if (countedEvents.has(event.id)) return;
 
           const category = event.point_type;
           const points = event.point_value || 0;
@@ -151,6 +179,17 @@ export default function MemberProgressScreen() {
 
         // Calculate total
         const totalPoints = Object.values(categoryPoints).reduce((sum, val) => sum + val, 0);
+
+        // Debug logging for first member
+        if (member === members[0]) {
+          console.log('First member points debug:', {
+            name: `${member.first_name} ${member.last_name}`,
+            attendanceCount: memberAttendance.length,
+            appealsCount: memberAppeals.length,
+            categoryPoints,
+            totalPoints
+          });
+        }
 
         return {
           user_id: member.user_id,
@@ -286,12 +325,12 @@ export default function MemberProgressScreen() {
                     <Text 
                       style={[
                         styles.cellText,
-                        member.categoryPoints[category.display_name] >= category.threshold 
+                        member.categoryPoints[category.name] >= category.threshold 
                           ? styles.metThreshold 
                           : styles.belowThreshold
                       ]}
                     >
-                      {member.categoryPoints[category.display_name]?.toFixed(1) || '0.0'}
+                      {member.categoryPoints[category.name]?.toFixed(1) || '0.0'}
                     </Text>
                   </View>
                 ))}

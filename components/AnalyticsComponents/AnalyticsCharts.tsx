@@ -124,7 +124,7 @@ export const CategoryPointsChart = memo(({
   if (data.length === 0) {
     return (
       <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>Average Points by Category</Text>
+        <Text style={styles.chartTitle}>Points by Category</Text>
         <Text style={styles.noDataText}>No event data available</Text>
       </View>
     );
@@ -136,40 +136,45 @@ export const CategoryPointsChart = memo(({
   if (!hasValidData) {
     return (
       <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>Average Points by Category</Text>
+        <Text style={styles.chartTitle}>Points by Category</Text>
         <Text style={styles.noDataText}>No point data available yet</Text>
       </View>
     );
   }
 
+  // Sort by total points descending and take top 8
+  const sortedData = [...data]
+    .sort((a, b) => b.totalPoints - a.totalPoints)
+    .slice(0, 8);
+
   const chartData = {
-    labels: data.map((_, index) => `${index + 1}`), // Use numbers instead of text
-    legend: ["Avg Attendance/Member", "Total Events"],
-    data: data.map(item => [
-      Math.round((item.averageAttendancePerMember || 0) * 10) / 10, // Bottom stack: avg attendance per member
-      item.eventCount // Top stack: total events in category
-    ]),
-    barColors: ["#8B5CF6", "#D4AF37"], // DSP Purple for attendance, DSP Gold for total events
+    labels: sortedData.map((_, index) => `${index + 1}`),
+    datasets: [{
+      data: sortedData.map(item => item.totalPoints)
+    }]
   };
 
   return (
     <View style={styles.chartContainer}>
-      <Text style={styles.chartTitle}>Category Events & Attendance</Text>
-      <Text style={styles.chartSubtitle}>Average Member Attendance vs Total Events</Text>
-      <StackedBarChart
+      <Text style={styles.chartTitle}>Points by Category</Text>
+      <Text style={styles.chartSubtitle}>Total points earned across all members</Text>
+      <BarChart
         data={chartData}
         width={chartWidth}
         height={280}
         chartConfig={{
           ...IOS_CHART_CONFIG,
-          barPercentage: 0.7,
-          decimalPlaces: 1,
+          barPercentage: 0.8,
+          decimalPlaces: 0,
         }}
         style={styles.chart}
-        hideLegend={false}
+        yAxisLabel=""
+        yAxisSuffix=" pts"
+        fromZero
+        showValuesOnTopOfBars
       />
       <View style={styles.categoryLegend}>
-        {data.map((item, index) => (
+        {sortedData.map((item, index) => (
           <View key={index} style={styles.categoryLegendItem}>
             <View style={styles.categoryLegendNumber}>
               <Text style={styles.categoryLegendNumberText}>{index + 1}</Text>
@@ -181,7 +186,7 @@ export const CategoryPointsChart = memo(({
               style={styles.categoryIcon}
             />
             <Text style={styles.categoryLegendText}>
-              {item.category}: {Math.round((item.averageAttendancePerMember || 0) * 10) / 10} avg / {item.eventCount} events
+              {item.category}: {item.totalPoints} pts ({item.eventCount} events, {item.attendanceCount} attendances)
             </Text>
           </View>
         ))}
@@ -190,6 +195,220 @@ export const CategoryPointsChart = memo(({
   );
 });
 CategoryPointsChart.displayName = 'CategoryPointsChart';
+
+// Average Points Per Member by Category
+export const AveragePointsPerMemberChart = memo(({ 
+  data,
+  totalMembers 
+}: { 
+  data: CategoryPointsBreakdown[];
+  totalMembers: number;
+}) => {
+  if (data.length === 0 || totalMembers === 0) {
+    return (
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>Avg Points Per Member by Category</Text>
+        <Text style={styles.noDataText}>No data available</Text>
+      </View>
+    );
+  }
+
+  const hasValidData = data.some(item => item.totalPoints > 0);
+  
+  if (!hasValidData) {
+    return (
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>Avg Points Per Member by Category</Text>
+        <Text style={styles.noDataText}>No point data available yet</Text>
+      </View>
+    );
+  }
+
+  // Calculate average points per member for each category
+  const dataWithAverage = data
+    .map(item => ({
+      ...item,
+      avgPerMember: totalMembers > 0 ? item.totalPoints / totalMembers : 0
+    }))
+    .sort((a, b) => b.avgPerMember - a.avgPerMember)
+    .slice(0, 8);
+
+  const chartData = {
+    labels: dataWithAverage.map((_, index) => `${index + 1}`),
+    datasets: [{
+      data: dataWithAverage.map(item => Math.round(item.avgPerMember * 10) / 10)
+    }]
+  };
+
+  return (
+    <View style={styles.chartContainer}>
+      <Text style={styles.chartTitle}>Avg Points Per Member by Category</Text>
+      <Text style={styles.chartSubtitle}>Average points earned per member (Total Points ÷ {totalMembers} members)</Text>
+      <BarChart
+        data={chartData}
+        width={chartWidth}
+        height={280}
+        chartConfig={{
+          ...IOS_CHART_CONFIG,
+          barPercentage: 0.8,
+          decimalPlaces: 1,
+        }}
+        style={styles.chart}
+        yAxisLabel=""
+        yAxisSuffix=" pts"
+        fromZero
+        showValuesOnTopOfBars
+      />
+      <View style={styles.categoryLegend}>
+        {dataWithAverage.map((item, index) => (
+          <View key={index} style={styles.categoryLegendItem}>
+            <View style={styles.categoryLegendNumber}>
+              <Text style={styles.categoryLegendNumberText}>{index + 1}</Text>
+            </View>
+            <Ionicons 
+              name={getCategoryIcon(item.category)} 
+              size={20} 
+              color="#8B5CF6" 
+              style={styles.categoryIcon}
+            />
+            <Text style={styles.categoryLegendText}>
+              {item.category}: {Math.round(item.avgPerMember * 10) / 10} pts/member ({item.totalPoints} total pts)
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+});
+AveragePointsPerMemberChart.displayName = 'AveragePointsPerMemberChart';
+
+// House Membership Points Chart
+export const HouseMembershipPointsChart = memo(({ 
+  data 
+}: { 
+  data: Array<{ houseMembership: string; totalPoints: number; memberCount: number; avgPointsPerMember: number }>;
+}) => {
+  if (data.length === 0) {
+    return (
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>Points by House Membership</Text>
+        <Text style={styles.noDataText}>No data available</Text>
+      </View>
+    );
+  }
+
+  const chartData = {
+    labels: data.map((_, index) => `${index + 1}`),
+    datasets: [{
+      data: data.map(item => item.totalPoints)
+    }]
+  };
+
+  return (
+    <View style={styles.chartContainer}>
+      <Text style={styles.chartTitle}>Points by House Membership</Text>
+      <Text style={styles.chartSubtitle}>Total points earned by house members</Text>
+      <BarChart
+        data={chartData}
+        width={chartWidth}
+        height={280}
+        chartConfig={{
+          ...IOS_CHART_CONFIG,
+          barPercentage: 0.8,
+          decimalPlaces: 0,
+        }}
+        style={styles.chart}
+        yAxisLabel=""
+        yAxisSuffix=" pts"
+        fromZero
+        showValuesOnTopOfBars
+      />
+      <View style={styles.categoryLegend}>
+        {data.map((item, index) => (
+          <View key={index} style={styles.categoryLegendItem}>
+            <View style={styles.categoryLegendNumber}>
+              <Text style={styles.categoryLegendNumberText}>{index + 1}</Text>
+            </View>
+            <Ionicons 
+              name="home" 
+              size={20} 
+              color="#8B5CF6" 
+              style={styles.categoryIcon}
+            />
+            <Text style={styles.categoryLegendText}>
+              {item.houseMembership}: {item.totalPoints} pts ({item.memberCount} members, {Math.round(item.avgPointsPerMember * 10) / 10} avg)
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+});
+HouseMembershipPointsChart.displayName = 'HouseMembershipPointsChart';
+
+// Pledge Class Average Points Chart
+export const PledgeClassPointsChart = memo(({ 
+  data 
+}: { 
+  data: Array<{ pledgeClass: string; totalPoints: number; memberCount: number; avgPointsPerMember: number }>;
+}) => {
+  if (data.length === 0) {
+    return (
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>Avg Points by Pledge Class</Text>
+        <Text style={styles.noDataText}>No data available</Text>
+      </View>
+    );
+  }
+
+  const chartData = {
+    labels: data.map((_, index) => `${index + 1}`),
+    datasets: [{
+      data: data.map(item => Math.round(item.avgPointsPerMember * 10) / 10)
+    }]
+  };
+
+  return (
+    <View style={styles.chartContainer}>
+      <Text style={styles.chartTitle}>Avg Points by Pledge Class</Text>
+      <Text style={styles.chartSubtitle}>Average points per member by pledge class</Text>
+      <BarChart
+        data={chartData}
+        width={chartWidth}
+        height={280}
+        chartConfig={{
+          ...IOS_CHART_CONFIG,
+          barPercentage: 0.8,
+          decimalPlaces: 1,
+        }}
+        style={styles.chart}
+        yAxisLabel=""
+        yAxisSuffix=" pts"
+        fromZero
+        showValuesOnTopOfBars
+      />
+      <View style={styles.categoryLegend}>
+        {data.map((item, index) => (
+          <View key={index} style={styles.categoryLegendItem}>
+            <View style={styles.categoryLegendNumber}>
+              <Text style={styles.categoryLegendNumberText}>{index + 1}</Text>
+            </View>
+            <Ionicons 
+              name="ribbon" 
+              size={20} 
+              color="#8B5CF6" 
+              style={styles.categoryIcon}
+            />
+            <Text style={styles.categoryLegendText}>
+              {item.pledgeClass}: {Math.round(item.avgPointsPerMember * 10) / 10} pts/member ({item.memberCount} members)
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+});
+PledgeClassPointsChart.displayName = 'PledgeClassPointsChart';
 
 const styles = StyleSheet.create({
   chartContainer: {

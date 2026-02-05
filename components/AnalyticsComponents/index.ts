@@ -19,6 +19,9 @@ export {
   DiversityPieChart,
   DistributionBarChart,
   CategoryPointsChart,
+  AveragePointsPerMemberChart,
+  HouseMembershipPointsChart,
+  PledgeClassPointsChart,
 } from './AnalyticsCharts';
 
 // Re-export officer analytics components

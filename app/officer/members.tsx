@@ -129,12 +129,6 @@ export default function MembersScreen() {
             .select('event_id, events!inner(id, point_value)')
             .eq('user_id', member.user_id);
 
-          // Get registration bonuses
-          const { data: registrations } = await supabase
-            .from('event_registration')
-            .select('event_id')
-            .eq('user_id', member.user_id);
-
           // Get approved appeals
           const { data: appeals } = await supabase
             .from('point_appeal')
@@ -142,16 +136,28 @@ export default function MembersScreen() {
             .eq('user_id', member.user_id)
             .eq('status', 'approved');
 
-          const registrationSet = new Set(registrations?.map(r => r.event_id) || []);
+          // Track counted events to avoid duplication
+          const countedEvents = new Set<string>();
           
-          // Calculate total points (1 for attendance, 0.5 bonus for registration, 1 for appeals)
+          // Calculate total points from attendance (use actual point_value)
           const attendancePoints = (attendance || []).reduce((sum, att) => {
-            const basePoints = 1;
-            const bonus = registrationSet.has(att.event_id) ? 0.5 : 0;
-            return sum + basePoints + bonus;
+            const event = (att as any).events;
+            if (!event) return sum;
+            
+            const points = event.point_value || 0;
+            countedEvents.add(att.event_id);
+            return sum + points;
           }, 0);
 
-          const appealPoints = (appeals || []).length * 1;
+          // Calculate points from appeals (only if not already counted)
+          const appealPoints = (appeals || []).reduce((sum, appeal) => {
+            const event = (appeal as any).events;
+            if (!event || countedEvents.has(appeal.event_id)) return sum;
+            
+            const points = event.point_value || 0;
+            return sum + points;
+          }, 0);
+
           const totalPoints = attendancePoints + appealPoints;
 
           return {

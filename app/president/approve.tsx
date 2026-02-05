@@ -594,13 +594,20 @@ export default function EventApproval() {
     try {
       dispatch({ type: 'TOGGLE_PROCESSING', payload: state.editingEventId });
 
+      // Adjust for timezone offset to preserve the local time when converting to ISO
+      const adjustForTimezone = (date: Date) => {
+        const adjusted = new Date(date);
+        adjusted.setMinutes(adjusted.getMinutes() - adjusted.getTimezoneOffset());
+        return adjusted.toISOString();
+      };
+
       const { error } = await supabase
         .from('events')
         .update({
           title: editFormData.title,
           description: editFormData.description,
-          start_time: editFormData.start_time.toISOString(),
-          end_time: editFormData.end_time.toISOString(),
+          start_time: adjustForTimezone(editFormData.start_time),
+          end_time: adjustForTimezone(editFormData.end_time),
           location: editFormData.location,
           point_type: editFormData.point_type,
           point_value: editFormData.point_value,

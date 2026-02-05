@@ -249,7 +249,32 @@ export const useAccount = () => {
 
       // Set appeals
       setAppeals(userAppeals);
-      setAppealableEvents(appealableEventsData);
+      
+      // Transform appealable events to match Event type
+      const transformedAppealableEvents = appealableEventsData.map((event: any) => {
+        const eventDate = new Date(event.start_time);
+        const formattedDate = eventDate.toLocaleString('en-US', {
+          timeZone: 'America/New_York',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+        
+        return {
+          id: event.id,
+          title: event.title,
+          date: formattedDate,
+          host_name: event.host_name || 'Unknown Host', // Use host_name from database
+          point_value: event.point_value,
+          point_type: event.point_type,
+          is_non_event: event.is_non_event,
+        };
+      });
+      
+      setAppealableEvents(transformedAppealableEvents);
 
       // Fetch event feedback submissions
       const eventIds = eventsData
@@ -372,14 +397,23 @@ export const useAccount = () => {
         consent_updated_at: new Date().toISOString(),
       };
 
+      console.log('Saving profile data:', updateData);
+
       const { error: updateError } = await supabase
         .from('users')
-        .update(updateData)
-        .eq('user_id', authResult.user.id);
+        .upsert({
+          user_id: authResult.user.id,
+          ...updateData
+        }, {
+          onConflict: 'user_id'
+        });
 
       if (updateError) {
+        console.error('Profile save error:', updateError);
         throw updateError;
       }
+
+      console.log('Profile saved successfully');
 
       Alert.alert('Success', 'Profile updated successfully!');
       setIsEditing(false);

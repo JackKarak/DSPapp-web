@@ -29,17 +29,16 @@ export function useMemberPerformance(
     const memberStats = new Map<string, { points: number; eventsAttended: Set<string> }>();
 
     safeAttendance.forEach((att) => {
-      if (att.attended) {
-        const event = eventLookup.get(att.event_id);
-        if (event) {
-          const stats = memberStats.get(att.user_id) || { points: 0, eventsAttended: new Set<string>() };
-          
-          // Only count each event once per user (avoid duplicate attendance records)
-          if (!stats.eventsAttended.has(att.event_id)) {
-            stats.points += event.point_value;
-            stats.eventsAttended.add(att.event_id);
-            memberStats.set(att.user_id, stats);
-          }
+      // All records in event_attendance represent actual attendance (attended_at is set)
+      const event = eventLookup.get(att.event_id);
+      if (event) {
+        const stats = memberStats.get(att.user_id) || { points: 0, eventsAttended: new Set<string>() };
+        
+        // Only count each event once per user (avoid duplicate attendance records)
+        if (!stats.eventsAttended.has(att.event_id)) {
+          stats.points += event.point_value;
+          stats.eventsAttended.add(att.event_id);
+          memberStats.set(att.user_id, stats);
         }
       }
     });

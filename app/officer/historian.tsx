@@ -28,7 +28,6 @@ const isValidUrl = (urlString: string): boolean => {
 export default function Historian() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [campaignTitle, setCampaignTitle] = useState('');
   const [campaignDescription, setCampaignDescription] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
@@ -37,73 +36,51 @@ export default function Historian() {
   const [submitting, setSubmitting] = useState(false);
   const [updatingNewsletter, setUpdatingNewsletter] = useState(false);
 
-  // Memoized authentication check
-  const checkAuthentication = useCallback(async () => {
+  // Authentication and data loading
+  const initializeData = useCallback(async () => {
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        router.replace('/(auth)/login');
+        return;
+      }
 
-      if (authError) throw new Error(`Auth error: ${authError.message}`);
-      if (!user) throw new Error('No user found');
-
-      // Verify historian officer role
+      // Verify historian role
       const { data: profile, error: profileError } = await supabase
         .from('users')
         .select('officer_position')
         .eq('user_id', user.id)
         .single();
 
-      if (profileError) throw new Error(`Profile error: ${profileError.message}`);
-      
-      if (!profile?.officer_position || profile.officer_position?.toLowerCase() !== 'historian') {
+      if (profileError || profile?.officer_position?.toLowerCase() !== 'historian') {
         Alert.alert('Access Denied', 'This page is only accessible to Historians.');
         router.replace('/');
         return;
       }
 
-      setCurrentUser(user);  // Cache user for reuse
-      await fetchCurrentNewsletterUrl();  // Only called once here
-      
-    } catch (error) {
-      console.error('Authentication error:', error);
-      Alert.alert('Error', error instanceof Error ? error.message : 'Authentication failed');
-      router.replace('/(auth)/login');
-    }
-  }, [router]);
-
-  // Memoized newsletter fetch
-  const fetchCurrentNewsletterUrl = useCallback(async () => {
-    try {
+      // Load newsletter URL
       const { data: settingsData, error: settingsError } = await supabase
         .from('app_settings')
         .select('value')
         .eq('key', 'newsletter_url')
         .single();
 
-      if (settingsError) {
-        if (settingsError.code === 'PGRST116') {
-          // Not found - use default
-          setIsDefaultUrl(true);
-          setNewsletterUrl(DEFAULT_NEWSLETTER_URL);
-        } else {
-          throw settingsError;
-        }
-        return;
+      if (!settingsError && settingsData?.value) {
+        setNewsletterUrl(settingsData.value);
+        setIsDefaultUrl(false);
       }
-
-      setIsDefaultUrl(false);
-      setNewsletterUrl(settingsData.value || DEFAULT_NEWSLETTER_URL);
       
     } catch (error) {
-      console.error('Error fetching newsletter URL:', error);
-      Alert.alert('Warning', 'Could not load custom newsletter URL. Using default.');
-      setIsDefaultUrl(true);
-      setNewsletterUrl(DEFAULT_NEWSLETTER_URL);
+      console.error('Initialization error:', error);
+      router.replace('/(auth)/login');
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [router]);
 
-  // Memoized campaign submission
+
+
   const handleSubmitCampaign = useCallback(async () => {
-    // Trim once
     const title = campaignTitle.trim();
     const description = campaignDescription.trim();
     const audience = targetAudience.trim() || 'General';
@@ -113,28 +90,23 @@ export default function Historian() {
       return;
     }
 
-    if (!currentUser) {
-      Alert.alert('Authentication Error', 'Please log in again.');
-      router.replace('/(auth)/login');
-      return;
-    }
-
     setSubmitting(true);
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
       const { error } = await supabase.from('marketing_campaigns').insert({
         title,
         description,
         target_audience: audience,
-        created_by: currentUser.id,
+        created_by: user.id,
         status: 'draft'
       });
 
       if (error) throw error;
 
       Alert.alert('Success! 🎉', 'Marketing campaign created successfully.');
-      
-      // Clear form
       setCampaignTitle('');
       setCampaignDescription('');
       setTargetAudience('');
@@ -145,9 +117,8 @@ export default function Historian() {
     } finally {
       setSubmitting(false);
     }
-  }, [campaignTitle, campaignDescription, targetAudience, currentUser, router]);
+  }, [campaignTitle, campaignDescription, targetAudience]);
 
-  // Memoized newsletter URL update with UPSERT
   const handleUpdateNewsletterUrl = useCallback(async () => {
     const url = newsletterUrl.trim();
 
@@ -161,22 +132,18 @@ export default function Historian() {
       return;
     }
 
-    if (!currentUser) {
-      Alert.alert('Authentication Error', 'Please log in again.');
-      router.replace('/(auth)/login');
-      return;
-    }
-
     setUpdatingNewsletter(true);
 
     try {
-      // SINGLE query using upsert
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
       const { error } = await supabase
         .from('app_settings')
         .upsert({
           key: 'newsletter_url',
           value: url,
-          updated_by: currentUser.id,
+          updated_by: user.id,
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'key',
@@ -194,22 +161,11 @@ export default function Historian() {
     } finally {
       setUpdatingNewsletter(false);
     }
-  }, [newsletterUrl, currentUser, router]);
+  }, [newsletterUrl]);
 
-  // Race condition protection
   useEffect(() => {
-    let isMounted = true;
-
-    const loadData = async () => {
-      await checkAuthentication();
-      if (isMounted) {
-        setLoading(false);
-      }
-    };
-
-    loadData();
-    return () => { isMounted = false; };
-  }, [checkAuthentication]);
+    initializeData();
+  }, [initializeData]);
 
   if (loading) {
     return (
@@ -300,17 +256,6 @@ export default function Historian() {
             {updatingNewsletter ? 'Updating URL...' : 'Update Newsletter URL'}
           </Text>
         </TouchableOpacity>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Marketing Resources</Text>
-        <Text style={styles.resourceText}>
-          • Brand guidelines and logos{'\n'}
-          • Social media templates{'\n'}
-          • Event promotion materials{'\n'}
-          • Contact alumni database team{'\n'}
-          • Coordinate with VP Branding
-        </Text>
       </View>
     </ScrollView>
   );
@@ -421,10 +366,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     textAlign: 'center',
-  },
-  resourceText: {
-    fontSize: 16,
-    color: '#4b5563',
-    lineHeight: 24,
   },
 });

@@ -32,8 +32,13 @@ export async function saveConsentPreferences(
     version: CURRENT_PRIVACY_VERSION,
   };
   
-  // Save to local storage
-  await setSecureItem(CONSENT_KEY, fullPreferences);
+  // Try to save to local storage (but don't fail if device is locked)
+  try {
+    await setSecureItem(CONSENT_KEY, fullPreferences);
+  } catch (storageError) {
+    console.warn('[dataConsent] Could not save to secure storage:', storageError);
+    // Continue - database save is more important
+  }
   
   // Save to Supabase database
   try {
@@ -99,8 +104,13 @@ export async function getConsentPreferences(): Promise<ConsentPreferences | null
         version: data.privacy_policy_version || '1.0.0',
       };
       
-      // Cache in local storage for faster access
-      await setSecureItem(CONSENT_KEY, preferences);
+      // Try to cache in local storage for faster access (but don't fail if device is locked)
+      try {
+        await setSecureItem(CONSENT_KEY, preferences);
+      } catch (storageError) {
+        console.warn('[dataConsent] Could not cache to secure storage:', storageError);
+        // Continue - we already have the data from Supabase
+      }
       
       return preferences;
     }

@@ -108,10 +108,18 @@ export function usePointsData() {
         return;
       }
 
-      // Parse the returned JSON
-      const categoryPoints = dashboardData.categoryPoints || {};
-      const userRank = dashboardData.userRank || null;
-      const leaderboard = dashboardData.leaderboard || [];
+      // Parse the returned JSON (get_points_dashboard format)
+      const categoryPoints = dashboardData.user_points?.category_points || {};
+      const userRank = dashboardData.user_points ? {
+        name: 'You',
+        totalPoints: dashboardData.user_points.total_points || 0,
+        rank: dashboardData.user_points.rank || 0,
+      } : null;
+      const leaderboard = (dashboardData.leaderboard || []).map((item: any) => ({
+        name: item.name,
+        totalPoints: item.total_points,
+        rank: item.rank,
+      }));
 
       // Calculate pillars met using dynamic requirements
       const metCount = Object.entries(pointRequirements).reduce((count, [cat, config]) => {

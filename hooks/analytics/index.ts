@@ -11,6 +11,8 @@ export { useCategoryBreakdown } from './useCategoryBreakdown';
 export { useDiversityMetrics } from './useDiversityMetrics';
 export { useOfficerAnalytics } from './useOfficerAnalytics';
 export { useMemberPoints } from './useMemberPoints';
+export { useHouseMembershipPoints } from './useHouseMembershipPoints';
+export { usePledgeClassPoints } from './usePledgeClassPoints';
 export type { AnalyticsDashboardData, ComputedMetrics, ComparativeData } from './useOfficerAnalytics';
 export * from './analyticsUtils';
 export { analyticsReducer, initialState } from './analyticsReducer';

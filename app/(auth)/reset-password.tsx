@@ -23,6 +23,7 @@ export default function ResetPasswordScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [sessionValid, setSessionValid] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const router = useRouter();
   const params = useLocalSearchParams();
 
@@ -70,7 +71,7 @@ export default function ResetPasswordScreen() {
         logger.info('Valid recovery tokens found in URL');
         
         // Set the session from the email link tokens
-        const { error } = await supabase.auth.setSession({
+        const { data, error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         });
@@ -80,16 +81,24 @@ export default function ResetPasswordScreen() {
           throw error;
         }
 
-        setSessionValid(true);
-        logger.info('Session set successfully from deep link');
+        if (data.session) {
+          setSessionValid(true);
+          setCheckingSession(false);
+          logger.info('Session set successfully from deep link');
+        } else {
+          throw new Error('No session returned after setting tokens');
+        }
       } else {
-        logger.warn('Invalid or missing tokens in deep link');
+        logger.warn('Invalid or missing tokens in deep link', { type, hasAccessToken: !!accessToken, hasRefreshToken: !!refreshToken });
+        setCheckingSession(false);
+        throw new Error('Missing required authentication tokens');
       }
     } catch (error: any) {
       logger.error('Failed to handle deep link', error);
+      setCheckingSession(false);
       Alert.alert(
-        'Error',
-        'Unable to process password reset link. Please request a new one.',
+        'Invalid Reset Link',
+        'This password reset link is invalid or has expired. Please request a new one from the login screen.',
         [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
       );
     }
@@ -106,7 +115,7 @@ export default function ResetPasswordScreen() {
         logger.info('Valid recovery tokens found in params');
         
         // Set the session from the email link tokens
-        const { error } = await supabase.auth.setSession({
+        const { data, error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         });
@@ -115,8 +124,11 @@ export default function ResetPasswordScreen() {
           throw error;
         }
 
-        setSessionValid(true);
-        return;
+        if (data.session) {
+          setSessionValid(true);
+          setCheckingSession(false);
+          return;
+        }
       }
 
       // Check if user already has a valid session
@@ -125,25 +137,24 @@ export default function ResetPasswordScreen() {
       if (session) {
         logger.info('Valid session found');
         setSessionValid(true);
+        setCheckingSession(false);
       } else {
         // Don't show error immediately - wait for deep link to arrive
         logger.info('No session found, waiting for deep link...');
         setTimeout(() => {
           // Check again after waiting for deep link
           supabase.auth.getSession().then(({ data: { session: laterSession } }) => {
+            setCheckingSession(false);
             if (!laterSession && !sessionValid) {
               logger.warn('No valid session after timeout');
-              Alert.alert(
-                'Invalid Reset Link',
-                'This password reset link is invalid or has expired. Please request a new one.',
-                [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
-              );
+              // Don't automatically redirect - let user see the error and try again
             }
           });
-        }, 3000); // Wait 3 seconds for deep link to arrive
+        }, 5000); // Increased to 5 seconds to give more time for deep link
       }
     } catch (error: any) {
       logger.error('Failed to verify reset session', error);
+      setCheckingSession(false);
       Alert.alert(
         'Error',
         'Unable to verify your password reset link. Please request a new one.',
@@ -223,11 +234,33 @@ export default function ResetPasswordScreen() {
   };
 
   // Show loading while verifying session
-  if (!sessionValid) {
+  if (checkingSession) {
     return (
       <View style={[styles.mainContainer, styles.centerContent]}>
         <ActivityIndicator size="large" color="#8b5cf6" />
         <Text style={styles.loadingText}>Verifying reset link...</Text>
+        <Text style={styles.subLoadingText}>This may take a few seconds</Text>
+      </View>
+    );
+  }
+
+  // Show error if session is invalid
+  if (!sessionValid) {
+    return (
+      <View style={[styles.mainContainer, styles.centerContent]}>
+        <Text style={styles.errorTitle}>⚠️ Invalid Reset Link</Text>
+        <Text style={styles.errorMessage}>
+          This password reset link is invalid or has expired.
+        </Text>
+        <Text style={styles.errorSubmessage}>
+          Password reset links expire after 1 hour for security.
+        </Text>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={() => router.replace('/(auth)/login')}
+        >
+          <Text style={styles.primaryButtonText}>Request New Link</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -484,6 +517,46 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#6b7280',
+  },
+  subLoadingText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#9ca3af',
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#dc2626',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: '#374151',
+    textAlign: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 32,
+  },
+  errorSubmessage: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 32,
+    paddingHorizontal: 32,
+  },
+  primaryButton: {
+    backgroundColor: '#8b5cf6',
+    borderRadius: 12,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+    minWidth: 200,
+  },
+  primaryButtonText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '600',
   },
   resetButton: {
     backgroundColor: '#8b5cf6',
