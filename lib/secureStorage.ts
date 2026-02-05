@@ -4,6 +4,10 @@
  * Provides encrypted storage for sensitive data with proper key management
  * and secure deletion capabilities.
  * 
+ * Platform Support:
+ * - Native (iOS/Android): Uses expo-secure-store with hardware encryption
+ * - Web: Uses localStorage with encryption (see secureStorage.web.ts)
+ * 
  * Apple Compliance:
  * - Uses SecureStore with encryption verification
  * - Implements secure deletion
@@ -11,8 +15,49 @@
  * - Handles errors gracefully
  */
 
-import * as SecureStore from 'expo-secure-store';
-import * as Crypto from 'expo-crypto';
+import { Platform } from 'react-native';
+
+// Platform-specific imports
+let SecureStore: any;
+let Crypto: any;
+
+if (Platform.OS === 'web') {
+  // Use web implementation
+  SecureStore = require('./secureStorage.web');
+  // Web crypto fallback
+  Crypto = {
+    digestStringAsync: async (algorithm: any, str: string) => {
+      if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(str);
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+      // Simple fallback hash
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+      }
+      return hash.toString(16);
+    },
+    getRandomBytesAsync: async (size: number) => {
+      if (typeof window !== 'undefined' && window.crypto) {
+        return window.crypto.getRandomValues(new Uint8Array(size));
+      }
+      return new Uint8Array(size);
+    },
+    CryptoDigestAlgorithm: {
+      SHA256: 'SHA-256'
+    }
+  };
+} else {
+  // Use native expo modules
+  SecureStore = require('expo-secure-store');
+  Crypto = require('expo-crypto');
+}
 
 // Storage keys
 export const STORAGE_KEYS = {

@@ -2,31 +2,67 @@
  * Push Notification Service
  * 
  * Handles registration, scheduling, and sending push notifications
- * Uses Expo's FREE push notification service
+ * 
+ * Platform Support:
+ * - Native (iOS/Android): Uses Expo's push notification service
+ * - Web: Uses browser notifications API (see notifications.web.ts)
  */
 
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
 import { logger } from './logger';
 
-// Configure notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Platform-specific imports
+let Notifications: any;
+let Device: any;
+
+if (Platform.OS === 'web') {
+  // Use web implementation
+  const webNotifications = require('./notifications.web');
+  Notifications = {
+    scheduleNotificationAsync: webNotifications.scheduleNotificationAsync,
+    getPermissionsAsync: webNotifications.getPermissionsAsync,
+    requestPermissionsAsync: webNotifications.requestPermissionsAsync,
+    setNotificationHandler: webNotifications.setNotificationHandler,
+    cancelScheduledNotificationAsync: webNotifications.cancelScheduledNotificationAsync,
+    cancelAllScheduledNotificationsAsync: webNotifications.cancelAllScheduledNotificationsAsync,
+    AndroidNotificationPriority: { MAX: 5, HIGH: 4 },
+    AndroidImportance: { MAX: 5, HIGH: 4 },
+    SchedulableTriggerInputTypes: { DATE: 'date' },
+  };
+  Device = {
+    isDevice: true, // Always true for web
+  };
+} else {
+  // Use native expo modules
+  Notifications = require('expo-notifications');
+  Device = require('expo-device');
+}
+
+// Configure notification behavior (native only)
+if (Platform.OS !== 'web' && Notifications.setNotificationHandler) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 /**
  * Register device for push notifications and save token to database
  */
 export async function registerForPushNotifications(): Promise<string | null> {
   try {
+    // Web platform handling
+    if (Platform.OS === 'web') {
+      const webNotifications = require('./notifications.web');
+      return await webNotifications.registerForPushNotifications();
+    }
+
     // Check if running on physical device
     if (!Device.isDevice) {
       console.log('Push notifications only work on physical devices');
