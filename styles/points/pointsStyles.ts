@@ -44,7 +44,7 @@ export const styles = StyleSheet.create({
   // Header Section
   headerSection: {
     marginHorizontal: 16,
-    marginTop: Platform.OS === 'ios' ? 10 : 16,
+    marginTop: Platform.OS === 'ios' ? 10 : (Platform.OS === 'web' ? 16 : 16),
     marginBottom: 24,
     borderRadius: 16,
     overflow: 'hidden',

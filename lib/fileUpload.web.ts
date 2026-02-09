@@ -1,15 +1,13 @@
 /**
- * File Upload Utilities for React Native + Supabase
+ * Web-compatible File Upload Utilities
  * 
- * Handles file uploads from React Native to Supabase Storage
- * with proper binary handling for both web and mobile platforms
+ * Handles file uploads with proper FormData construction for both web and mobile
  */
 
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
 import Constants from 'expo-constants';
 
-// Get Supabase URL from config
 const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl || 'https://brjmujpjbmzhjepxamek.supabase.co';
 
 export interface UploadResult {
@@ -19,15 +17,7 @@ export interface UploadResult {
 }
 
 /**
- * Upload a file to Supabase Storage from React Native
- * Uses FormData approach which is compatible with React Native
- * 
- * @param uri - File URI from DocumentPicker or ImagePicker
- * @param bucket - Supabase storage bucket name
- * @param folder - Folder path within the bucket
- * @param fileName - Desired file name
- * @param mimeType - File MIME type
- * @returns Upload result with file path or error
+ * Upload a file to Supabase Storage (web and mobile compatible)
  */
 export async function uploadFileToStorage(
   uri: string,
@@ -37,80 +27,74 @@ export async function uploadFileToStorage(
   mimeType?: string
 ): Promise<UploadResult> {
   try {
-    // Construct full path
     const filePath = folder ? `${folder}/${fileName}` : fileName;
 
-    // Get auth token for upload
+    // Get auth token
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
-      return {
-        success: false,
-        error: 'Not authenticated',
-      };
+      return { success: false, error: 'Not authenticated' };
     }
 
     const storageUrl = `${supabaseUrl}/storage/v1/object/${bucket}/${filePath}`;
-    const formData = new FormData();
 
     if (Platform.OS === 'web') {
-      // Web: convert uri to File object
+      // Web: use File API
       const response = await fetch(uri);
       const blob = await response.blob();
       const file = new File([blob], fileName, { type: mimeType || 'application/octet-stream' });
+
+      const formData = new FormData();
       formData.append('file', file);
+
+      const uploadResponse = await fetch(storageUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        return { success: false, error: errorData.message || 'Upload failed' };
+      }
     } else {
-      // Mobile: use uri object for React Native FormData
+      // Mobile: use React Native FormData with uri object
+      const formData = new FormData();
       // @ts-ignore - React Native's FormData accepts objects with uri
       formData.append('file', {
         uri: uri,
         name: fileName,
         type: mimeType || 'application/octet-stream',
       });
+
+      const uploadResponse = await fetch(storageUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        return { success: false, error: errorData.message || 'Upload failed' };
+      }
     }
 
-    // Upload using fetch with proper headers
-    const response = await fetch(storageUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      return {
-        success: false,
-        error: errorData.message || 'Upload failed',
-      };
-    }
-
-    return {
-      success: true,
-      filePath: filePath,
-    };
+    return { success: true, filePath: filePath };
   } catch (error: any) {
     console.error('File upload error:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to upload file',
-    };
+    return { success: false, error: error.message || 'Failed to upload file' };
   }
 }
 
 /**
  * Get public URL for a file in Supabase Storage
- * 
- * @param bucket - Supabase storage bucket name
- * @param filePath - Path to file in bucket
- * @returns Public URL or null if error
  */
 export function getPublicUrl(bucket: string, filePath: string): string | null {
   try {
-    const { data } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(filePath);
-
+    const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
     return data.publicUrl;
   } catch (error) {
     console.error('Error getting public URL:', error);
@@ -120,22 +104,14 @@ export function getPublicUrl(bucket: string, filePath: string): string | null {
 
 /**
  * Delete a file from Supabase Storage
- * 
- * @param bucket - Supabase storage bucket name
- * @param filePath - Path to file in bucket
- * @returns Success status
  */
 export async function deleteFile(bucket: string, filePath: string): Promise<boolean> {
   try {
-    const { error } = await supabase.storage
-      .from(bucket)
-      .remove([filePath]);
-
+    const { error } = await supabase.storage.from(bucket).remove([filePath]);
     if (error) {
       console.error('Error deleting file:', error);
       return false;
     }
-
     return true;
   } catch (error) {
     console.error('File deletion error:', error);

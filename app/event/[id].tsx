@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
   },
   container: {
     padding: 16,
-    paddingBottom: Platform.OS === 'ios' ? 100 : 80,
+    paddingBottom: Platform.OS === 'ios' ? 100 : (Platform.OS === 'web' ? 60 : 80),
   },
   title: {
     fontSize: 28,
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 30 : 16,
+    paddingBottom: Platform.OS === 'ios' ? 30 : (Platform.OS === 'web' ? 16 : 16),
     borderTopWidth: 1,
     borderTopColor: '#E5E5E5',
     shadowColor: '#000',

@@ -155,7 +155,7 @@ export const registerFormStyles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    paddingBottom: Platform.OS === 'ios' ? 34 : (Platform.OS === 'web' ? 20 : 20),
     maxHeight: '70%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
