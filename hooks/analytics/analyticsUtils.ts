@@ -24,7 +24,7 @@ export function createEventLookup(events: Event[]): Map<string, Event> {
  */
 export function getActiveBrothers(members: Member[]): Member[] {
   return members.filter(
-    m => m.role === 'brother' || m.role === 'officer' || m.role === 'president'
+    m => (m.role === 'brother' || m.role === 'officer' || m.role === 'president') && m.role !== 'alumni' && m.role !== 'abroad'
   );
 }
 

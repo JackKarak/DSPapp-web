@@ -32,7 +32,7 @@ export function SemesterReportModal({ visible, onClose }: SemesterReportModalPro
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [restartingSemester, setRestartingSemester] = useState(false);
 
-  // Default to current semester (Aug-Dec or Jan-May)
+  // Default to current semester (Aug-Dec or Jan-Jul)
   const getCurrentSemester = () => {
     const now = new Date();
     const year = now.getFullYear();
@@ -45,10 +45,10 @@ export function SemesterReportModal({ visible, onClose }: SemesterReportModalPro
         end: `${year}-12-31`
       };
     } else {
-      // Spring semester: Jan 1 - May 31
+      // Spring semester: Jan 1 - Jul 31
       return {
         start: `${year}-01-01`,
-        end: `${year}-05-31`
+        end: `${year}-07-31`
       };
     }
   };
@@ -758,7 +758,7 @@ export function SemesterReportModal({ visible, onClose }: SemesterReportModalPro
       if (adminFeedbackError) throw adminFeedbackError;
 
       const { error: pledgeError } = await supabase
-        .from('pledge')
+        .from('pledges')
         .delete()
         .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
 

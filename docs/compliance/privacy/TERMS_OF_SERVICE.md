@@ -1,217 +1,155 @@
-# Terms of Service for The DSP App
-**Delta Sigma Pi Professional Business Fraternity Mobile Application**
+Terms of Service for The DSP App
+Delta Sigma Pi – Gamma Sigma Chapter Mobile Application Effective Date: October 16, 2025 Last Updated: October 16, 2025
 
-Last updated: October 16, 2025
+1. Acceptance of Terms
+By downloading, installing, or using The DSP App (“the App”), you agree to be bound by these Terms of Service (“Terms”). If you do not agree to these Terms, you may not use the App.
+1.1 Eligibility
+To use the App, you must:
+Be a current member, pledge, officer, or other authorized user of the Delta Sigma Pi Gamma Sigma Chapter;
+Be at least 13 years of age (typically 18+ as a college student);
+Have the authority to enter into this agreement; and
+Use the App in compliance with all applicable laws, university policies, and fraternity regulations.
+1.2 Account Registration
+You agree to:
+Provide accurate and complete information during registration;
+Maintain the confidentiality of your login credentials;
+Notify us immediately of any unauthorized access or security breach; and
+Maintain only one active account per individual.
+You are solely responsible for all activity conducted under your account.
 
-## 1. Acceptance of Terms
+2. Description of Service
+2.1 Purpose
+The DSP App is a platform designed to enhance member engagement and professional development within the Delta Sigma Pi Gamma Sigma Chapter through features such as:
+Member Engagement: Event attendance tracking and point management;
+Professional Networking: Chapter connections and career-related communication;
+Communication: Chapter announcements, push notifications, and updates;
+Event Management: Calendar integration and attendance verification;
+Administrative Tools: Officer-level tools for event and membership management; and
+Achievement Tracking: Recognition of points, milestones, and rankings.
+2.2 Availability
+The App is provided on an “as-is” and “as-available” basis. While we strive for reliable performance, uninterrupted service cannot be guaranteed. Access may be temporarily limited during maintenance or updates, and features may change with or without notice.
 
-By downloading, installing, or using The DSP App ("the App"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the App.
-
-### 1.1 Eligibility
-- You must be a current member, pledge, officer, or authorized user of a Delta Sigma Pi chapter
-- You must be at least 13 years of age (typically 18+ as a college student)
-- You must have the authority to enter into this agreement
-- Your use must comply with all applicable laws and university policies
-
-### 1.2 Account Registration
-- You are responsible for maintaining the confidentiality of your account credentials
-- You must provide accurate and complete information during registration
-- You must notify us immediately of any unauthorized use of your account
-- Each person may maintain only one account
-
-## 2. Description of Service
-
-### 2.1 App Purpose
-The DSP App is designed to facilitate professional development and fraternity engagement through:
-- **Member Engagement**: Event attendance tracking and professional development points
-- **Professional Networking**: Chapter member connections and business networking opportunities
-- **Communication**: Chapter announcements, professional development content, and notifications
-- **Event Management**: Calendar integration and attendance verification for business events
-- **Administrative Functions**: Officer tools for chapter management and professional development tracking
-- **Achievement Tracking**: Points, rankings, and professional milestone recognition
-
-### 2.2 Service Availability
-- The App is provided on an "as-is" and "as-available" basis
-- We strive for 99% uptime but cannot guarantee uninterrupted service
-- Maintenance windows and updates may temporarily limit access
-- Features may be added, modified, or discontinued with notice
-
-## 3. User Responsibilities and Conduct
-
-### 3.1 Acceptable Use
+3. User Responsibilities and Conduct
+3.1 Acceptable Use
 You agree to use the App only for its intended purposes and in accordance with:
-- Delta Sigma Pi professional business fraternity values and principles
-- Your university's code of conduct and policies
-- All applicable local, state, and federal laws
-- These Terms of Service and Community Guidelines
-
-### 3.2 Prohibited Activities
+The values and principles of Delta Sigma Pi;
+Your university’s code of conduct; and
+Applicable laws and regulations.
+3.2 Prohibited Activities
 You may not:
-- **Harassment**: Bully, threaten, or discriminate against other members
-- **Misinformation**: Share false or misleading information about events or members
-- **Privacy Violations**: Share other members' personal information without consent
-- **Technical Abuse**: Attempt to hack, reverse engineer, or disrupt the App
-- **Impersonation**: Misrepresent your identity or affiliation
-- **Illegal Content**: Post or share content promoting illegal activities
-- **Spam**: Send unsolicited messages or engage in excessive promotional activity
+Harass or Discriminate: Engage in bullying, hate speech, or discriminatory conduct;
+Spread Misinformation: Post false or misleading event or member information;
+Violate Privacy: Share another member’s personal information without consent;
+Disrupt the App: Attempt to hack, reverse-engineer, or damage the App’s functionality;
+Impersonate Others: Misrepresent your identity or role within the fraternity;
+Share Illegal Content: Post or promote illegal or inappropriate materials; or
+Spam Users: Send unsolicited or excessive communications.
+3.3 Content Standards
+All user content must:
+Reflect Delta Sigma Pi’s core values of service, scholarship, and brotherhood;
+Maintain professionalism suitable for a business and educational environment;
+Respect privacy, dignity, and intellectual property rights; and
+Comply with all copyright and fair use laws.
 
-### 3.3 Content Guidelines
-All user-generated content must:
-- Align with professional business fraternity values of service, scholarship, and brotherhood
-- Maintain professional standards appropriate for business networking environments
-- Respect the privacy and dignity of all members
-- Be appropriate for a professional and educational environment
-- Comply with intellectual property laws and fair use principles
-
-## 4. Privacy and Data Protection
-
-### 4.1 Data Collection
-Your use of the App is governed by our Privacy Policy, which is incorporated by reference into these Terms. Key points include:
-- Collection of membership and academic information for verification
-- Tracking of event attendance and achievement data
-- Secure storage and encryption of all personal information
-- Limited sharing only for legitimate fraternity purposes
-
-### 4.2 Communications
+4. Privacy and Data Protection
+4.1 Data Collection and Use
+Your use of the App is governed by our Privacy Policy, incorporated by reference into these Terms. Key data practices include:
+Collecting membership and academic information for verification;
+Tracking attendance and participation data;
+Securing all personal data using encryption and restricted access; and
+Sharing information only for legitimate fraternity and administrative purposes.
+4.2 Communications
 By using the App, you consent to receive:
-- Event notifications and chapter announcements
-- Technical updates and security alerts
-- Administrative communications from officers
-- Achievement notifications and milestone alerts
+Chapter and event notifications;
+Administrative communications from officers; and
+Achievement and technical updates.
+You may opt out of non-essential communications via your account settings.
 
-You may opt out of non-essential communications through your account settings.
+5. Intellectual Property Rights
+5.1 Ownership
+The DSP App, including its software, content, design, and features, is the exclusive property of the Delta Sigma Pi Gamma Sigma Chapter and its licensors, protected under intellectual property laws.
+5.2 User Content
+You retain ownership of your content but grant the fraternity a limited, non-exclusive, royalty-free license to:
+Display and process your data for App functionality;
+Share achievements and participation data with authorized officers; and
+Archive historical records for chapter documentation.
+5.3 Trademarks
+All Delta Sigma Pi logos, marks, and branding are protected property. You may not use them without prior written authorization.
 
-## 5. Intellectual Property Rights
-
-### 5.1 App Ownership
-The DSP App, including all content, features, and functionality, is owned by Delta Sigma Pi and protected by intellectual property laws. This includes:
-- Software code and architecture
-- User interface design and graphics
-- Professional business fraternity logos, symbols, and branding
-- Proprietary algorithms and features
-
-### 5.2 User Content
-You retain ownership of content you create but grant us a limited license to:
-- Display your content within the App for its intended purpose
-- Process your data to provide App functionality
-- Share your achievements and participation records with authorized officers
-- Archive historical records for chapter documentation
-
-### 5.3 Trademark Usage
-- Delta Sigma Pi trademarks and logos are protected intellectual property
-- You may not use professional business fraternity marks without explicit written permission
-- The App name and associated branding are proprietary to the organization
-
-## 6. Account Management and Termination
-
-### 6.1 Account Suspension
-We may suspend or restrict your account for:
-- Violation of these Terms or Community Guidelines
-- Inappropriate behavior reported by other members
-- Technical security concerns or suspicious activity
-- Loss of membership status or university enrollment
-
-### 6.2 Account Termination
+6. Account Management and Termination
+6.1 Suspension
+Your account may be suspended if you:
+Violate these Terms or Community Guidelines;
+Engage in misconduct or harassment;
+Pose a security risk; or
+Lose membership or enrollment eligibility.
+6.2 Termination
 Your account may be terminated for:
-- Serious or repeated violations of these Terms
-- Fraudulent activity or misuse of the platform
-- Request by chapter leadership or university administration
-- Graduation or departure from the fraternity
+Serious or repeated violations of these Terms;
+Fraudulent or unauthorized activity; or
+Official request by chapter leadership or the university.
+6.3 Data Handling
+Upon termination:
+Your personal data will be managed in accordance with the Privacy Policy;
+Historical records may be retained for chapter archives;
+You may request full data deletion, subject to legal and recordkeeping requirements; and
+All App access will be revoked immediately.
 
-### 6.3 Data After Termination
-Upon account termination:
-- Your personal data will be handled according to our Privacy Policy
-- Historical records may be retained for chapter archives
-- You may request complete data deletion subject to legal requirements
-- Access to all App features will be immediately revoked
+7. Disclaimers and Limitations of Liability
+7.1 Disclaimer of Warranties
+The App is provided “as is,” without warranties of any kind. Delta Sigma Pi Gamma Sigma Chapter does not guarantee:
+Error-free or uninterrupted service;
+Accuracy or reliability of all information; or
+Compatibility across all devices or systems.
+7.2 Limitation of Liability
+To the fullest extent permitted by law:
+The fraternity and its representatives are not liable for indirect, incidental, or consequential damages;
+Total liability will not exceed the amount paid for use of the App (if any); and
+We are not responsible for damages caused by user misconduct or third-party actions.
+7.3 Indemnification
+You agree to indemnify and hold harmless Delta Sigma Pi Gamma Sigma Chapter, its officers, and representatives against any claims, losses, or damages resulting from:
+Your use or misuse of the App;
+Your violation of these Terms or laws; or
+Infringement of third-party rights.
 
-## 7. Disclaimers and Limitations
+8. Dispute Resolution
+8.1 Informal Resolution
+Before initiating formal proceedings, parties agree to attempt good-faith resolution through:
+Direct discussion with chapter leadership; or
+Mediation under Delta Sigma Pi’s internal procedures.
+8.2 Formal Proceedings
+If a dispute cannot be resolved informally:
+Governing Law: These Terms are governed by the laws of the State of [Insert State].
+Jurisdiction: Exclusive jurisdiction lies with the courts of [Insert County/State].
+Arbitration: Certain disputes may be subject to binding arbitration.
+Class Action Waiver: Disputes must be brought individually, not as part of a class action.
 
-### 7.1 Service Disclaimers
-- The App is provided "as-is" without warranties of any kind
-- We do not guarantee accuracy of all information or features
-- Third-party integrations (calendars, etc.) are subject to their own terms
-- Event information should be verified through official chapter communications
+9. Updates and Modifications
+9.1 Changes to Terms
+We may modify these Terms from time to time. Material updates will be communicated at least 30 days before taking effect. Continued use after such updates constitutes acceptance of the new Terms.
+9.2 App Updates
+The App may receive updates that add, remove, or modify features. Some updates may be mandatory to maintain access.
 
-### 7.2 Limitation of Liability
-To the maximum extent permitted by law:
-- We are not liable for indirect, incidental, or consequential damages
-- Our total liability is limited to the amount you paid for the App (if any)
-- We are not responsible for damages caused by user misconduct
-- University-related or professional consequences are outside our liability scope
-
-### 7.3 Indemnification
-You agree to indemnify and hold harmless Delta Sigma Pi and its officers from:
-- Claims arising from your use of the App
-- Violations of these Terms or applicable laws
-- Infringement of third-party rights through your actions
-- Damages caused by your account being compromised due to your negligence
-
-## 8. Dispute Resolution
-
-### 8.1 Informal Resolution
-Before pursuing formal action, parties should attempt to resolve disputes through:
-- Direct communication with chapter leadership
-- Mediation through the professional business fraternity's established procedures
-- Good faith negotiation between involved parties
-
-### 8.2 Formal Procedures
-For unresolved disputes:
-- **Jurisdiction**: [State/Federal court jurisdiction to be specified]
-- **Governing Law**: Laws of [State to be specified]
-- **Class Action Waiver**: Individual claims only, no class action participation
-- **Arbitration**: Binding arbitration for certain types of disputes
-
-## 9. Updates and Modifications
-
-### 9.1 Terms Updates
-- We may modify these Terms with 30 days' notice for material changes
-- Minor updates may be implemented with shorter notice periods
-- Continued use after changes constitutes acceptance of new Terms
-- You may terminate your account if you disagree with modifications
-
-### 9.2 App Updates
-- Regular updates will be provided through official app stores
-- Some updates may be required for continued access
-- New features may be subject to additional terms or consent
-- Legacy versions may lose support and functionality over time
-
-## 10. Contact Information and Support
-
-### 10.1 Technical Support
-- **In-App Support**: Use the feedback system for technical issues
-- **Email Support**: support@deltasigmaphi.org
-- **Chapter Officers**: Contact your local technology coordinator
-
-### 10.2 Legal and Policy Questions
-- **Terms Questions**: legal@deltasigmaphi.org
-- **Privacy Concerns**: privacy@deltasigmaphi.org
-- **General Inquiries**: info@deltasigmaphi.org
-
-### 10.3 Emergency Contact
+10. Contact Information
+10.1 General Support
+Email: operationsdspgs@gmail.com
+In-App Support: Use the “Feedback” or “Contact Support” feature within the App.
+10.2 Legal & Privacy
+For legal or data-related questions:
+Email: operationsdspgs@gmail.com (Include “Legal Inquiry” or “Privacy Concern” in the subject line.)
+10.3 Emergency Contact
 For urgent security or safety concerns:
-- **Emergency Email**: security@deltasigmaphi.org
-- **Chapter Leadership**: Contact chapter officers immediately
-- **University Resources**: Utilize campus safety and support services
+Email: operationsdspgs@gmail.com
+Chapter Officers: Contact your chapter leadership or university safety services immediately.
 
-## 11. Miscellaneous Provisions
+11. Miscellaneous
+11.1 Entire Agreement
+These Terms, together with the Privacy Policy and Community Guidelines, form the entire agreement between you and the Delta Sigma Pi Gamma Sigma Chapter regarding the App.
+11.2 Severability
+If any provision is held invalid or unenforceable, the remaining provisions remain in effect.
+11.3 No Waiver
+Failure to enforce any right or provision does not constitute a waiver.
+11.4 Assignment
+You may not assign these Terms or any rights herein. The fraternity may assign its rights and obligations to affiliated entities or successors.
 
-### 11.1 Entire Agreement
-These Terms, along with our Privacy Policy and Community Guidelines, constitute the entire agreement between you and Delta Sigma Pi regarding the App.
-
-### 11.2 Severability
-If any provision of these Terms is found to be unenforceable, the remaining provisions will remain in full force and effect.
-
-### 11.3 No Waiver
-Our failure to enforce any provision does not constitute a waiver of that provision or any other part of these Terms.
-
-### 11.4 Assignment
-You may not assign your rights under these Terms. We may assign our rights and obligations to affiliated organizations or successors.
-
----
-
-**Effective Date**: October 16, 2025
-
-By using The DSP App, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service. If you have questions about any provision, please contact us before using the App.
-
-*These Terms are designed to protect both users and the fraternity organization while fostering a positive, safe, and productive environment for all members.*
+By using The DSP App, you acknowledge that you have read, understood, and agree to these Terms of Service.

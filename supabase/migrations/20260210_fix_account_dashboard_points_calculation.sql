@@ -1,5 +1,11 @@
--- Fix appealable_events to include host_name from created_by user_id
--- This fixes "Unknown Host" and ensures proper data structure
+-- ============================================================================
+-- Fix Account Dashboard Points Calculation
+-- ============================================================================
+-- Migration: 20260210_fix_account_dashboard_points_calculation
+-- Description: Update get_account_dashboard() to only count approved events,
+--              matching the logic used in president analytics which is correct.
+--              This ensures consistent point calculations across the app.
+-- ============================================================================
 
 CREATE OR REPLACE FUNCTION get_account_dashboard()
 RETURNS json
@@ -103,21 +109,29 @@ BEGIN
   LEFT JOIN users u ON u.user_id = e.created_by
   WHERE e.id IN (SELECT id FROM user_events);
 
-  -- 3. Calculate total points
-  SELECT COALESCE(SUM(e.point_value), 0) INTO v_total_points
-  FROM events e
-  WHERE EXISTS (
-    SELECT 1 FROM event_attendance ea
-    WHERE ea.event_id = e.id
-      AND ea.user_id = v_user_id
-      AND ea.attended_at IS NOT NULL
+  -- 3. Calculate total points (ONLY from APPROVED events like president analytics)
+  -- Use DISTINCT to ensure each event is counted only once even if duplicate attendance records exist
+  WITH user_approved_events AS (
+    SELECT DISTINCT e.id, e.point_value
+    FROM events e
+    WHERE e.status = 'approved'
+    AND (
+      EXISTS (
+        SELECT 1 FROM event_attendance ea
+        WHERE ea.event_id = e.id
+          AND ea.user_id = v_user_id
+          AND ea.attended_at IS NOT NULL
+      )
+      OR EXISTS (
+        SELECT 1 FROM point_appeal pa
+        WHERE pa.event_id = e.id
+          AND pa.user_id = v_user_id
+          AND pa.status = 'approved'
+      )
+    )
   )
-  OR EXISTS (
-    SELECT 1 FROM point_appeal pa
-    WHERE pa.event_id = e.id
-      AND pa.user_id = v_user_id
-      AND pa.status = 'approved'
-  );
+  SELECT COALESCE(SUM(point_value), 0) INTO v_total_points
+  FROM user_approved_events;
 
   -- 4. Calculate streaks
   WITH attendance_dates AS (
@@ -146,7 +160,7 @@ BEGIN
   INTO v_current_streak, v_longest_streak
   FROM streak_lengths;
 
-  -- 5. Calculate events this month and semester
+  -- 5. Calculate events this month and semester (only approved events)
   SELECT 
     COUNT(DISTINCT CASE WHEN e.start_time >= DATE_TRUNC('month', CURRENT_DATE) THEN e.id END),
     COUNT(DISTINCT CASE 
@@ -159,40 +173,50 @@ BEGIN
     END)
   INTO v_events_this_month, v_events_this_semester
   FROM events e
-  WHERE EXISTS (
+  WHERE e.status = 'approved'  -- ADDED: Only count approved events
+  AND EXISTS (
     SELECT 1 FROM event_attendance ea
     WHERE ea.event_id = e.id
       AND ea.user_id = v_user_id
       AND ea.attended_at IS NOT NULL
   );
 
-  -- 6. Calculate attendance rate
+  -- 6. Calculate attendance rate (only approved events)
   WITH total_events AS (
     SELECT COUNT(*) as total
     FROM events
     WHERE start_time < CURRENT_TIMESTAMP
+      AND status = 'approved'  -- ADDED: Only count approved events
   ),
   attended_events AS (
-    SELECT COUNT(DISTINCT event_id) as attended
-    FROM event_attendance
-    WHERE user_id = v_user_id
-      AND attended_at IS NOT NULL
+    SELECT COUNT(DISTINCT ea.event_id) as attended
+    FROM event_attendance ea
+    JOIN events e ON e.id = ea.event_id
+    WHERE ea.user_id = v_user_id
+      AND ea.attended_at IS NOT NULL
+      AND e.status = 'approved'  -- ADDED: Only count approved events
   )
   SELECT CASE WHEN te.total > 0 THEN (ae.attended::NUMERIC / te.total::NUMERIC * 100) ELSE 0 END
   INTO v_attendance_rate
   FROM total_events te, attended_events ae;
 
-  -- 7. Calculate rankings
+  -- 7. Calculate rankings (only approved events) - prevent duplicate counting
   WITH user_pledge_class AS (
     SELECT pledge_class FROM users WHERE user_id = v_user_id
+  ),
+  -- Get unique event attendances per user (removes duplicates)
+  unique_attendances AS (
+    SELECT DISTINCT user_id, event_id
+    FROM event_attendance
+    WHERE attended_at IS NOT NULL
   ),
   pledge_class_points AS (
     SELECT 
       u.user_id,
       COALESCE(SUM(e.point_value), 0) as total_points
     FROM users u
-    LEFT JOIN event_attendance ea ON ea.user_id = u.user_id AND ea.attended_at IS NOT NULL
-    LEFT JOIN events e ON e.id = ea.event_id
+    LEFT JOIN unique_attendances ea ON ea.user_id = u.user_id
+    LEFT JOIN events e ON e.id = ea.event_id AND e.status = 'approved'
     WHERE u.pledge_class = (SELECT pledge_class FROM user_pledge_class)
     GROUP BY u.user_id
   ),
@@ -201,8 +225,8 @@ BEGIN
       u.user_id,
       COALESCE(SUM(e.point_value), 0) as total_points
     FROM users u
-    LEFT JOIN event_attendance ea ON ea.user_id = u.user_id AND ea.attended_at IS NOT NULL
-    LEFT JOIN events e ON e.id = ea.event_id
+    LEFT JOIN unique_attendances ea ON ea.user_id = u.user_id
+    LEFT JOIN events e ON e.id = ea.event_id AND e.status = 'approved'
     GROUP BY u.user_id
   )
   SELECT 
@@ -218,20 +242,36 @@ BEGIN
       v_total_points as user_points,
       v_events_this_semester as events_this_semester,
       v_events_this_month as events_this_month,
-      v_longest_streak as longest_streak
+      v_longest_streak as longest_streak,
+      v_current_streak as current_streak,
+      v_attendance_rate as attendance_rate,
+      v_rank_in_pledge_class as rank_in_pledge_class
   )
   SELECT json_agg(achievement) INTO v_unlocked_achievements
   FROM (
-    SELECT 'first_event' as achievement FROM user_achievement_progress WHERE events_this_semester >= 1
+    -- Event milestones
+    SELECT 'first_timer' as achievement FROM user_achievement_progress WHERE events_this_semester >= 1
     UNION ALL
-    SELECT 'five_events' as achievement FROM user_achievement_progress WHERE events_this_semester >= 5
+    SELECT 'ten_strong' as achievement FROM user_achievement_progress WHERE events_this_semester >= 10
     UNION ALL
-    SELECT 'ten_events' as achievement FROM user_achievement_progress WHERE events_this_semester >= 10
+    SELECT 'dedicated_member' as achievement FROM user_achievement_progress WHERE events_this_semester >= 15
     UNION ALL
-    SELECT 'two_dozen' as achievement FROM user_achievement_progress WHERE events_this_semester >= 24
+    SELECT 'silver_brother' as achievement FROM user_achievement_progress WHERE events_this_semester >= 25
     UNION ALL
-    SELECT 'half_century' as achievement FROM user_achievement_progress WHERE events_this_semester >= 50
+    SELECT 'gold_brother' as achievement FROM user_achievement_progress WHERE events_this_semester >= 50
     UNION ALL
+    SELECT 'diamond_brother' as achievement FROM user_achievement_progress WHERE events_this_semester >= 100
+    UNION ALL
+    -- Streaks
+    SELECT 'streak_starter' as achievement FROM user_achievement_progress WHERE longest_streak >= 3
+    UNION ALL
+    SELECT 'iron_brother' as achievement FROM user_achievement_progress WHERE longest_streak >= 10
+    UNION ALL
+    SELECT 'unstoppable' as achievement FROM user_achievement_progress WHERE longest_streak >= 20
+    UNION ALL
+    SELECT 'legend_streak' as achievement FROM user_achievement_progress WHERE longest_streak >= 30
+    UNION ALL
+    -- Points
     SELECT 'points_50' as achievement FROM user_achievement_progress WHERE user_points >= 50
     UNION ALL
     SELECT 'points_100' as achievement FROM user_achievement_progress WHERE user_points >= 100
@@ -240,7 +280,16 @@ BEGIN
     UNION ALL
     SELECT 'points_500' as achievement FROM user_achievement_progress WHERE user_points >= 500
     UNION ALL
-    SELECT 'monthly_hero' as achievement FROM user_achievement_progress WHERE events_this_month >= 5
+    -- Monthly
+    SELECT 'monthly_champion' as achievement FROM user_achievement_progress WHERE events_this_month >= 5
+    UNION ALL
+    -- Attendance rate
+    SELECT 'punctual_pro' as achievement FROM user_achievement_progress WHERE attendance_rate >= 75
+    UNION ALL
+    SELECT 'perfect_semester' as achievement FROM user_achievement_progress WHERE attendance_rate >= 100
+    UNION ALL
+    -- Rankings
+    SELECT 'top_3' as achievement FROM user_achievement_progress WHERE rank_in_pledge_class <= 3 AND rank_in_pledge_class > 0
   ) unlocked;
 
   v_unlocked_achievements := COALESCE(v_unlocked_achievements, '[]'::json);
@@ -258,7 +307,8 @@ BEGIN
   )), '[]'::json) INTO v_appealable_events
   FROM events e
   LEFT JOIN users u ON u.user_id = e.created_by
-  WHERE e.start_time < CURRENT_TIMESTAMP
+  WHERE e.status = 'approved'  -- ADDED: Only show approved events
+    AND e.start_time < CURRENT_TIMESTAMP
     AND NOT EXISTS (
       SELECT 1 FROM event_attendance ea
       WHERE ea.event_id = e.id 
@@ -299,14 +349,15 @@ BEGIN
   LEFT JOIN events e ON e.id = pa.event_id
   WHERE pa.user_id = v_user_id;
 
-  -- 11. Get monthly progress (last 6 months)
+  -- 11. Get monthly progress (last 6 months) - only approved events
   WITH monthly_data AS (
     SELECT 
       DATE_TRUNC('month', e.start_time) as month_date,
       e.point_value,
       e.id as event_id
     FROM events e
-    WHERE e.start_time >= CURRENT_DATE - INTERVAL '6 months'
+    WHERE e.status = 'approved'  -- ADDED: Only count approved events
+      AND e.start_time >= CURRENT_DATE - INTERVAL '6 months'
       AND e.start_time < CURRENT_TIMESTAMP
       AND EXISTS (
         SELECT 1 FROM event_attendance ea
@@ -357,4 +408,4 @@ $$;
 
 GRANT EXECUTE ON FUNCTION get_account_dashboard() TO authenticated;
 
-COMMENT ON FUNCTION get_account_dashboard() IS 'Returns account dashboard data with host_name in appealable_events. Each event attendance or approved appeal awards the event point_value.';
+COMMENT ON FUNCTION get_account_dashboard() IS 'Returns account dashboard data. Updated to only count approved events for point calculations, matching president analytics logic.';

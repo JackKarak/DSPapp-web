@@ -124,7 +124,7 @@ export default function SignupScreen() {
         // Check pledge table for pledges
         // Use LIKE to handle any whitespace in database
         const { data: pledgeResults, error: pledgeError } = await supabase
-          .from('pledge')
+          .from('pledges')
           .select('*')
           .ilike('phone_number', phoneNum)
           .ilike('UID', uidNum);
@@ -422,7 +422,7 @@ export default function SignupScreen() {
       }
 
       // Delete the brother/pledge record since they're now in the users table
-      const tableName = role === 'pledge' ? 'pledge' : 'brother';
+      const tableName = role === 'pledge' ? 'pledges' : 'brother';
       const { error: deleteError } = await supabase
         .from(tableName)
         .delete()

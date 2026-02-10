@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { EventFeedbackModal } from '../../components/AccountModals/EventFeedbackModal';
 
 // EST timezone helpers
 const formatDateTimeInEST = (dateString: string) => {
@@ -41,9 +42,59 @@ const getCurrentTimeInEST = () => {
 
 type CheckInState = 'idle' | 'validating' | 'submitting' | 'success';
 
+interface FeedbackEvent {
+  id: string;
+  title: string;
+  date: string;
+  host_name: string;
+}
+
 export default function AttendanceScreen() {
   const [code, setCode] = useState('');
   const [state, setState] = useState<CheckInState>('idle');
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  // Check user role on mount
+  React.useEffect(() => {
+    async function checkRole() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('users')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+
+      if (data) {
+        setUserRole(data.role);
+      }
+    }
+    checkRole();
+  }, []);
+
+  // Block access for alumni and abroad
+  if (userRole === 'alumni' || userRole === 'abroad') {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Access Restricted</Text>
+        <Text style={[styles.loadingText, { textAlign: 'center' }]}>
+          Alumni and abroad members cannot record attendance.
+        </Text>
+      </View>
+    );
+  }
+  
+  // Feedback modal state
+  const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
+  const [selectedFeedbackEvent, setSelectedFeedbackEvent] = useState<FeedbackEvent | null>(null);
+  const [feedbackData, setFeedbackData] = useState({
+    rating: 5,
+    would_attend_again: null as boolean | null,
+    well_organized: null as boolean | null,
+    comments: '',
+  });
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
   const handleSubmit = useCallback(async () => {
     if (!code.trim()) {
@@ -144,6 +195,15 @@ export default function AttendanceScreen() {
       Alert.alert('✅ Success', `${userName}, you have been marked present for "${event.title}".`);
       setCode('');
       setState('idle');
+      
+      // Show feedback modal
+      setSelectedFeedbackEvent({
+        id: event.id,
+        title: event.title,
+        date: event.start_time,
+        host_name: 'Event Host'
+      });
+      setFeedbackModalVisible(true);
 
     } catch (error) {
       console.error('Check-in error:', error);
@@ -155,6 +215,55 @@ export default function AttendanceScreen() {
     }
   }, [code]);
 
+  const handleUpdateFeedback = useCallback((field: string, value: any) => {
+    setFeedbackData(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleSubmitFeedback = useCallback(async () => {
+    try {
+      if (!selectedFeedbackEvent) return;
+
+      setSubmittingFeedback(true);
+
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        Alert.alert('Error', 'Authentication required.');
+        return;
+      }
+
+      const { error: insertError } = await supabase
+        .from('event_feedback')
+        .insert({
+          user_id: user.id,
+          event_id: selectedFeedbackEvent.id,
+          rating: feedbackData.rating,
+          comments: feedbackData.comments.trim(),
+          would_attend_again: feedbackData.would_attend_again,
+          well_organized: feedbackData.well_organized,
+        });
+
+      if (insertError) throw insertError;
+
+      Alert.alert('Thank You!', 'Your feedback has been submitted.');
+      
+      // Reset form
+      setFeedbackData({ 
+        rating: 5, 
+        would_attend_again: null, 
+        well_organized: null, 
+        comments: '' 
+      });
+      setFeedbackModalVisible(false);
+      setSelectedFeedbackEvent(null);
+    } catch (err) {
+      console.error('Error submitting feedback:', err);
+      Alert.alert('Error', 'Failed to submit feedback. Please try again.');
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  }, [feedbackData, selectedFeedbackEvent]);
+
   const isLoading = state === 'validating' || state === 'submitting';
 
   return (
@@ -162,7 +271,7 @@ export default function AttendanceScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}
     >
-      <Text style={styles.title}>📲 Attendance Check-In</Text>
+      <Text style={styles.title}>Attendance Check-In</Text>
 
       {isLoading && (
         <View style={styles.loadingContainer}>
@@ -192,6 +301,26 @@ export default function AttendanceScreen() {
           {isLoading ? 'Processing...' : 'Submit'}
         </Text>
       </TouchableOpacity>
+
+      {/* Event Feedback Modal */}
+      <EventFeedbackModal
+        visible={feedbackModalVisible}
+        event={selectedFeedbackEvent}
+        onClose={() => {
+          setFeedbackModalVisible(false);
+          setSelectedFeedbackEvent(null);
+          setFeedbackData({ 
+            rating: 5, 
+            would_attend_again: null, 
+            well_organized: null, 
+            comments: '' 
+          });
+        }}
+        onSubmit={handleSubmitFeedback}
+        feedbackData={feedbackData}
+        onUpdateFeedback={handleUpdateFeedback}
+        submitting={submittingFeedback}
+      />
     </KeyboardAvoidingView>
   );
 }

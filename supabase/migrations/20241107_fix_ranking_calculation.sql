@@ -40,8 +40,8 @@ BEGIN
   v_this_month := DATE_TRUNC('month', CURRENT_DATE AT TIME ZONE 'America/New_York');
   v_this_semester := CASE 
     WHEN EXTRACT(MONTH FROM CURRENT_DATE) >= 8 
-    THEN DATE_TRUNC('year', CURRENT_DATE) + INTERVAL '7 months' -- August
-    ELSE DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '4 months' -- August of previous year
+    THEN DATE_TRUNC('year', CURRENT_DATE) + INTERVAL '7 months' -- August 1
+    ELSE DATE_TRUNC('year', CURRENT_DATE) -- January 1
   END;
 
   -- 1. Get user profile

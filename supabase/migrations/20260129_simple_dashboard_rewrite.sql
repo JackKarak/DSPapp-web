@@ -88,22 +88,31 @@ BEGIN
         'currentStreak', 0,
         'longestStreak', 0,
         'eventsThisMonth', (
-          SELECT COUNT(DISTINCT event_id)
-          FROM event_attendance
-          WHERE user_id = v_user_id 
-            AND attended_at IS NOT NULL
-            AND attended_at >= DATE_TRUNC('month', CURRENT_DATE)
+          SELECT COUNT(DISTINCT e.id)
+          FROM events e
+          WHERE EXISTS (
+            SELECT 1 FROM event_attendance ea
+            WHERE ea.event_id = e.id
+              AND ea.user_id = v_user_id
+              AND ea.attended_at IS NOT NULL
+          )
+            AND e.start_time >= DATE_TRUNC('month', CURRENT_DATE)
         ),
         'eventsThisSemester', (
-          SELECT COUNT(DISTINCT event_id)
-          FROM event_attendance
-          WHERE user_id = v_user_id 
-            AND attended_at IS NOT NULL
-            AND attended_at >= DATE_TRUNC('year', CURRENT_DATE) + 
+          SELECT COUNT(DISTINCT e.id)
+          FROM events e
+          WHERE EXISTS (
+            SELECT 1 FROM event_attendance ea
+            WHERE ea.event_id = e.id
+              AND ea.user_id = v_user_id
+              AND ea.attended_at IS NOT NULL
+          )
+            AND e.start_time >= (
               CASE WHEN EXTRACT(MONTH FROM CURRENT_DATE) >= 8 
-              THEN INTERVAL '7 months' 
-              ELSE INTERVAL '-5 months' 
+              THEN DATE_TRUNC('year', CURRENT_DATE) + INTERVAL '7 months'
+              ELSE DATE_TRUNC('year', CURRENT_DATE)
               END
+            )
         ),
         'attendanceRate', (
           SELECT CASE 
