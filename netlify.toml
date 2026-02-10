@@ -5,6 +5,9 @@
 
 [build]
   publish = "dist"
+  command = "expo export -p web"
   
 [build.environment]
   NODE_ENV = "production"
+  # Tell Netlify to ignore Supabase anon key - it's intentionally public
+  SECRETS_SCAN_OMIT_KEYS = "EXPO_PUBLIC_SUPABASE_ANON_KEY"
