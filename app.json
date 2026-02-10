@@ -90,7 +90,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/images/favicon.png",
+      "favicon": "./assets/images/COA.png",
       "build": {
         "babel": {
           "include": ["@supabase/supabase-js"]
