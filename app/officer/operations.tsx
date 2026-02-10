@@ -82,7 +82,7 @@ export default function OperationsScreen() {
       const { data, error } = await supabase
         .from('users')
         .select('user_id, first_name, last_name, email, role, officer_position')
-        .in('role', ['brother', 'officer'])
+        .in('role', ['brother', 'officer', 'president'])
         .order('last_name');
 
       if (error) throw error;

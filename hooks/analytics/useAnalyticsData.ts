@@ -22,10 +22,11 @@ export function useAnalyticsData() {
       abortControllerRef.current = new AbortController();
 
       // Fetch ALL members with role='brother' or 'officer' for analytics (no pagination)
+      // Exclude alumni and abroad from analytics
       const { data, error, count } = await supabase
         .from('users')
         .select('*', { count: 'exact' })
-        .in('role', ['brother', 'officer'])
+        .in('role', ['brother', 'officer', 'president'])
         .order('last_name', { ascending: true });
 
       if (error) throw error;

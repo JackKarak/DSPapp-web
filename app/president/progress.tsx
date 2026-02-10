@@ -52,10 +52,11 @@ export default function MemberProgressScreen() {
 
   const fetchMemberProgress = async () => {
     try {
-      // Fetch all members (including officers)
+      // Fetch all members (brothers and officers only)
       const { data: members, error: membersError } = await supabase
         .from('users')
         .select('user_id, first_name, last_name, pledge_class')
+        .in('role', ['brother', 'officer'])
         .order('last_name');
 
       if (membersError) throw membersError;
@@ -80,13 +81,6 @@ export default function MemberProgressScreen() {
 
       if (attendanceError) throw attendanceError;
 
-      // Fetch all registrations
-      const { data: registrations, error: regError } = await supabase
-        .from('event_registration')
-        .select('user_id, event_id');
-
-      if (regError) throw regError;
-
       // Fetch approved appeals
       const { data: appeals, error: appealsError } = await supabase
         .from('point_appeal')
@@ -94,6 +88,7 @@ export default function MemberProgressScreen() {
           user_id,
           event_id,
           events!inner(
+            id,
             point_type,
             point_value
           )
@@ -105,20 +100,10 @@ export default function MemberProgressScreen() {
       console.log('Progress data fetched:', {
         membersCount: members?.length,
         attendanceCount: attendance?.length,
-        registrationsCount: registrations?.length,
         appealsCount: appeals?.length,
         sampleAttendance: attendance?.[0],
         categoriesCount: categories.length,
         categoryNames: categories.map(c => c.display_name)
-      });
-
-      // Create registration map for bonus calculation
-      const registrationMap = new Map<string, Set<string>>();
-      registrations?.forEach(reg => {
-        if (!registrationMap.has(reg.user_id)) {
-          registrationMap.set(reg.user_id, new Set());
-        }
-        registrationMap.get(reg.user_id)?.add(reg.event_id);
       });
 
       // Calculate points for each member
@@ -174,6 +159,7 @@ export default function MemberProgressScreen() {
 
           if (categoryPoints[category] !== undefined) {
             categoryPoints[category] += points;
+            countedEvents.add(event.id); // Add to set to prevent double counting
           }
         });
 

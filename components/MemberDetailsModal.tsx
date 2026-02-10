@@ -271,7 +271,7 @@ export const MemberDetailsModal: React.FC<MemberDetailsModalProps> = ({
                   <View style={styles.editRow}>
                     <Text style={styles.editLabel}>Role *</Text>
                     <View style={styles.roleButtons}>
-                      {['brother', 'pledge', 'officer', 'admin'].map((role) => (
+                      {['brother', 'pledge', 'officer', 'admin', 'alumni', 'abroad'].map((role) => (
                         <TouchableOpacity
                           key={role}
                           style={[

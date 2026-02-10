@@ -29,7 +29,7 @@ export function useHealthMetrics(
     const safeEvents = events || [];
     
     // Total members: brothers and officers only
-    const brothers = members.filter(m => m.role === 'brother' || m.role === 'officer');
+    const brothers = members.filter(m => m.role === 'brother' || m.role === 'officer' || m.role === 'president');
     const totalMembers = brothers.length;
     
     // Active members: attended at least 1 event OR 5% of events (whichever is greater)

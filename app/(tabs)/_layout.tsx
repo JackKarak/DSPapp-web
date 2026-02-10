@@ -14,6 +14,26 @@ export const unstable_settings = {
 export default function BrotherLayout() {
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  // Fetch user role to conditionally show tabs
+  useEffect(() => {
+    async function fetchRole() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('users')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+
+      if (data) {
+        setUserRole(data.role);
+      }
+    }
+    fetchRole();
+  }, []);
 
   // Monitor auth state changes - auto logout if signed out elsewhere
   useEffect(() => {
@@ -182,6 +202,9 @@ export default function BrotherLayout() {
     headerShown: true,
   }), [renderAccountIcon]);
 
+  // Check if user can access attendance (exclude alumni and abroad)
+  const canAccessAttendance = userRole !== 'alumni' && userRole !== 'abroad';
+
   return (
     <ErrorBoundary>
       <Tabs screenOptions={screenOptions}>
@@ -190,10 +213,12 @@ export default function BrotherLayout() {
           name="index" 
           options={calendarOptions} 
         />
-        <Tabs.Screen 
-          name="attendance" 
-          options={attendanceOptions} 
-        />
+        {canAccessAttendance && (
+          <Tabs.Screen 
+            name="attendance" 
+            options={attendanceOptions} 
+          />
+        )}
         <Tabs.Screen 
           name="points" 
           options={pointsOptions}

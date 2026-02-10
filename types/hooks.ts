@@ -13,7 +13,7 @@ export interface UserProfile {
   email: string | null;
   phone_number: string | null;
   uid: string | null;
-  role: 'pledge' | 'brother' | 'officer' | 'president' | null;
+  role: 'pledge' | 'brother' | 'officer' | 'president' | 'alumni' | 'abroad' | null;
   majors: string | null;
   minors: string | null;
   house_membership: string | null;

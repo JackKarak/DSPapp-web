@@ -65,6 +65,10 @@ export default function OfficerLayout() {
       case 'vp_operations':
         return new Set([...baseTabs, 'members', 'operations']);
         
+      // VP Pledge Ed gets additional pledges tab
+      case 'vp_pledge_ed':
+        return new Set([...baseTabs, 'pledges']);
+        
       // All other officers get base tabs
       default:
         return new Set(baseTabs);
@@ -81,6 +85,7 @@ export default function OfficerLayout() {
     { name: 'historian', title: 'Marketing', icon: 'megaphone-outline' as const, path: '/officer/historian' },
     { name: 'members', title: 'Members', icon: 'people-outline' as const, path: '/officer/members' },
     { name: 'operations', title: 'Operations', icon: 'construct-outline' as const, path: '/officer/operations' },
+    { name: 'pledges', title: 'Pledges', icon: 'school-outline' as const, path: '/officer/pledges' },
     { name: 'officerspecs', title: 'Officer Control', icon: 'settings-outline' as const, hidden: true },
   ], []);
 

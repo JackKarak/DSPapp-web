@@ -172,13 +172,13 @@ BEGIN
   END IF;
 
   -- Calculate time boundaries
-  v_this_month := date_trunc('month', CURRENT_TIMESTAMP);
+  v_this_month := DATE_TRUNC('month', CURRENT_TIMESTAMP);
   v_this_semester := 
     CASE 
       WHEN EXTRACT(MONTH FROM CURRENT_TIMESTAMP) >= 8 THEN 
-        date_trunc('year', CURRENT_TIMESTAMP) + INTERVAL '7 months'
+        DATE_TRUNC('year', CURRENT_TIMESTAMP) + INTERVAL '7 months'
       ELSE 
-        date_trunc('year', CURRENT_TIMESTAMP)
+        DATE_TRUNC('year', CURRENT_TIMESTAMP)
     END;
 
   -- 1. Get recent events with attendance info

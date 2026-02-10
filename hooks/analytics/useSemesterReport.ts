@@ -123,7 +123,7 @@ export function useSemesterReport() {
         supabase
           .from('users')
           .select('user_id, first_name, last_name, role, officer_position, pledge_class, expected_graduation, majors, gender, pronouns, race, living_type, house_membership')
-          .in('role', ['brother', 'officer']),
+          .in('role', ['brother', 'officer', 'president']),
         
         // Events
         supabase
@@ -176,7 +176,7 @@ export function useSemesterReport() {
 
       // Calculate metrics
       const totalMembers = members.length;
-      const activeMembers = members.filter(m => m.role === 'brother' || m.role === 'officer').length;
+      const activeMembers = members.filter(m => m.role === 'brother' || m.role === 'officer' || m.role === 'president').length;
       const newMembers = 0; // Would need registration/created_at data to calculate
 
       // Event statistics

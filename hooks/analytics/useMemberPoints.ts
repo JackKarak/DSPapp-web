@@ -36,14 +36,6 @@ export function useMemberPoints() {
 
       if (attendanceError) throw attendanceError;
 
-      // Fetch registrations to calculate bonus points
-      const { data: registrations, error: regError } = await supabase
-        .from('event_registration')
-        .select('event_id')
-        .eq('user_id', userId);
-
-      if (regError) throw regError;
-
       // Fetch approved appeals
       const { data: appeals, error: appealsError } = await supabase
         .from('point_appeal')
@@ -58,9 +50,6 @@ export function useMemberPoints() {
         .eq('status', 'approved');
 
       if (appealsError) throw appealsError;
-
-      // Create a set of registered event IDs
-      const registeredEventIds = new Set(registrations?.map(r => r.event_id) || []);
 
       // Initialize category totals
       const categoryPoints: Record<string, number> = {

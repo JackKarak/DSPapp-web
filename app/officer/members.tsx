@@ -256,7 +256,7 @@ export default function MembersScreen() {
         onPress={() => setFilterType('brothers')}
       >
         <Text style={[styles.filterText, filterType === 'brothers' && styles.filterTextActive]}>
-          Brothers ({members.filter(m => m.role === 'brother' && !m.officer_position).length})
+          Brothers ({members.filter(m => (m.role === 'brother' || m.role === 'president') && !m.officer_position).length})
         </Text>
       </TouchableOpacity>
       <TouchableOpacity

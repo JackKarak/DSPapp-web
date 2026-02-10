@@ -164,12 +164,12 @@ BEGIN
       THEN e.id 
     END),
     COUNT(DISTINCT CASE 
-      WHEN e.start_time >= DATE_TRUNC('year', CURRENT_DATE) + 
+      WHEN e.start_time >= (
         CASE WHEN EXTRACT(MONTH FROM CURRENT_DATE) >= 8 
-        THEN INTERVAL '7 months' 
-        ELSE INTERVAL '-5 months' 
+        THEN DATE_TRUNC('year', CURRENT_DATE) + INTERVAL '7 months'
+        ELSE DATE_TRUNC('year', CURRENT_DATE)
         END
-      THEN e.id 
+      ) THEN e.id 
     END)
   INTO v_events_this_month, v_events_this_semester
   FROM events e

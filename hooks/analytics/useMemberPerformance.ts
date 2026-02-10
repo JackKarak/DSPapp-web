@@ -47,7 +47,7 @@ export function useMemberPerformance(
     const performance: MemberPerformance[] = [];
     memberStats.forEach((stats, userId) => {
       const member = memberLookup.get(userId);
-      if (member && (member.role === 'brother' || member.role === 'officer' || member.role === 'president')) {
+      if (member && (member.role === 'brother' || member.role === 'officer' || member.role === 'president') && member.role !== 'alumni' && member.role !== 'abroad') {
         performance.push({
           userId,
           name: `${member.first_name} ${member.last_name}`,

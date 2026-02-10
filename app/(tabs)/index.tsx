@@ -329,6 +329,12 @@ export default function CalendarTab() {
       return;
     }
 
+    // Block registration for alumni and abroad
+    if (state.userRole === 'alumni' || state.userRole === 'abroad') {
+      Alert.alert('Registration Restricted', 'Alumni and abroad members cannot register for events.');
+      return;
+    }
+
     try {
       const { error } = await supabase.from('event_registration').insert({
         user_id: state.userId,
