@@ -4,6 +4,7 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
+    Platform,
     RefreshControl,
     StyleSheet,
     Text,
@@ -17,6 +18,20 @@ import { checkAuthentication, handleAuthenticationRedirect } from '../../lib/aut
 import { formatDateInEST } from '../../lib/dateUtils';
 import { supabase } from '../../lib/supabase';
 import { PointAppeal } from '../../types/account';
+
+// Cross-platform prompt helper
+const showPrompt = (title: string, message: string, callback: (text: string) => void) => {
+  if (Platform.OS === 'web') {
+    // Use browser's native prompt on web
+    const response = window.prompt(`${title}\n\n${message}`);
+    if (response !== null) {
+      callback(response);
+    }
+  } else {
+    // Use Alert.prompt on native platforms
+    Alert.prompt(title, message, callback, 'plain-text');
+  }
+};
 
 // Enhanced type with pre-computed fields
 interface EnrichedAppeal extends PointAppeal {
@@ -396,11 +411,10 @@ export default function PointAppealsManagement() {
           <TouchableOpacity
             style={[styles.actionButton, styles.approveButton]}
             onPress={() => {
-              Alert.prompt(
+              showPrompt(
                 'Approve Appeal',
                 'Optional response to user:',
-                (response) => handleAppealDecision(item.id, 'approved', response),
-                'plain-text'
+                (response) => handleAppealDecision(item.id, 'approved', response)
               );
             }}
           >
@@ -410,7 +424,7 @@ export default function PointAppealsManagement() {
           <TouchableOpacity
             style={[styles.actionButton, styles.denyButton]}
             onPress={() => {
-              Alert.prompt(
+              showPrompt(
                 'Deny Appeal',
                 'Reason for denial:',
                 (response) => {
@@ -419,8 +433,7 @@ export default function PointAppealsManagement() {
                   } else {
                     Alert.alert('Error', 'Please provide a reason for denial.');
                   }
-                },
-                'plain-text'
+                }
               );
             }}
           >
